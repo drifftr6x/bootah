@@ -37,7 +37,7 @@ export default function CapturePage() {
   const [captureForm, setCaptureForm] = useState({
     name: "",
     description: "",
-    deviceId: "",
+    deviceId: "any",
     sourceDevice: "/dev/sda",
     compression: "gzip" as const,
     excludeSwap: true,
@@ -218,7 +218,7 @@ export default function CapturePage() {
                       <SelectValue placeholder="Select device or leave blank for any PXE client" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Any PXE Client</SelectItem>
+                      <SelectItem value="any">Any PXE Client</SelectItem>
                       {devices.map((device) => (
                         <SelectItem key={device.id} value={device.id}>
                           {device.name} ({device.macAddress})

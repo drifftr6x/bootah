@@ -249,7 +249,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         id: `cap-${Date.now()}`,
         name,
         description: description || "",
-        deviceId: deviceId || null,
+        deviceId: deviceId === "any" ? null : deviceId,
         sourceDevice: sourceDevice || "/dev/sda",
         compression: compression || "gzip",
         excludeSwap: excludeSwap !== false,
