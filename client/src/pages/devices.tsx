@@ -10,6 +10,9 @@ import { useToast } from "@/hooks/use-toast";
 import type { Device } from "@shared/schema";
 import { Plus, Search, Monitor, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import AddDeviceDialog from "@/components/dialogs/add-device-dialog";
+import StartDeploymentDialog from "@/components/dialogs/start-deployment-dialog";
+import AdvancedFilters, { type FilterOption, type ActiveFilter } from "@/components/search/advanced-filters";
 
 function getStatusColor(status: string) {
   switch (status) {
@@ -28,6 +31,10 @@ function getStatusColor(status: string) {
 
 export default function Devices() {
   const [searchTerm, setSearchTerm] = useState("");
+  const [activeFilters, setActiveFilters] = useState<ActiveFilter[]>([]);
+  const [showAddDialog, setShowAddDialog] = useState(false);
+  const [showDeployDialog, setShowDeployDialog] = useState(false);
+  const [selectedDeviceId, setSelectedDeviceId] = useState<string>("");
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -56,11 +63,62 @@ export default function Devices() {
     },
   });
 
-  const filteredDevices = devices?.filter(device =>
-    device.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    device.macAddress.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    device.ipAddress?.toLowerCase().includes(searchTerm.toLowerCase())
-  ) || [];
+  // Filter options for devices
+  const filterOptions: FilterOption[] = [
+    {
+      key: "status",
+      label: "Status",
+      type: "select",
+      options: [
+        { value: "online", label: "Online" },
+        { value: "offline", label: "Offline" },
+        { value: "deploying", label: "Deploying" },
+        { value: "idle", label: "Idle" },
+      ],
+    },
+    {
+      key: "manufacturer",
+      label: "Manufacturer",
+      type: "text",
+      placeholder: "e.g., Dell, HP, Lenovo",
+    },
+    {
+      key: "lastSeen",
+      label: "Last Seen",
+      type: "date",
+    },
+  ];
+
+  const filteredDevices = devices?.filter(device => {
+    // Text search filter
+    const matchesSearch = !searchTerm || 
+      device.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      device.macAddress.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      device.ipAddress?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      device.manufacturer?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      device.model?.toLowerCase().includes(searchTerm.toLowerCase());
+
+    // Advanced filters
+    const matchesFilters = activeFilters.every(filter => {
+      switch (filter.key) {
+        case "status":
+          return device.status === filter.value;
+        case "manufacturer":
+          return device.manufacturer?.toLowerCase().includes(filter.value.toLowerCase());
+        case "lastSeen":
+          if (!device.lastSeen) return false;
+          const [fromStr, toStr] = filter.value.split("|");
+          const from = new Date(fromStr);
+          const to = new Date(toStr);
+          const lastSeen = new Date(device.lastSeen);
+          return lastSeen >= from && lastSeen <= to;
+        default:
+          return true;
+      }
+    });
+
+    return matchesSearch && matchesFilters;
+  }) || [];
 
   return (
     <>
@@ -70,22 +128,27 @@ export default function Devices() {
       />
       
       <main className="flex-1 overflow-y-auto p-6">
-        {/* Search and Actions */}
-        <div className="flex items-center justify-between mb-6">
-          <div className="relative w-64">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
-            <Input
-              placeholder="Search devices..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10"
-              data-testid="input-search-devices"
-            />
+        {/* Advanced Search and Actions */}
+        <div className="space-y-4 mb-6">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold">Device Management</h2>
+            <Button 
+              onClick={() => setShowAddDialog(true)}
+              data-testid="button-add-device"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Add Device
+            </Button>
           </div>
-          <Button data-testid="button-add-device">
-            <Plus className="w-4 h-4 mr-2" />
-            Add Device
-          </Button>
+          
+          <AdvancedFilters
+            searchTerm={searchTerm}
+            onSearchChange={setSearchTerm}
+            filterOptions={filterOptions}
+            activeFilters={activeFilters}
+            onFilterChange={setActiveFilters}
+            placeholder="Search devices by name, MAC, IP, manufacturer..."
+          />
         </div>
 
         {/* Devices Grid */}
@@ -182,8 +245,12 @@ export default function Devices() {
                     <Button 
                       variant="outline" 
                       size="sm"
+                      onClick={() => {
+                        setSelectedDeviceId(device.id);
+                        setShowDeployDialog(true);
+                      }}
+                      disabled={device.status === "deploying" || (device.status !== "online" && device.status !== "idle")}
                       data-testid={`button-deploy-${device.id}`}
-                      disabled={device.status === "deploying"}
                     >
                       Deploy
                     </Button>
@@ -203,6 +270,19 @@ export default function Devices() {
             ))}
           </div>
         )}
+
+        {/* Add Device Dialog */}
+        <AddDeviceDialog 
+          open={showAddDialog} 
+          onOpenChange={setShowAddDialog} 
+        />
+        
+        {/* Start Deployment Dialog */}
+        <StartDeploymentDialog 
+          open={showDeployDialog} 
+          onOpenChange={setShowDeployDialog}
+          preselectedDeviceId={selectedDeviceId}
+        />
       </main>
     </>
   );

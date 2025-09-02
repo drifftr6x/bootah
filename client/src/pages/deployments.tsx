@@ -7,7 +7,9 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { DeploymentWithDetails } from "@shared/schema";
-import { Zap, StopCircle } from "lucide-react";
+import { Zap, StopCircle, Plus } from "lucide-react";
+import { useState } from "react";
+import StartDeploymentDialog from "@/components/dialogs/start-deployment-dialog";
 
 function getStatusColor(status: string) {
   switch (status) {
@@ -40,6 +42,7 @@ function formatDuration(startedAt: string, completedAt?: string | null): string 
 }
 
 export default function Deployments() {
+  const [showNewDeploymentDialog, setShowNewDeploymentDialog] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -85,6 +88,16 @@ export default function Deployments() {
       />
       
       <main className="flex-1 overflow-y-auto p-6 space-y-6">
+        {/* Quick Actions */}
+        <div className="flex justify-end">
+          <Button 
+            onClick={() => setShowNewDeploymentDialog(true)}
+            data-testid="button-new-deployment"
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            New Deployment
+          </Button>
+        </div>
         {/* Active Deployments */}
         <Card>
           <CardHeader className="p-6 border-b border-border">

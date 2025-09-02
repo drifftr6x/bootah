@@ -9,6 +9,8 @@ import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { Image } from "@shared/schema";
 import { Plus, Search, HardDrive, Trash2, Download } from "lucide-react";
+import AddImageDialog from "@/components/dialogs/add-image-dialog";
+import StartDeploymentDialog from "@/components/dialogs/start-deployment-dialog";
 
 function formatBytes(bytes: number): string {
   const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
@@ -32,6 +34,9 @@ function getOSColor(osType: string) {
 
 export default function Images() {
   const [searchTerm, setSearchTerm] = useState("");
+  const [showAddDialog, setShowAddDialog] = useState(false);
+  const [showDeployDialog, setShowDeployDialog] = useState(false);
+  const [selectedImageId, setSelectedImageId] = useState<string>("");
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -85,7 +90,10 @@ export default function Images() {
               data-testid="input-search-images"
             />
           </div>
-          <Button data-testid="button-upload-image">
+          <Button 
+            onClick={() => setShowAddDialog(true)}
+            data-testid="button-upload-image"
+          >
             <Plus className="w-4 h-4 mr-2" />
             Upload Image
           </Button>
@@ -173,6 +181,10 @@ export default function Images() {
                     <Button 
                       variant="outline" 
                       size="sm"
+                      onClick={() => {
+                        setSelectedImageId(image.id);
+                        setShowDeployDialog(true);
+                      }}
                       data-testid={`button-deploy-image-${image.id}`}
                     >
                       <Download className="w-4 h-4 mr-1" />
@@ -194,6 +206,19 @@ export default function Images() {
             ))}
           </div>
         )}
+
+        {/* Add Image Dialog */}
+        <AddImageDialog 
+          open={showAddDialog} 
+          onOpenChange={setShowAddDialog} 
+        />
+        
+        {/* Start Deployment Dialog */}
+        <StartDeploymentDialog 
+          open={showDeployDialog} 
+          onOpenChange={setShowDeployDialog}
+          preselectedImageId={selectedImageId}
+        />
       </main>
     </>
   );
