@@ -56,7 +56,7 @@ import {
 import { randomUUID } from "crypto";
 import { db } from "./db";
 import { devices, images, deployments, activityLogs, serverStatus } from "@shared/schema";
-import { eq, desc, and, or } from "drizzle-orm";
+import { eq, desc, and, or, count } from "drizzle-orm";
 
 export interface IStorage {
   // Devices
@@ -2000,23 +2000,35 @@ export class DatabaseStorage implements IStorage {
 
   // Dashboard Stats - Database Implementation
   async getDashboardStats(): Promise<DashboardStats> {
-    const [totalDevices] = await db.select({ count: db.sql`count(*)` }).from(devices);
-    const [activeDeployments] = await db
-      .select({ count: db.sql`count(*)` })
-      .from(deployments)
-      .where(or(eq(deployments.status, "deploying"), eq(deployments.status, "pending")));
-    const [totalImages] = await db.select({ count: db.sql`count(*)` }).from(images);
-    const [totalDeployments] = await db.select({ count: db.sql`count(*)` }).from(deployments);
+    try {
+      // Use simpler approach by counting arrays from existing methods
+      const allDevices = await this.getDevices();
+      const allImages = await this.getImages();
+      const allDeployments = await this.getDeployments();
+      const activeDeploymentsList = await this.getActiveDeployments();
 
-    return {
-      totalDevices: Number(totalDevices.count) || 0,
-      activeDeployments: Number(activeDeployments.count) || 0,
-      totalImages: Number(totalImages.count) || 0,
-      completedDeployments: Number(totalDeployments.count) || 0,
-      systemHealth: 95,
-      networkThroughput: 2.4,
-      uptime: 172800
-    };
+      return {
+        totalDevices: allDevices.length,
+        activeDeployments: activeDeploymentsList.length,
+        totalImages: allImages.length,
+        completedDeployments: allDeployments.length,
+        systemHealth: 95,
+        networkThroughput: 2.4,
+        uptime: 172800
+      };
+    } catch (error) {
+      console.error("Error in getDashboardStats:", error);
+      // Return default stats if database query fails
+      return {
+        totalDevices: 0,
+        activeDeployments: 0,
+        totalImages: 0,
+        completedDeployments: 0,
+        systemHealth: 95,
+        networkThroughput: 2.4,
+        uptime: 172800
+      };
+    }
   }
 
   // Stub implementations for other methods (keeping MemStorage behavior for now)
