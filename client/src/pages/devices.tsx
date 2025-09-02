@@ -8,7 +8,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { Device } from "@shared/schema";
-import { Plus, Search, Monitor, Trash2 } from "lucide-react";
+import { Plus, Search, Monitor, Trash2, Download } from "lucide-react";
 import { cn } from "@/lib/utils";
 import AddDeviceDialog from "@/components/dialogs/add-device-dialog";
 import StartDeploymentDialog from "@/components/dialogs/start-deployment-dialog";
@@ -37,6 +37,62 @@ export default function Devices() {
   const [selectedDeviceId, setSelectedDeviceId] = useState<string>("");
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  const exportDevices = () => {
+    if (!devices || devices.length === 0) {
+      toast({
+        title: "No Data to Export",
+        description: "There are no devices to export.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Create CSV headers
+    const headers = [
+      "Name",
+      "MAC Address", 
+      "IP Address",
+      "Status",
+      "Manufacturer",
+      "Model",
+      "Last Seen"
+    ];
+
+    // Convert devices to CSV rows
+    const csvRows = devices.map(device => [
+      device.name,
+      device.macAddress,
+      device.ipAddress || "Not assigned",
+      device.status,
+      device.manufacturer || "Unknown",
+      device.model || "Unknown",
+      device.lastSeen ? new Date(device.lastSeen).toLocaleString() : "Never"
+    ]);
+
+    // Combine headers and rows
+    const csvContent = [headers, ...csvRows]
+      .map(row => row.map(field => `"${field}"`).join(","))
+      .join("\n");
+
+    // Create and download the file
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    
+    link.setAttribute("href", url);
+    link.setAttribute("download", `bootah64x-devices-${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = "hidden";
+    
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    toast({
+      title: "Export Complete",
+      description: `Exported ${devices.length} devices to CSV file.`,
+    });
+  };
 
   const { data: devices, isLoading } = useQuery<Device[]>({
     queryKey: ["/api/devices"],
@@ -132,13 +188,24 @@ export default function Devices() {
         <div className="space-y-4 mb-6">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold">Device Management</h2>
-            <Button 
-              onClick={() => setShowAddDialog(true)}
-              data-testid="button-add-device"
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              Add Device
-            </Button>
+            <div className="flex gap-2">
+              <Button 
+                variant="outline"
+                onClick={exportDevices}
+                disabled={!devices || devices.length === 0}
+                data-testid="button-export-devices"
+              >
+                <Download className="w-4 h-4 mr-2" />
+                Export List
+              </Button>
+              <Button 
+                onClick={() => setShowAddDialog(true)}
+                data-testid="button-add-device"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Add Device
+              </Button>
+            </div>
           </div>
           
           <AdvancedFilters
