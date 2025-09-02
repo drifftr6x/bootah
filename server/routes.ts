@@ -6,6 +6,9 @@ import {
   insertImageSchema, 
   insertDeploymentSchema, 
   insertActivityLogSchema,
+  insertSystemMetricsSchema,
+  insertAlertSchema,
+  insertAlertRuleSchema,
   updateServerStatusSchema
 } from "@shared/schema";
 
@@ -378,6 +381,171 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(stats);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch dashboard stats" });
+    }
+  });
+
+  // System Metrics endpoints
+  app.get("/api/system-metrics", async (req, res) => {
+    try {
+      const limit = req.query.limit ? parseInt(req.query.limit as string) : undefined;
+      const metrics = await storage.getSystemMetrics(limit);
+      res.json(metrics);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch system metrics" });
+    }
+  });
+
+  app.post("/api/system-metrics", async (req, res) => {
+    try {
+      const metricsData = insertSystemMetricsSchema.parse(req.body);
+      const metrics = await storage.createSystemMetrics(metricsData);
+      res.status(201).json(metrics);
+    } catch (error) {
+      res.status(400).json({ message: "Invalid system metrics data" });
+    }
+  });
+
+  app.get("/api/system-metrics/latest", async (req, res) => {
+    try {
+      const metrics = await storage.getLatestSystemMetrics();
+      if (!metrics) {
+        return res.status(404).json({ message: "No system metrics found" });
+      }
+      res.json(metrics);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch latest metrics" });
+    }
+  });
+
+  // Alerts endpoints
+  app.get("/api/alerts", async (req, res) => {
+    try {
+      const alerts = await storage.getAlerts();
+      res.json(alerts);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch alerts" });
+    }
+  });
+
+  app.get("/api/alerts/unread", async (req, res) => {
+    try {
+      const alerts = await storage.getUnreadAlerts();
+      res.json(alerts);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch unread alerts" });
+    }
+  });
+
+  app.post("/api/alerts", async (req, res) => {
+    try {
+      const alertData = insertAlertSchema.parse(req.body);
+      const alert = await storage.createAlert(alertData);
+      res.status(201).json(alert);
+    } catch (error) {
+      res.status(400).json({ message: "Invalid alert data" });
+    }
+  });
+
+  app.put("/api/alerts/:id/read", async (req, res) => {
+    try {
+      const alert = await storage.markAlertAsRead(req.params.id);
+      if (!alert) {
+        return res.status(404).json({ message: "Alert not found" });
+      }
+      res.json(alert);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to mark alert as read" });
+    }
+  });
+
+  app.put("/api/alerts/:id/resolve", async (req, res) => {
+    try {
+      const alert = await storage.resolveAlert(req.params.id);
+      if (!alert) {
+        return res.status(404).json({ message: "Alert not found" });
+      }
+      res.json(alert);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to resolve alert" });
+    }
+  });
+
+  // Alert Rules endpoints
+  app.get("/api/alert-rules", async (req, res) => {
+    try {
+      const rules = await storage.getAlertRules();
+      res.json(rules);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch alert rules" });
+    }
+  });
+
+  app.post("/api/alert-rules", async (req, res) => {
+    try {
+      const ruleData = insertAlertRuleSchema.parse(req.body);
+      const rule = await storage.createAlertRule(ruleData);
+      res.status(201).json(rule);
+    } catch (error) {
+      res.status(400).json({ message: "Invalid alert rule data" });
+    }
+  });
+
+  app.put("/api/alert-rules/:id", async (req, res) => {
+    try {
+      const ruleData = insertAlertRuleSchema.partial().parse(req.body);
+      const rule = await storage.updateAlertRule(req.params.id, ruleData);
+      if (!rule) {
+        return res.status(404).json({ message: "Alert rule not found" });
+      }
+      res.json(rule);
+    } catch (error) {
+      res.status(400).json({ message: "Invalid alert rule data" });
+    }
+  });
+
+  app.delete("/api/alert-rules/:id", async (req, res) => {
+    try {
+      const deleted = await storage.deleteAlertRule(req.params.id);
+      if (!deleted) {
+        return res.status(404).json({ message: "Alert rule not found" });
+      }
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ message: "Failed to delete alert rule" });
+    }
+  });
+
+  // Advanced Image Management endpoints
+  app.put("/api/images/:id/validate", async (req, res) => {
+    try {
+      const image = await storage.validateImage(req.params.id);
+      if (!image) {
+        return res.status(404).json({ message: "Image not found" });
+      }
+      
+      // Log image validation
+      await storage.createActivityLog({
+        type: "info",
+        message: `Image validated: ${image.name}`,
+        deviceId: null,
+        deploymentId: null,
+      });
+      
+      res.json(image);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to validate image" });
+    }
+  });
+
+  app.put("/api/images/:id/download", async (req, res) => {
+    try {
+      const image = await storage.incrementImageDownloadCount(req.params.id);
+      if (!image) {
+        return res.status(404).json({ message: "Image not found" });
+      }
+      res.json(image);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to increment download count" });
     }
   });
 

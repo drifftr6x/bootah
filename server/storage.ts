@@ -10,6 +10,12 @@ import {
   type InsertActivityLog,
   type ServerStatus,
   type UpdateServerStatus,
+  type SystemMetrics,
+  type InsertSystemMetrics,
+  type Alert,
+  type InsertAlert,
+  type AlertRule,
+  type InsertAlertRule,
   type DashboardStats
 } from "@shared/schema";
 import { randomUUID } from "crypto";
@@ -29,6 +35,8 @@ export interface IStorage {
   createImage(image: InsertImage): Promise<Image>;
   updateImage(id: string, image: Partial<InsertImage>): Promise<Image | undefined>;
   deleteImage(id: string): Promise<boolean>;
+  validateImage(id: string): Promise<Image | undefined>;
+  incrementImageDownloadCount(id: string): Promise<Image | undefined>;
 
   // Deployments
   getDeployments(): Promise<DeploymentWithDetails[]>;
@@ -41,6 +49,25 @@ export interface IStorage {
   // Activity Logs
   getActivityLogs(limit?: number): Promise<ActivityLog[]>;
   createActivityLog(log: InsertActivityLog): Promise<ActivityLog>;
+
+  // System Metrics
+  getSystemMetrics(limit?: number): Promise<SystemMetrics[]>;
+  createSystemMetrics(metrics: InsertSystemMetrics): Promise<SystemMetrics>;
+  getLatestSystemMetrics(): Promise<SystemMetrics | undefined>;
+
+  // Alerts
+  getAlerts(): Promise<Alert[]>;
+  getUnreadAlerts(): Promise<Alert[]>;
+  createAlert(alert: InsertAlert): Promise<Alert>;
+  markAlertAsRead(id: string): Promise<Alert | undefined>;
+  resolveAlert(id: string): Promise<Alert | undefined>;
+
+  // Alert Rules
+  getAlertRules(): Promise<AlertRule[]>;
+  getEnabledAlertRules(): Promise<AlertRule[]>;
+  createAlertRule(rule: InsertAlertRule): Promise<AlertRule>;
+  updateAlertRule(id: string, rule: Partial<InsertAlertRule>): Promise<AlertRule | undefined>;
+  deleteAlertRule(id: string): Promise<boolean>;
 
   // Server Status
   getServerStatus(): Promise<ServerStatus>;
@@ -55,6 +82,9 @@ export class MemStorage implements IStorage {
   private images: Map<string, Image> = new Map();
   private deployments: Map<string, Deployment> = new Map();
   private activityLogs: ActivityLog[] = [];
+  private systemMetrics: SystemMetrics[] = [];
+  private alerts: Map<string, Alert> = new Map();
+  private alertRules: Map<string, AlertRule> = new Map();
   private serverStatus: ServerStatus;
 
   constructor() {
@@ -125,9 +155,18 @@ export class MemStorage implements IStorage {
       name: "Windows 11 Pro v23H2",
       filename: "win11_pro_23h2.wim",
       size: 4294967296, // 4GB
+      checksum: "sha256:a1b2c3d4e5f6789012345678901234567890abcdef1234567890abcdef123456",
       osType: "windows",
       version: "23H2",
       description: "Windows 11 Professional with latest updates",
+      category: "Operating Systems",
+      tags: ["windows", "pro", "business"],
+      compressionType: "none",
+      originalSize: null,
+      architecture: "x64",
+      isValidated: true,
+      validationDate: new Date(),
+      downloadCount: 15,
       uploadedAt: new Date(),
     };
 
@@ -136,9 +175,18 @@ export class MemStorage implements IStorage {
       name: "Ubuntu 22.04 LTS Desktop",
       filename: "ubuntu_22.04_desktop.iso",
       size: 3758096384, // 3.5GB
+      checksum: "sha256:b2c3d4e5f6789012345678901234567890abcdef1234567890abcdef1234567",
       osType: "linux",
       version: "22.04 LTS",
       description: "Ubuntu Desktop with standard applications",
+      category: "Operating Systems",
+      tags: ["ubuntu", "linux", "desktop"],
+      compressionType: "gzip",
+      originalSize: 4500000000,
+      architecture: "x64",
+      isValidated: true,
+      validationDate: new Date(),
+      downloadCount: 8,
       uploadedAt: new Date(),
     };
 
@@ -147,9 +195,18 @@ export class MemStorage implements IStorage {
       name: "Windows 11 IoT Enterprise",
       filename: "win11_iot_enterprise.wim",
       size: 3221225472, // 3GB
+      checksum: "sha256:c3d4e5f6789012345678901234567890abcdef1234567890abcdef12345678",
       osType: "windows",
       version: "22H2",
       description: "Windows 11 IoT Enterprise for embedded systems",
+      category: "IoT/Embedded",
+      tags: ["windows", "iot", "embedded"],
+      compressionType: "none",
+      originalSize: null,
+      architecture: "x64",
+      isValidated: false,
+      validationDate: null,
+      downloadCount: 3,
       uploadedAt: new Date(),
     };
 
@@ -250,6 +307,7 @@ export class MemStorage implements IStorage {
     const device: Device = {
       ...insertDevice,
       id,
+      status: insertDevice.status || "offline",
       lastSeen: new Date(),
       ipAddress: insertDevice.ipAddress || null,
       manufacturer: insertDevice.manufacturer || null,
@@ -289,6 +347,15 @@ export class MemStorage implements IStorage {
       uploadedAt: new Date(),
       version: insertImage.version || null,
       description: insertImage.description || null,
+      checksum: insertImage.checksum || null,
+      category: insertImage.category || "General",
+      tags: insertImage.tags || [],
+      compressionType: insertImage.compressionType || "none",
+      originalSize: insertImage.originalSize || null,
+      architecture: insertImage.architecture || "x64",
+      isValidated: insertImage.isValidated || false,
+      validationDate: null,
+      downloadCount: 0,
     };
     this.images.set(id, image);
     return image;
@@ -305,6 +372,31 @@ export class MemStorage implements IStorage {
 
   async deleteImage(id: string): Promise<boolean> {
     return this.images.delete(id);
+  }
+
+  async validateImage(id: string): Promise<Image | undefined> {
+    const image = this.images.get(id);
+    if (!image) return undefined;
+
+    const updatedImage = { 
+      ...image, 
+      isValidated: true, 
+      validationDate: new Date() 
+    };
+    this.images.set(id, updatedImage);
+    return updatedImage;
+  }
+
+  async incrementImageDownloadCount(id: string): Promise<Image | undefined> {
+    const image = this.images.get(id);
+    if (!image) return undefined;
+
+    const updatedImage = { 
+      ...image, 
+      downloadCount: (image.downloadCount || 0) + 1 
+    };
+    this.images.set(id, updatedImage);
+    return updatedImage;
   }
 
   // Deployments
@@ -416,6 +508,125 @@ export class MemStorage implements IStorage {
       lastUpdated: new Date(),
     };
     return this.serverStatus;
+  }
+
+  // System Metrics
+  async getSystemMetrics(limit: number = 100): Promise<SystemMetrics[]> {
+    return this.systemMetrics
+      .sort((a, b) => (b.timestamp?.getTime() || 0) - (a.timestamp?.getTime() || 0))
+      .slice(0, limit);
+  }
+
+  async createSystemMetrics(insertMetrics: InsertSystemMetrics): Promise<SystemMetrics> {
+    const metrics: SystemMetrics = {
+      ...insertMetrics,
+      id: randomUUID(),
+      timestamp: new Date(),
+      networkThroughputIn: insertMetrics.networkThroughputIn ?? 0,
+      networkThroughputOut: insertMetrics.networkThroughputOut ?? 0,
+      activeConnections: insertMetrics.activeConnections ?? 0,
+      temperature: insertMetrics.temperature ?? null,
+    };
+    this.systemMetrics.unshift(metrics);
+    
+    // Keep only last 1000 metrics
+    if (this.systemMetrics.length > 1000) {
+      this.systemMetrics = this.systemMetrics.slice(0, 1000);
+    }
+    
+    return metrics;
+  }
+
+  async getLatestSystemMetrics(): Promise<SystemMetrics | undefined> {
+    const sorted = this.systemMetrics.sort((a, b) => 
+      (b.timestamp?.getTime() || 0) - (a.timestamp?.getTime() || 0)
+    );
+    return sorted[0];
+  }
+
+  // Alerts
+  async getAlerts(): Promise<Alert[]> {
+    return Array.from(this.alerts.values())
+      .sort((a, b) => (b.createdAt?.getTime() || 0) - (a.createdAt?.getTime() || 0));
+  }
+
+  async getUnreadAlerts(): Promise<Alert[]> {
+    return Array.from(this.alerts.values())
+      .filter(alert => !alert.isRead)
+      .sort((a, b) => (b.createdAt?.getTime() || 0) - (a.createdAt?.getTime() || 0));
+  }
+
+  async createAlert(insertAlert: InsertAlert): Promise<Alert> {
+    const id = randomUUID();
+    const alert: Alert = {
+      ...insertAlert,
+      id,
+      source: insertAlert.source ?? null,
+      value: insertAlert.value ?? null,
+      threshold: insertAlert.threshold ?? null,
+      isRead: insertAlert.isRead ?? false,
+      isResolved: insertAlert.isResolved ?? false,
+      resolvedAt: insertAlert.resolvedAt ?? null,
+      createdAt: new Date(),
+    };
+    this.alerts.set(id, alert);
+    return alert;
+  }
+
+  async markAlertAsRead(id: string): Promise<Alert | undefined> {
+    const alert = this.alerts.get(id);
+    if (!alert) return undefined;
+
+    const updatedAlert = { ...alert, isRead: true };
+    this.alerts.set(id, updatedAlert);
+    return updatedAlert;
+  }
+
+  async resolveAlert(id: string): Promise<Alert | undefined> {
+    const alert = this.alerts.get(id);
+    if (!alert) return undefined;
+
+    const updatedAlert = { 
+      ...alert, 
+      isResolved: true, 
+      resolvedAt: new Date() 
+    };
+    this.alerts.set(id, updatedAlert);
+    return updatedAlert;
+  }
+
+  // Alert Rules
+  async getAlertRules(): Promise<AlertRule[]> {
+    return Array.from(this.alertRules.values());
+  }
+
+  async getEnabledAlertRules(): Promise<AlertRule[]> {
+    return Array.from(this.alertRules.values()).filter(rule => rule.isEnabled);
+  }
+
+  async createAlertRule(insertRule: InsertAlertRule): Promise<AlertRule> {
+    const id = randomUUID();
+    const rule: AlertRule = {
+      ...insertRule,
+      id,
+      isEnabled: insertRule.isEnabled ?? true,
+      createdAt: new Date(),
+    };
+    this.alertRules.set(id, rule);
+    return rule;
+  }
+
+  async updateAlertRule(id: string, updateData: Partial<InsertAlertRule>): Promise<AlertRule | undefined> {
+    const rule = this.alertRules.get(id);
+    if (!rule) return undefined;
+
+    const updatedRule = { ...rule, ...updateData };
+    this.alertRules.set(id, updatedRule);
+    return updatedRule;
+  }
+
+  async deleteAlertRule(id: string): Promise<boolean> {
+    return this.alertRules.delete(id);
   }
 
   // Dashboard Stats
