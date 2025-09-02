@@ -8,6 +8,7 @@ import Sidebar from "@/components/layout/sidebar";
 import Dashboard from "@/pages/dashboard";
 import Devices from "@/pages/devices";
 import Images from "@/pages/images";
+import Capture from "@/pages/capture";
 import Deployments from "@/pages/deployments";
 import Templates from "@/pages/templates";
 import Network from "@/pages/network";
@@ -39,6 +40,7 @@ function Router() {
           <Route path="/dashboard" component={Dashboard} />
           <Route path="/devices" component={Devices} />
           <Route path="/images" component={Images} />
+          <Route path="/capture" component={Capture} />
           <Route path="/deployments" component={Deployments} />
           <Route path="/templates" component={Templates} />
           <Route path="/network" component={Network} />

@@ -235,6 +235,165 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Capture job management endpoints
+  app.post("/api/capture/schedule", async (req, res) => {
+    try {
+      const { name, description, deviceId, sourceDevice, compression, excludeSwap, excludeTmp } = req.body;
+      
+      if (!name) {
+        return res.status(400).json({ error: "Image name is required" });
+      }
+
+      // Create scheduled capture job
+      const captureJob = {
+        id: `cap-${Date.now()}`,
+        name,
+        description: description || "",
+        deviceId: deviceId || null,
+        sourceDevice: sourceDevice || "/dev/sda",
+        compression: compression || "gzip",
+        excludeSwap: excludeSwap !== false,
+        excludeTmp: excludeTmp !== false,
+        status: "scheduled",
+        progress: 0,
+        createdAt: new Date().toISOString()
+      };
+
+      // Store in memory for now (would be database in real implementation)
+      console.log("Scheduled capture job:", captureJob);
+
+      // Log activity
+      await storage.createActivityLog({
+        type: "capture",
+        message: `Capture job scheduled: ${name}`,
+        deviceId: deviceId || null,
+        deploymentId: null,
+      });
+
+      res.json({ message: "Capture job scheduled", id: captureJob.id });
+
+    } catch (error) {
+      console.error("Error scheduling capture:", error);
+      res.status(500).json({ error: "Failed to schedule capture job" });
+    }
+  });
+
+  app.get("/api/capture/jobs", async (req, res) => {
+    try {
+      // Mock capture jobs for demonstration
+      const captureJobs = [
+        {
+          id: "cap-1",
+          name: "Workstation Template",
+          description: "Standard Windows 11 workstation image",
+          deviceId: "87e4c7a2-7763-40e1-b022-9d07e75d742f",
+          deviceName: "WS-001",
+          sourceDevice: "/dev/sda",
+          compression: "gzip",
+          excludeSwap: true,
+          excludeTmp: true,
+          status: "scheduled",
+          progress: 0,
+          createdAt: new Date().toISOString()
+        },
+        {
+          id: "cap-2", 
+          name: "Server Base Image",
+          description: "Ubuntu 22.04 LTS server configuration",
+          deviceName: "PXE-Client-001",
+          sourceDevice: "/dev/sda",
+          compression: "bzip2",
+          excludeSwap: true,
+          excludeTmp: false,
+          status: "capturing",
+          progress: 67,
+          createdAt: new Date(Date.now() - 3600000).toISOString(),
+          startedAt: new Date(Date.now() - 1800000).toISOString()
+        }
+      ];
+
+      res.json(captureJobs);
+
+    } catch (error) {
+      console.error("Error fetching capture jobs:", error);
+      res.status(500).json({ error: "Failed to fetch capture jobs" });
+    }
+  });
+
+  // Get device by MAC address for PXE clients
+  app.get("/api/devices/by-mac/:macAddress", async (req, res) => {
+    try {
+      const { macAddress } = req.params;
+      const devices = await storage.getDevices();
+      const device = devices.find(d => d.macAddress.toLowerCase() === macAddress.toLowerCase());
+      
+      if (device) {
+        res.json(device);
+      } else {
+        res.status(404).json({ error: "Device not found" });
+      }
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch device" });
+    }
+  });
+
+  // Get capture commands for PXE clients
+  app.get("/api/devices/by-mac/:macAddress/commands", async (req, res) => {
+    try {
+      const { macAddress } = req.params;
+      
+      // Check if there are any capture jobs scheduled for this device
+      // In real implementation, this would check the database
+      const hasCapture = Math.random() > 0.8; // Simulate occasional capture commands
+      
+      if (hasCapture) {
+        res.json({ 
+          command: "capture",
+          details: {
+            imageName: `PXE-Capture-${Date.now()}`,
+            compression: "gzip"
+          }
+        });
+      } else {
+        res.json({ command: "none" });
+      }
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch commands" });
+    }
+  });
+
+  // Get deployment for PXE clients  
+  app.get("/api/devices/by-mac/:macAddress/deployment", async (req, res) => {
+    try {
+      const { macAddress } = req.params;
+      
+      // Check for active deployments for this device
+      const deployments = await storage.getActiveDeployments();
+      const devices = await storage.getDevices();
+      const device = devices.find(d => d.macAddress.toLowerCase() === macAddress.toLowerCase());
+      
+      if (device) {
+        const deployment = deployments.find(d => d.deviceId === device.id);
+        
+        if (deployment) {
+          const image = await storage.getImage(deployment.imageId);
+          res.json({
+            id: deployment.id,
+            status: deployment.status,
+            imageUrl: `http://localhost:5000/pxe-images/${image?.filename || 'unknown.img'}`,
+            targetDevice: "/dev/sda"
+          });
+        } else {
+          res.json({ status: "none" });
+        }
+      } else {
+        res.status(404).json({ error: "Device not found" });
+      }
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch deployment" });
+    }
+  });
+
   app.get("/api/images/:id", async (req, res) => {
     try {
       const image = await storage.getImage(req.params.id);
