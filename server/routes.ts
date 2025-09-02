@@ -1,5 +1,6 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
+import { WebSocketServer, WebSocket } from "ws";
 import { storage } from "./storage";
 import { 
   insertDeviceSchema, 
@@ -1105,5 +1106,77 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   const httpServer = createServer(app);
+  
+  // WebSocket server for real-time updates
+  const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
+  
+  // Store active WebSocket connections
+  const clients = new Set<WebSocket>();
+  
+  wss.on('connection', (ws: WebSocket) => {
+    console.log('WebSocket client connected');
+    clients.add(ws);
+    
+    // Send initial device status
+    storage.getDevices().then(devices => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+          type: 'device_status_update',
+          data: devices
+        }));
+      }
+    });
+    
+    ws.on('close', () => {
+      console.log('WebSocket client disconnected');
+      clients.delete(ws);
+    });
+    
+    ws.on('error', (error) => {
+      console.error('WebSocket error:', error);
+      clients.delete(ws);
+    });
+  });
+  
+  // Broadcast function for device updates
+  function broadcastDeviceUpdate(devices: any[]) {
+    const message = JSON.stringify({
+      type: 'device_status_update',
+      data: devices,
+      timestamp: new Date().toISOString()
+    });
+    
+    clients.forEach(client => {
+      if (client.readyState === WebSocket.OPEN) {
+        client.send(message);
+      } else {
+        clients.delete(client);
+      }
+    });
+  }
+  
+  // Simulate device status changes for demo
+  setInterval(async () => {
+    try {
+      const devices = await storage.getDevices();
+      // Randomly update some device statuses
+      for (const device of devices) {
+        const rand = Math.random();
+        if (rand < 0.1) { // 10% chance to change status
+          const statuses = ['online', 'offline', 'deploying'];
+          const currentIndex = statuses.indexOf(device.status);
+          const newStatus = statuses[(currentIndex + 1) % statuses.length];
+          await storage.updateDevice(device.id, { status: newStatus });
+        }
+      }
+      
+      // Get updated devices and broadcast
+      const updatedDevices = await storage.getDevices();
+      broadcastDeviceUpdate(updatedDevices);
+    } catch (error) {
+      console.error('Error updating device statuses:', error);
+    }
+  }, 5000); // Update every 5 seconds
+  
   return httpServer;
 }

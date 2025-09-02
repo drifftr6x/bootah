@@ -1,0 +1,97 @@
+import { useEffect, useRef, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+
+interface WebSocketMessage {
+  type: string;
+  data: any;
+  timestamp?: string;
+}
+
+export function useWebSocket() {
+  const [isConnected, setIsConnected] = useState(false);
+  const [reconnectAttempts, setReconnectAttempts] = useState(0);
+  const wsRef = useRef<WebSocket | null>(null);
+  const queryClient = useQueryClient();
+  const maxReconnectAttempts = 5;
+
+  const connect = () => {
+    try {
+      const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+      const wsUrl = `${protocol}//${window.location.host}/ws`;
+      
+      const socket = new WebSocket(wsUrl);
+      wsRef.current = socket;
+
+      socket.onopen = () => {
+        console.log('WebSocket connected');
+        setIsConnected(true);
+        setReconnectAttempts(0);
+      };
+
+      socket.onmessage = (event) => {
+        try {
+          const message: WebSocketMessage = JSON.parse(event.data);
+          handleMessage(message);
+        } catch (error) {
+          console.error('Failed to parse WebSocket message:', error);
+        }
+      };
+
+      socket.onclose = () => {
+        console.log('WebSocket disconnected');
+        setIsConnected(false);
+        wsRef.current = null;
+        
+        // Attempt to reconnect with exponential backoff
+        if (reconnectAttempts < maxReconnectAttempts) {
+          const delay = Math.pow(2, reconnectAttempts) * 1000; // 1s, 2s, 4s, 8s, 16s
+          setTimeout(() => {
+            setReconnectAttempts(prev => prev + 1);
+            connect();
+          }, delay);
+        }
+      };
+
+      socket.onerror = (error) => {
+        console.error('WebSocket error:', error);
+      };
+    } catch (error) {
+      console.error('Failed to create WebSocket connection:', error);
+    }
+  };
+
+  const handleMessage = (message: WebSocketMessage) => {
+    switch (message.type) {
+      case 'device_status_update':
+        // Invalidate device-related queries to trigger refetch with new data
+        queryClient.setQueryData(["/api/devices"], message.data);
+        queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
+        break;
+      default:
+        console.log('Unknown WebSocket message type:', message.type);
+    }
+  };
+
+  const disconnect = () => {
+    if (wsRef.current) {
+      wsRef.current.close();
+      wsRef.current = null;
+      setIsConnected(false);
+    }
+  };
+
+  useEffect(() => {
+    connect();
+    
+    return () => {
+      disconnect();
+    };
+  }, []);
+
+  return {
+    isConnected,
+    reconnectAttempts,
+    connect,
+    disconnect
+  };
+}
