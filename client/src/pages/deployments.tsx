@@ -290,6 +290,12 @@ export default function Deployments() {
             )}
           </CardContent>
         </Card>
+        
+        {/* Start Deployment Dialog */}
+        <StartDeploymentDialog 
+          open={showNewDeploymentDialog} 
+          onOpenChange={setShowNewDeploymentDialog} 
+        />
       </main>
     </>
   );
