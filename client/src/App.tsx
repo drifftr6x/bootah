@@ -9,6 +9,7 @@ import Devices from "@/pages/devices";
 import Images from "@/pages/images";
 import Deployments from "@/pages/deployments";
 import Network from "@/pages/network";
+import Workstations from "@/pages/workstations";
 import Configuration from "@/pages/configuration";
 import Logs from "@/pages/logs";
 import Help from "@/pages/help";
@@ -26,6 +27,7 @@ function Router() {
           <Route path="/images" component={Images} />
           <Route path="/deployments" component={Deployments} />
           <Route path="/network" component={Network} />
+          <Route path="/workstations" component={Workstations} />
           <Route path="/configuration" component={Configuration} />
           <Route path="/logs" component={Logs} />
           <Route path="/help" component={Help} />
