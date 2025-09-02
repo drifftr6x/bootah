@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { useQuery } from "@tanstack/react-query";
 import type { Device } from "@shared/schema";
-import { Wifi, Monitor, Server, Router, Cable } from "lucide-react";
+import { Wifi, Monitor, Server, Router, Cable, Database, Cpu, Network, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface NetworkNode {
@@ -80,13 +80,13 @@ export default function NetworkTopology() {
   const getIcon = (type: string) => {
     switch (type) {
       case 'server':
-        return Server;
+        return Database;
       case 'router':
-        return Router;
+        return Network;
       case 'device':
-        return Monitor;
+        return Cpu;
       default:
-        return Monitor;
+        return Cpu;
     }
   };
 
@@ -224,21 +224,23 @@ export default function NetworkTopology() {
           })}
 
           {/* Network Activity Indicators */}
-          <div className="absolute bottom-4 left-4 flex items-center space-x-4">
-            <div className="flex items-center space-x-2">
-              <Cable className="w-4 h-4 text-cyan-500" />
-              <span className="text-sm text-muted-foreground">
-                {deviceNodes.filter(d => d.status === 'online').length} Active Connections
-              </span>
-            </div>
-            {deviceNodes.some(d => d.status === 'deploying') && (
+          <div className="absolute bottom-3 left-3 right-3 bg-background/90 backdrop-blur-sm border border-border rounded-lg p-3">
+            <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2">
-                <Wifi className="w-4 h-4 text-orange-500 animate-pulse" />
-                <span className="text-sm text-orange-600 dark:text-orange-400">
-                  {deviceNodes.filter(d => d.status === 'deploying').length} Deploying
+                <Network className="w-4 h-4 text-cyan-500" />
+                <span className="text-sm text-muted-foreground">
+                  {deviceNodes.filter(d => d.status === 'online').length} Active
                 </span>
               </div>
-            )}
+              {deviceNodes.some(d => d.status === 'deploying') && (
+                <div className="flex items-center space-x-2">
+                  <Zap className="w-4 h-4 text-orange-500 animate-pulse" />
+                  <span className="text-sm text-orange-600 dark:text-orange-400">
+                    {deviceNodes.filter(d => d.status === 'deploying').length} Deploying
+                  </span>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </CardContent>

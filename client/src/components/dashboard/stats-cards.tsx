@@ -1,7 +1,7 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { useQuery } from "@tanstack/react-query";
 import type { DashboardStats } from "@shared/schema";
-import { Monitor, Zap, CheckCircle, HardDrive, TrendingUp, Activity } from "lucide-react";
+import { Cpu, Zap, Shield, Database, TrendingUp, Activity } from "lucide-react";
 import { useEffect, useState } from "react";
 
 function formatBytes(bytes: number): string {
@@ -79,7 +79,7 @@ export default function StatsCards() {
               </div>
             </div>
             <div className="w-12 h-12 bg-gradient-to-br from-primary/20 to-primary/5 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
-              <Monitor className="w-6 h-6 text-primary group-hover:animate-pulse" />
+              <Cpu className="w-6 h-6 text-primary group-hover:animate-pulse" />
             </div>
           </div>
         </CardContent>
@@ -121,7 +121,7 @@ export default function StatsCards() {
               </div>
             </div>
             <div className="w-12 h-12 bg-gradient-to-br from-emerald-500/20 to-emerald-500/5 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
-              <CheckCircle className="w-6 h-6 text-emerald-500 group-hover:animate-pulse" />
+              <Shield className="w-6 h-6 text-emerald-500 group-hover:animate-pulse" />
             </div>
           </div>
         </CardContent>
@@ -144,7 +144,7 @@ export default function StatsCards() {
               </div>
             </div>
             <div className="w-12 h-12 bg-gradient-to-br from-blue-500/20 to-blue-500/5 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
-              <HardDrive className="w-6 h-6 text-blue-500 group-hover:animate-pulse" />
+              <Database className="w-6 h-6 text-blue-500 group-hover:animate-pulse" />
             </div>
           </div>
         </CardContent>

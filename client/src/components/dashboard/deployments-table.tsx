@@ -8,7 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import type { DeploymentWithDetails } from "@shared/schema";
 import { Link } from "wouter";
 import { cn } from "@/lib/utils";
-import { Activity, Clock, Zap, CheckCircle, AlertCircle } from "lucide-react";
+import { Activity, Clock, Zap, Shield, AlertTriangle, Settings } from "lucide-react";
 import { useEffect, useState } from "react";
 
 function getStatusColor(status: string) {
@@ -29,11 +29,11 @@ function getStatusColor(status: string) {
 function getStatusIcon(status: string) {
   switch (status) {
     case "deploying":
-      return Activity;
+      return Settings;
     case "completed":
-      return CheckCircle;
+      return Shield;
     case "failed":
-      return AlertCircle;
+      return AlertTriangle;
     case "pending":
       return Clock;
     default:

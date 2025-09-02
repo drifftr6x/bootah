@@ -3,7 +3,7 @@ import { Progress } from "@/components/ui/progress";
 import { useQuery } from "@tanstack/react-query";
 import type { ServerStatus } from "@shared/schema";
 import { cn } from "@/lib/utils";
-import { Wifi, WifiOff, Activity } from "lucide-react";
+import { Radio, WifiOff, Activity, Zap, Database, Network, Server } from "lucide-react";
 
 interface ServiceStatus {
   name: string;
@@ -57,10 +57,13 @@ export default function NetworkStatus() {
               <div className="flex items-center space-x-3">
                 <div className="relative">
                   {isOnline ? (
-                    <Wifi className={cn(
-                      "w-5 h-5 text-emerald-500 transition-all duration-500",
-                      "animate-pulse"
-                    )} />
+                    service.name === "PXE Server" ? 
+                      <Server className={cn("w-5 h-5 text-emerald-500 transition-all duration-500", "animate-pulse")} /> :
+                     service.name === "TFTP Server" ? 
+                      <Database className={cn("w-5 h-5 text-emerald-500 transition-all duration-500", "animate-pulse")} /> :
+                     service.name === "HTTP Server" ? 
+                      <Network className={cn("w-5 h-5 text-emerald-500 transition-all duration-500", "animate-pulse")} /> :
+                      <Radio className={cn("w-5 h-5 text-emerald-500 transition-all duration-500", "animate-pulse")} />
                   ) : (
                     <WifiOff className="w-5 h-5 text-red-500" />
                   )}
@@ -86,7 +89,7 @@ export default function NetworkStatus() {
                 </span>
                 {isOnline && (
                   <div className="flex items-center justify-end mt-1 space-x-1">
-                    <Activity className="w-3 h-3 text-emerald-500 animate-pulse" />
+                    <Zap className="w-3 h-3 text-emerald-500 animate-pulse" />
                     <span className="text-xs text-emerald-600 dark:text-emerald-400">Active</span>
                   </div>
                 )}
@@ -99,7 +102,7 @@ export default function NetworkStatus() {
           <div className="mt-6 p-4 bg-gradient-to-r from-cyan-500/10 to-blue-500/10 border border-cyan-500/20 rounded-lg transition-all duration-500 hover:shadow-lg hover:shadow-cyan-500/10">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center space-x-2">
-                <Activity className="w-4 h-4 text-cyan-500 animate-pulse" />
+                <Zap className="w-4 h-4 text-cyan-500 animate-pulse" />
                 <span className="text-sm font-medium text-foreground">Network Traffic</span>
               </div>
               <div className="text-right">
