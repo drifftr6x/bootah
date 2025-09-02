@@ -26,7 +26,7 @@ export default function NetworkTopology() {
           <h3 className="text-lg font-semibold text-foreground">Network Topology</h3>
         </CardHeader>
         <CardContent className="p-6">
-          <div className="h-80 bg-muted/50 rounded-lg animate-pulse flex items-center justify-center">
+          <div className="min-h-[400px] bg-muted/50 rounded-lg animate-pulse flex items-center justify-center">
             <div className="text-muted-foreground">Loading network topology...</div>
           </div>
         </CardContent>
@@ -59,7 +59,7 @@ export default function NetworkTopology() {
     name: device.name,
     status: device.status === 'online' ? 'online' : device.status === 'deploying' ? 'deploying' : 'offline',
     x: 20 + (index % 3) * 30,
-    y: 80
+    y: 70  // Moved up to leave space for bottom bar
   }));
 
   const allNodes = [serverNode, routerNode, ...deviceNodes];
@@ -112,7 +112,7 @@ export default function NetworkTopology() {
         </div>
       </CardHeader>
       <CardContent className="p-6">
-        <div className="relative h-80 bg-gradient-to-b from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 rounded-lg border border-border overflow-hidden">
+        <div className="relative min-h-[400px] h-auto bg-gradient-to-b from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 rounded-lg border border-border overflow-hidden pb-16">
           
           {/* Connection Lines */}
           <svg className="absolute inset-0 w-full h-full pointer-events-none">
@@ -224,7 +224,7 @@ export default function NetworkTopology() {
           })}
 
           {/* Network Activity Indicators */}
-          <div className="absolute bottom-3 left-3 right-3 bg-background/90 backdrop-blur-sm border border-border rounded-lg p-3">
+          <div className="absolute bottom-3 left-3 right-3 bg-background/95 backdrop-blur-sm border border-border rounded-lg p-3 shadow-sm">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2">
                 <Network className="w-4 h-4 text-cyan-500" />
