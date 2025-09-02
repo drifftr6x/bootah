@@ -60,7 +60,7 @@ export default function RecentActivity() {
                     {activity.message}
                   </p>
                   <p className="text-xs text-muted-foreground" data-testid={`text-activity-time-${activity.id}`}>
-                    {formatDistanceToNow(new Date(activity.timestamp), { addSuffix: true })}
+                    {activity.timestamp ? formatDistanceToNow(new Date(activity.timestamp), { addSuffix: true }) : 'Unknown'}
                   </p>
                 </div>
               </div>

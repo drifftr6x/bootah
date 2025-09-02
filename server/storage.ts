@@ -246,6 +246,9 @@ export class MemStorage implements IStorage {
       ...insertDevice,
       id,
       lastSeen: new Date(),
+      ipAddress: insertDevice.ipAddress || null,
+      manufacturer: insertDevice.manufacturer || null,
+      model: insertDevice.model || null,
     };
     this.devices.set(id, device);
     return device;
@@ -279,6 +282,8 @@ export class MemStorage implements IStorage {
       ...insertImage,
       id,
       uploadedAt: new Date(),
+      version: insertImage.version || null,
+      description: insertImage.description || null,
     };
     this.images.set(id, image);
     return image;
@@ -348,6 +353,9 @@ export class MemStorage implements IStorage {
       id,
       startedAt: new Date(),
       completedAt: null,
+      status: insertDeployment.status || "pending",
+      progress: insertDeployment.progress || 0,
+      errorMessage: insertDeployment.errorMessage || null,
     };
     this.deployments.set(id, deployment);
     return deployment;
@@ -369,7 +377,7 @@ export class MemStorage implements IStorage {
   // Activity Logs
   async getActivityLogs(limit: number = 50): Promise<ActivityLog[]> {
     return this.activityLogs
-      .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
+      .sort((a, b) => (b.timestamp?.getTime() || 0) - (a.timestamp?.getTime() || 0))
       .slice(0, limit);
   }
 
@@ -378,6 +386,8 @@ export class MemStorage implements IStorage {
       ...insertLog,
       id: randomUUID(),
       timestamp: new Date(),
+      deviceId: insertLog.deviceId || null,
+      deploymentId: insertLog.deploymentId || null,
     };
     this.activityLogs.unshift(log);
     

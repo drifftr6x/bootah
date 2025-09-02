@@ -76,11 +76,11 @@ export default function NetworkStatus() {
             <div className="flex items-center justify-between mb-2">
               <span className="text-sm text-muted-foreground">Network Traffic</span>
               <span className="text-sm text-foreground" data-testid="text-network-traffic">
-                {serverStatus.networkTraffic.toFixed(1)} MB/s
+                {(serverStatus.networkTraffic || 0).toFixed(1)} MB/s
               </span>
             </div>
             <Progress 
-              value={Math.min((serverStatus.networkTraffic / 10) * 100, 100)} 
+              value={Math.min(((serverStatus.networkTraffic || 0) / 10) * 100, 100)} 
               className="h-2"
               data-testid="progress-network-utilization"
             />

@@ -103,7 +103,7 @@ export default function Sidebar() {
           <div className="mt-2 text-xs text-muted-foreground">
             <div data-testid="server-ip">{serverStatus.serverIp}:67</div>
             <div data-testid="server-uptime">
-              Uptime: {formatUptime(serverStatus.uptime)}
+              Uptime: {formatUptime(serverStatus.uptime || 0)}
             </div>
           </div>
         )}
