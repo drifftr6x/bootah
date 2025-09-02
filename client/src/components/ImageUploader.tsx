@@ -97,9 +97,12 @@ export function ImageUploader({
   );
 
   const handleButtonClick = () => {
-    console.log('Upload button clicked');
+    console.log('Upload button clicked, showModal before:', showModal);
     setShowModal(true);
+    console.log('Upload button clicked, showModal after:', true);
   };
+
+  console.log('ImageUploader render, showModal:', showModal);
 
   return (
     <div>
@@ -113,44 +116,29 @@ export function ImageUploader({
         {isUploading ? 'Uploading...' : children}
       </Button>
 
-      {showModal && (
-        <DashboardModal
-          uppy={uppy}
-          open={showModal}
-          onRequestClose={() => setShowModal(false)}
-          proudlyDisplayPoweredByUppy={false}
-          note=""
-          locale={{
-            strings: {
-              dropHereOr: '',
-              browse: 'Select Files',
-              dropHint: '',
-              browseFiles: 'Select OS Image Files',
-              dropPasteFiles: '',
-              dropPasteFolders: '',
-              dropPasteImportFiles: '',
-              dropPasteImportFolders: '',
-              importFrom: '',
-              dashboardWindowTitle: 'OS Image Upload',
-              dashboardTitle: 'Upload OS Images',
-              copyLinkToClipboardSuccess: 'Link copied to clipboard',
-              copyLinkToClipboardFallback: 'Copy the URL below',
-              copyLink: 'Copy link',
-              link: 'Link',
-              fileSource: 'File source',
-              done: 'Done',
-              localDisk: 'Local Disk',
-              dropPasteFiles: '',
-            }
-          }}
-          metaFields={[
-            { id: 'name', name: 'Name', placeholder: 'Image name' },
-            { id: 'description', name: 'Description', placeholder: 'Image description' },
-            { id: 'osType', name: 'OS Type', placeholder: 'windows, linux, macos' },
-            { id: 'version', name: 'Version', placeholder: 'e.g., Windows 11, Ubuntu 22.04' },
-          ]}
-        />
-      )}
+      <DashboardModal
+        uppy={uppy}
+        open={showModal}
+        onRequestClose={() => {
+          console.log('Modal close requested');
+          setShowModal(false);
+        }}
+        proudlyDisplayPoweredByUppy={false}
+        note=""
+        locale={{
+          strings: {
+            dropHereOr: '',
+            dropHint: '',
+            browse: 'Select OS Image Files'
+          }
+        }}
+        metaFields={[
+          { id: 'name', name: 'Name', placeholder: 'Image name' },
+          { id: 'description', name: 'Description', placeholder: 'Image description' },
+          { id: 'osType', name: 'OS Type', placeholder: 'windows, linux, macos' },
+          { id: 'version', name: 'Version', placeholder: 'e.g., Windows 11, Ubuntu 22.04' },
+        ]}
+      />
     </div>
   );
 }
