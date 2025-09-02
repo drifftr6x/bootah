@@ -96,13 +96,19 @@ export function ImageUploader({
       })
   );
 
+  const handleButtonClick = () => {
+    console.log('Upload button clicked');
+    setShowModal(true);
+  };
+
   return (
     <div>
       <Button 
-        onClick={() => setShowModal(true)} 
+        onClick={handleButtonClick}
         className={buttonClassName}
         disabled={disabled || isUploading}
         data-testid="button-upload-image"
+        type="button"
       >
         {isUploading ? 'Uploading...' : children}
       </Button>
@@ -112,7 +118,14 @@ export function ImageUploader({
         open={showModal}
         onRequestClose={() => setShowModal(false)}
         proudlyDisplayPoweredByUppy={false}
-        plugins={['Webcam']}
+        note=""
+        locale={{
+          strings: {
+            dropHereOr: 'Select OS image files',
+            browse: 'Browse',
+            dropHint: 'Select OS image files to upload',
+          }
+        }}
         metaFields={[
           { id: 'name', name: 'Name', placeholder: 'Image name' },
           { id: 'description', name: 'Description', placeholder: 'Image description' },
