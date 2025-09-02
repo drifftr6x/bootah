@@ -1237,6 +1237,7 @@ export default function ImagesPage() {
           </Card>
           </div>
         )}
+      </div>
 
       {/* Validation Dialog */}
       <Dialog open={isValidationDialogOpen} onOpenChange={setIsValidationDialogOpen}>
