@@ -1,3 +1,4 @@
+import Header from "@/components/layout/header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -295,163 +296,165 @@ export default function SecurityPage() {
   ];
 
   return (
-    <div className="space-y-8" data-testid="security-page">
-      <div>
-        <h1 className="text-3xl font-bold" data-testid="text-page-title">Security & Compliance Center</h1>
-        <p className="text-muted-foreground mt-2" data-testid="text-page-description">
-          Monitor security status, compliance metrics, and manage security policies
-        </p>
-      </div>
-
-      {/* Security Stats Overview */}
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        <SecurityStatsCard
-          title="Security Score"
-          value={`${securityStats.complianceScore}%`}
-          icon={Shield}
-          trend="+2% from last month"
-          color="from-green-500 to-emerald-600"
-        />
-        <SecurityStatsCard
-          title="Open Incidents"
-          value={securityStats.openIncidents}
-          icon={AlertTriangle}
-          trend={`${securityStats.criticalIncidents} critical`}
-          color="from-red-500 to-pink-600"
-        />
-        <SecurityStatsCard
-          title="Expiring Certificates"
-          value={securityStats.certificatesExpiring}
-          icon={FileCheck}
-          trend="Next 30 days"
-          color="from-yellow-500 to-orange-600"
-        />
-      </div>
-
-      {/* Compliance Score Progress */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <TrendingUp className="w-5 h-5" />
-            Overall Compliance Score
-          </CardTitle>
-          <CardDescription>
-            Aggregated compliance score across all frameworks and policies
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            <div className="flex justify-between text-sm">
-              <span>Current Score</span>
-              <span className="font-semibold">{securityStats.complianceScore}%</span>
-            </div>
-            <Progress value={securityStats.complianceScore} className="h-3" />
-            <div className="grid grid-cols-3 gap-4 text-center text-sm">
-              <div>
-                <p className="text-green-600 font-semibold">Good</p>
-                <p className="text-muted-foreground">85-100%</p>
-              </div>
-              <div>
-                <p className="text-yellow-600 font-semibold">Needs Attention</p>
-                <p className="text-muted-foreground">60-84%</p>
-              </div>
-              <div>
-                <p className="text-red-600 font-semibold">Critical</p>
-                <p className="text-muted-foreground">0-59%</p>
-              </div>
-            </div>
+    <>
+      <Header 
+        title="Security & Compliance Center" 
+        description="Monitor security status, compliance metrics, and manage security policies" 
+      />
+      
+      <main className="flex-1 overflow-y-auto p-6">
+        <div className="space-y-8" data-testid="security-page">
+          {/* Security Stats Overview */}
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            <SecurityStatsCard
+              title="Security Score"
+              value={`${securityStats.complianceScore}%`}
+              icon={Shield}
+              trend="+2% from last month"
+              color="from-green-500 to-emerald-600"
+            />
+            <SecurityStatsCard
+              title="Open Incidents"
+              value={securityStats.openIncidents}
+              icon={AlertTriangle}
+              trend={`${securityStats.criticalIncidents} critical`}
+              color="from-red-500 to-pink-600"
+            />
+            <SecurityStatsCard
+              title="Expiring Certificates"
+              value={securityStats.certificatesExpiring}
+              icon={FileCheck}
+              trend="Next 30 days"
+              color="from-yellow-500 to-orange-600"
+            />
           </div>
-        </CardContent>
-      </Card>
 
-      {/* Security Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="incidents">Incidents</TabsTrigger>
-          <TabsTrigger value="compliance">Compliance</TabsTrigger>
-          <TabsTrigger value="certificates">Certificates</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="overview" className="space-y-6">
-          <div className="grid gap-6 md:grid-cols-2">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <AlertCircle className="w-5 h-5" />
-                  Recent Security Incidents
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <SecurityIncidentsList incidents={sampleIncidents.slice(0, 3)} />
-                <Button variant="outline" className="w-full mt-4" data-testid="button-view-all-incidents">
-                  View All Incidents
-                </Button>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <FileText className="w-5 h-5" />
-                  Compliance Status
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <CompliancePoliciesList policies={samplePolicies.slice(0, 2)} />
-                <Button variant="outline" className="w-full mt-4" data-testid="button-view-compliance">
-                  View All Policies
-                </Button>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-
-        <TabsContent value="incidents" className="space-y-6">
+          {/* Compliance Score Progress */}
           <Card>
             <CardHeader>
-              <CardTitle>Security Incidents</CardTitle>
-              <div className="flex gap-2">
-                <Button data-testid="button-create-incident">Create Incident</Button>
-                <Button variant="outline" data-testid="button-export-incidents">Export Report</Button>
-              </div>
+              <CardTitle className="flex items-center gap-2">
+                <TrendingUp className="w-5 h-5" />
+                Overall Compliance Score
+              </CardTitle>
+              <CardDescription>
+                Aggregated compliance score across all frameworks and policies
+              </CardDescription>
             </CardHeader>
             <CardContent>
-              <SecurityIncidentsList incidents={sampleIncidents} />
+              <div className="space-y-4">
+                <div className="flex justify-between text-sm">
+                  <span>Current Score</span>
+                  <span className="font-semibold">{securityStats.complianceScore}%</span>
+                </div>
+                <Progress value={securityStats.complianceScore} className="h-3" />
+                <div className="grid grid-cols-3 gap-4 text-center text-sm">
+                  <div>
+                    <p className="text-green-600 font-semibold">Good</p>
+                    <p className="text-muted-foreground">85-100%</p>
+                  </div>
+                  <div>
+                    <p className="text-yellow-600 font-semibold">Needs Attention</p>
+                    <p className="text-muted-foreground">60-84%</p>
+                  </div>
+                  <div>
+                    <p className="text-red-600 font-semibold">Critical</p>
+                    <p className="text-muted-foreground">0-59%</p>
+                  </div>
+                </div>
+              </div>
             </CardContent>
           </Card>
-        </TabsContent>
 
-        <TabsContent value="compliance" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Compliance Policies</CardTitle>
-              <div className="flex gap-2">
-                <Button data-testid="button-create-policy">Create Policy</Button>
-                <Button variant="outline" data-testid="button-run-assessment">Run Assessment</Button>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <CompliancePoliciesList policies={samplePolicies} />
-            </CardContent>
-          </Card>
-        </TabsContent>
+          {/* Security Tabs */}
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+            <TabsList className="grid w-full grid-cols-4">
+              <TabsTrigger value="overview">Overview</TabsTrigger>
+              <TabsTrigger value="incidents">Incidents</TabsTrigger>
+              <TabsTrigger value="compliance">Compliance</TabsTrigger>
+              <TabsTrigger value="certificates">Certificates</TabsTrigger>
+            </TabsList>
 
-        <TabsContent value="certificates" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>SSL/TLS Certificates</CardTitle>
-              <div className="flex gap-2">
-                <Button data-testid="button-add-certificate">Add Certificate</Button>
-                <Button variant="outline" data-testid="button-check-all-certs">Check All</Button>
+            <TabsContent value="overview" className="space-y-6">
+              <div className="grid gap-6 md:grid-cols-2">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <AlertCircle className="w-5 h-5" />
+                      Recent Security Incidents
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <SecurityIncidentsList incidents={sampleIncidents.slice(0, 3)} />
+                    <Button variant="outline" className="w-full mt-4" data-testid="button-view-all-incidents">
+                      View All Incidents
+                    </Button>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <FileText className="w-5 h-5" />
+                      Compliance Status
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <CompliancePoliciesList policies={samplePolicies.slice(0, 2)} />
+                    <Button variant="outline" className="w-full mt-4" data-testid="button-view-compliance">
+                      View All Policies
+                    </Button>
+                  </CardContent>
+                </Card>
               </div>
-            </CardHeader>
-            <CardContent>
-              <CertificatesList certificates={sampleCertificates} />
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
-    </div>
+            </TabsContent>
+
+            <TabsContent value="incidents" className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Security Incidents</CardTitle>
+                  <div className="flex gap-2">
+                    <Button data-testid="button-create-incident">Create Incident</Button>
+                    <Button variant="outline" data-testid="button-export-incidents">Export Report</Button>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <SecurityIncidentsList incidents={sampleIncidents} />
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="compliance" className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Compliance Policies</CardTitle>
+                  <div className="flex gap-2">
+                    <Button data-testid="button-create-policy">Create Policy</Button>
+                    <Button variant="outline" data-testid="button-run-assessment">Run Assessment</Button>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <CompliancePoliciesList policies={samplePolicies} />
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="certificates" className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>SSL/TLS Certificates</CardTitle>
+                  <div className="flex gap-2">
+                    <Button data-testid="button-add-certificate">Add Certificate</Button>
+                    <Button variant="outline" data-testid="button-check-all-certs">Check All</Button>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <CertificatesList certificates={sampleCertificates} />
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
+        </div>
+      </main>
+    </>
   );
 }
