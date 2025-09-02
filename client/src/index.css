@@ -1,0 +1,163 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: hsl(210, 65%, 9%);
+  --foreground: hsl(210, 20%, 98%);
+  --card: hsl(210, 50%, 12%);
+  --card-foreground: hsl(210, 20%, 98%);
+  --popover: hsl(210, 50%, 12%);
+  --popover-foreground: hsl(210, 20%, 98%);
+  --primary: hsl(192, 100%, 50%);
+  --primary-foreground: hsl(210, 65%, 9%);
+  --secondary: hsl(153, 100%, 50%);
+  --secondary-foreground: hsl(210, 65%, 9%);
+  --muted: hsl(210, 40%, 20%);
+  --muted-foreground: hsl(215, 20%, 65%);
+  --accent: hsl(192, 100%, 50%);
+  --accent-foreground: hsl(210, 65%, 9%);
+  --destructive: hsl(0, 62%, 60%);
+  --destructive-foreground: hsl(210, 20%, 98%);
+  --border: hsl(210, 40%, 18%);
+  --input: hsl(210, 40%, 16%);
+  --ring: hsl(192, 100%, 50%);
+  --chart-1: hsl(192, 100%, 50%);
+  --chart-2: hsl(153, 100%, 50%);
+  --chart-3: hsl(45, 100%, 60%);
+  --chart-4: hsl(270, 100%, 60%);
+  --chart-5: hsl(0, 62%, 60%);
+  --sidebar: hsl(210, 50%, 12%);
+  --sidebar-foreground: hsl(210, 20%, 98%);
+  --sidebar-primary: hsl(192, 100%, 50%);
+  --sidebar-primary-foreground: hsl(210, 65%, 9%);
+  --sidebar-accent: hsl(210, 40%, 20%);
+  --sidebar-accent-foreground: hsl(210, 20%, 98%);
+  --sidebar-border: hsl(210, 40%, 18%);
+  --sidebar-ring: hsl(192, 100%, 50%);
+  --font-sans: 'Inter', sans-serif;
+  --font-serif: Georgia, serif;
+  --font-mono: 'Fira Code', monospace;
+  --radius: 0.5rem;
+  --shadow-2xs: 0px 2px 0px 0px hsl(192, 100%, 50%, 0.00);
+  --shadow-xs: 0px 2px 0px 0px hsl(192, 100%, 50%, 0.00);
+  --shadow-sm: 0px 2px 0px 0px hsl(192, 100%, 50%, 0.00), 0px 1px 2px -1px hsl(192, 100%, 50%, 0.00);
+  --shadow: 0px 2px 0px 0px hsl(192, 100%, 50%, 0.00), 0px 1px 2px -1px hsl(192, 100%, 50%, 0.00);
+  --shadow-md: 0px 2px 0px 0px hsl(192, 100%, 50%, 0.00), 0px 2px 4px -1px hsl(192, 100%, 50%, 0.00);
+  --shadow-lg: 0px 2px 0px 0px hsl(192, 100%, 50%, 0.00), 0px 4px 6px -1px hsl(192, 100%, 50%, 0.00);
+  --shadow-xl: 0px 2px 0px 0px hsl(192, 100%, 50%, 0.00), 0px 8px 10px -1px hsl(192, 100%, 50%, 0.00);
+  --shadow-2xl: 0px 2px 0px 0px hsl(192, 100%, 50%, 0.00);
+  --tracking-normal: 0em;
+  --spacing: 0.25rem;
+}
+
+.dark {
+  --background: hsl(210, 65%, 9%);
+  --foreground: hsl(210, 20%, 98%);
+  --card: hsl(210, 50%, 12%);
+  --card-foreground: hsl(210, 20%, 98%);
+  --popover: hsl(210, 50%, 12%);
+  --popover-foreground: hsl(210, 20%, 98%);
+  --primary: hsl(192, 100%, 50%);
+  --primary-foreground: hsl(210, 65%, 9%);
+  --secondary: hsl(153, 100%, 50%);
+  --secondary-foreground: hsl(210, 65%, 9%);
+  --muted: hsl(210, 40%, 20%);
+  --muted-foreground: hsl(215, 20%, 65%);
+  --accent: hsl(192, 100%, 50%);
+  --accent-foreground: hsl(210, 65%, 9%);
+  --destructive: hsl(0, 62%, 60%);
+  --destructive-foreground: hsl(210, 20%, 98%);
+  --border: hsl(210, 40%, 18%);
+  --input: hsl(210, 40%, 16%);
+  --ring: hsl(192, 100%, 50%);
+  --sidebar: hsl(210, 50%, 12%);
+  --sidebar-foreground: hsl(210, 20%, 98%);
+  --sidebar-primary: hsl(192, 100%, 50%);
+  --sidebar-primary-foreground: hsl(210, 65%, 9%);
+  --sidebar-accent: hsl(210, 40%, 20%);
+  --sidebar-accent-foreground: hsl(210, 20%, 98%);
+  --sidebar-border: hsl(210, 40%, 18%);
+  --sidebar-ring: hsl(192, 100%, 50%);
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply font-sans antialiased bg-background text-foreground;
+  }
+}
+
+/* Custom scrollbar styles */
+.sidebar-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+
+.sidebar-scrollbar::-webkit-scrollbar-track {
+  background: hsl(210, 40%, 18%);
+}
+
+.sidebar-scrollbar::-webkit-scrollbar-thumb {
+  background: hsl(192, 100%, 50%);
+  border-radius: 2px;
+}
+
+/* Deployment pulse animation */
+.deployment-pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { 
+    opacity: 1; 
+  }
+  50% { 
+    opacity: 0.7; 
+  }
+}
+
+/* Status indicator styles */
+.status-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  margin-right: 8px;
+}
+
+.status-online { 
+  background-color: hsl(153, 100%, 50%); 
+}
+
+.status-deploying { 
+  background-color: hsl(45, 100%, 60%); 
+}
+
+.status-offline { 
+  background-color: hsl(0, 62%, 60%); 
+}
+
+.status-idle { 
+  background-color: hsl(215, 20%, 65%); 
+}
+
+/* Progress bar styles */
+.progress-bar {
+  background: linear-gradient(90deg, hsl(153, 100%, 50%) 0%, hsl(192, 100%, 50%) 100%);
+}
+
+/* Table hover effects */
+.table-row-hover:hover {
+  background-color: hsl(210, 40%, 20%, 0.3);
+  transition: background-color 0.2s ease;
+}
+
+/* Button focus states */
+.btn-focus:focus {
+  outline: 2px solid hsl(192, 100%, 50%);
+  outline-offset: 2px;
+}
