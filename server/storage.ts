@@ -61,11 +61,16 @@ export class MemStorage implements IStorage {
     // Initialize server status
     this.serverStatus = {
       id: "singleton",
+      serverName: "Bootah64x-Server",
       pxeServerStatus: true,
       tftpServerStatus: true,
       httpServerStatus: true,
       dhcpProxyStatus: true,
       serverIp: "192.168.1.100",
+      pxePort: 67,
+      tftpPort: 69,
+      httpPort: 80,
+      dhcpPort: 67,
       uptime: 172800, // 2 days in seconds
       networkTraffic: 2.4,
       lastUpdated: new Date(),

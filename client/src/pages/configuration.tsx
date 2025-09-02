@@ -27,11 +27,16 @@ export default function Configuration() {
   const form = useForm<UpdateServerStatus>({
     resolver: zodResolver(updateServerStatusSchema),
     defaultValues: {
+      serverName: serverStatus?.serverName ?? "Bootah64x-Server",
       pxeServerStatus: serverStatus?.pxeServerStatus ?? true,
       tftpServerStatus: serverStatus?.tftpServerStatus ?? true,
       httpServerStatus: serverStatus?.httpServerStatus ?? true,
       dhcpProxyStatus: serverStatus?.dhcpProxyStatus ?? true,
       serverIp: serverStatus?.serverIp ?? "192.168.1.100",
+      pxePort: serverStatus?.pxePort ?? 67,
+      tftpPort: serverStatus?.tftpPort ?? 69,
+      httpPort: serverStatus?.httpPort ?? 80,
+      dhcpPort: serverStatus?.dhcpPort ?? 67,
       networkTraffic: serverStatus?.networkTraffic ?? 0,
     },
   });
@@ -92,6 +97,39 @@ export default function Configuration() {
       <main className="flex-1 overflow-y-auto p-6">
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+            {/* Server Identity */}
+            <Card>
+              <CardHeader className="p-6 border-b border-border">
+                <div className="flex items-center space-x-3">
+                  <Server className="w-5 h-5 text-primary" />
+                  <h3 className="text-lg font-semibold text-foreground">Server Identity</h3>
+                </div>
+              </CardHeader>
+              <CardContent className="p-6 space-y-6">
+                <FormField
+                  control={form.control}
+                  name="serverName"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel data-testid="label-server-name">Server Name</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="Bootah64x-Server"
+                          {...field}
+                          value={field.value || ''}
+                          data-testid="input-server-name"
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        Friendly name for this PXE server instance
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </CardContent>
+            </Card>
+
             {/* Server Services */}
             <Card>
               <CardHeader className="p-6 border-b border-border">
@@ -101,101 +139,205 @@ export default function Configuration() {
                 </div>
               </CardHeader>
               <CardContent className="p-6 space-y-6">
-                <FormField
-                  control={form.control}
-                  name="pxeServerStatus"
-                  render={({ field }) => (
-                    <FormItem className="flex flex-row items-center justify-between rounded-lg border border-border p-4">
-                      <div className="space-y-0.5">
-                        <FormLabel className="text-base" data-testid="label-pxe-server">
-                          PXE Server
-                        </FormLabel>
+                <div className="rounded-lg border border-border p-4 space-y-4">
+                  <div className="flex flex-row items-center justify-between">
+                    <div className="space-y-0.5">
+                      <FormLabel className="text-base" data-testid="label-pxe-server">
+                        PXE Server
+                      </FormLabel>
+                      <FormDescription>
+                        Enable PXE boot service
+                      </FormDescription>
+                    </div>
+                    <FormField
+                      control={form.control}
+                      name="pxeServerStatus"
+                      render={({ field }) => (
+                        <FormControl>
+                          <Switch
+                            checked={field.value || false}
+                            onCheckedChange={field.onChange}
+                            data-testid="switch-pxe-server"
+                          />
+                        </FormControl>
+                      )}
+                    />
+                  </div>
+                  <FormField
+                    control={form.control}
+                    name="pxePort"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel data-testid="label-pxe-port">PXE Port</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            min="1"
+                            max="65535"
+                            {...field}
+                            value={field.value || ''}
+                            onChange={e => field.onChange(parseInt(e.target.value) || 67)}
+                            data-testid="input-pxe-port"
+                          />
+                        </FormControl>
                         <FormDescription>
-                          Enable PXE boot service on port 67
+                          Port for PXE boot service (default: 67)
                         </FormDescription>
-                      </div>
-                      <FormControl>
-                        <Switch
-                          checked={field.value}
-                          onCheckedChange={field.onChange}
-                          data-testid="switch-pxe-server"
-                        />
-                      </FormControl>
-                    </FormItem>
-                  )}
-                />
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
 
-                <FormField
-                  control={form.control}
-                  name="tftpServerStatus"
-                  render={({ field }) => (
-                    <FormItem className="flex flex-row items-center justify-between rounded-lg border border-border p-4">
-                      <div className="space-y-0.5">
-                        <FormLabel className="text-base" data-testid="label-tftp-server">
-                          TFTP Server
-                        </FormLabel>
+                <div className="rounded-lg border border-border p-4 space-y-4">
+                  <div className="flex flex-row items-center justify-between">
+                    <div className="space-y-0.5">
+                      <FormLabel className="text-base" data-testid="label-tftp-server">
+                        TFTP Server
+                      </FormLabel>
+                      <FormDescription>
+                        Enable TFTP file transfer service
+                      </FormDescription>
+                    </div>
+                    <FormField
+                      control={form.control}
+                      name="tftpServerStatus"
+                      render={({ field }) => (
+                        <FormControl>
+                          <Switch
+                            checked={field.value || false}
+                            onCheckedChange={field.onChange}
+                            data-testid="switch-tftp-server"
+                          />
+                        </FormControl>
+                      )}
+                    />
+                  </div>
+                  <FormField
+                    control={form.control}
+                    name="tftpPort"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel data-testid="label-tftp-port">TFTP Port</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            min="1"
+                            max="65535"
+                            {...field}
+                            value={field.value || ''}
+                            onChange={e => field.onChange(parseInt(e.target.value) || 69)}
+                            data-testid="input-tftp-port"
+                          />
+                        </FormControl>
                         <FormDescription>
-                          Enable TFTP file transfer service on port 69
+                          Port for TFTP file transfer (default: 69)
                         </FormDescription>
-                      </div>
-                      <FormControl>
-                        <Switch
-                          checked={field.value}
-                          onCheckedChange={field.onChange}
-                          data-testid="switch-tftp-server"
-                        />
-                      </FormControl>
-                    </FormItem>
-                  )}
-                />
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
 
-                <FormField
-                  control={form.control}
-                  name="httpServerStatus"
-                  render={({ field }) => (
-                    <FormItem className="flex flex-row items-center justify-between rounded-lg border border-border p-4">
-                      <div className="space-y-0.5">
-                        <FormLabel className="text-base" data-testid="label-http-server">
-                          HTTP Server
-                        </FormLabel>
+                <div className="rounded-lg border border-border p-4 space-y-4">
+                  <div className="flex flex-row items-center justify-between">
+                    <div className="space-y-0.5">
+                      <FormLabel className="text-base" data-testid="label-http-server">
+                        HTTP Server
+                      </FormLabel>
+                      <FormDescription>
+                        Enable HTTP file serving
+                      </FormDescription>
+                    </div>
+                    <FormField
+                      control={form.control}
+                      name="httpServerStatus"
+                      render={({ field }) => (
+                        <FormControl>
+                          <Switch
+                            checked={field.value || false}
+                            onCheckedChange={field.onChange}
+                            data-testid="switch-http-server"
+                          />
+                        </FormControl>
+                      )}
+                    />
+                  </div>
+                  <FormField
+                    control={form.control}
+                    name="httpPort"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel data-testid="label-http-port">HTTP Port</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            min="1"
+                            max="65535"
+                            {...field}
+                            value={field.value || ''}
+                            onChange={e => field.onChange(parseInt(e.target.value) || 80)}
+                            data-testid="input-http-port"
+                          />
+                        </FormControl>
                         <FormDescription>
-                          Enable HTTP file serving on port 80
+                          Port for HTTP file serving (default: 80)
                         </FormDescription>
-                      </div>
-                      <FormControl>
-                        <Switch
-                          checked={field.value}
-                          onCheckedChange={field.onChange}
-                          data-testid="switch-http-server"
-                        />
-                      </FormControl>
-                    </FormItem>
-                  )}
-                />
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
 
-                <FormField
-                  control={form.control}
-                  name="dhcpProxyStatus"
-                  render={({ field }) => (
-                    <FormItem className="flex flex-row items-center justify-between rounded-lg border border-border p-4">
-                      <div className="space-y-0.5">
-                        <FormLabel className="text-base" data-testid="label-dhcp-proxy">
-                          DHCP Proxy
-                        </FormLabel>
+                <div className="rounded-lg border border-border p-4 space-y-4">
+                  <div className="flex flex-row items-center justify-between">
+                    <div className="space-y-0.5">
+                      <FormLabel className="text-base" data-testid="label-dhcp-proxy">
+                        DHCP Proxy
+                      </FormLabel>
+                      <FormDescription>
+                        Enable DHCP proxy for PXE boot discovery
+                      </FormDescription>
+                    </div>
+                    <FormField
+                      control={form.control}
+                      name="dhcpProxyStatus"
+                      render={({ field }) => (
+                        <FormControl>
+                          <Switch
+                            checked={field.value || false}
+                            onCheckedChange={field.onChange}
+                            data-testid="switch-dhcp-proxy"
+                          />
+                        </FormControl>
+                      )}
+                    />
+                  </div>
+                  <FormField
+                    control={form.control}
+                    name="dhcpPort"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel data-testid="label-dhcp-port">DHCP Proxy Port</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            min="1"
+                            max="65535"
+                            {...field}
+                            value={field.value || ''}
+                            onChange={e => field.onChange(parseInt(e.target.value) || 67)}
+                            data-testid="input-dhcp-port"
+                          />
+                        </FormControl>
                         <FormDescription>
-                          Enable DHCP proxy for PXE boot discovery
+                          Port for DHCP proxy service (default: 67)
                         </FormDescription>
-                      </div>
-                      <FormControl>
-                        <Switch
-                          checked={field.value}
-                          onCheckedChange={field.onChange}
-                          data-testid="switch-dhcp-proxy"
-                        />
-                      </FormControl>
-                    </FormItem>
-                  )}
-                />
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
               </CardContent>
             </Card>
 
@@ -218,6 +360,7 @@ export default function Configuration() {
                         <Input
                           placeholder="192.168.1.100"
                           {...field}
+                          value={field.value || ''}
                           data-testid="input-server-ip"
                         />
                       </FormControl>

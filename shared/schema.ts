@@ -47,11 +47,16 @@ export const activityLogs = pgTable("activity_logs", {
 
 export const serverStatus = pgTable("server_status", {
   id: varchar("id").primaryKey().default("singleton"),
+  serverName: text("server_name").default("Bootah64x-Server"),
   pxeServerStatus: boolean("pxe_server_status").default(true),
   tftpServerStatus: boolean("tftp_server_status").default(true),
   httpServerStatus: boolean("http_server_status").default(true),
   dhcpProxyStatus: boolean("dhcp_proxy_status").default(true),
   serverIp: text("server_ip").default("192.168.1.100"),
+  pxePort: integer("pxe_port").default(67),
+  tftpPort: integer("tftp_port").default(69),
+  httpPort: integer("http_port").default(80),
+  dhcpPort: integer("dhcp_port").default(67),
   uptime: integer("uptime").default(0), // in seconds
   networkTraffic: real("network_traffic").default(0), // MB/s
   lastUpdated: timestamp("last_updated").defaultNow(),
