@@ -8,9 +8,11 @@ import Dashboard from "@/pages/dashboard";
 import Devices from "@/pages/devices";
 import Images from "@/pages/images";
 import Deployments from "@/pages/deployments";
+import Templates from "@/pages/templates";
 import Network from "@/pages/network";
 import Workstations from "@/pages/workstations";
 import Monitoring from "@/pages/monitoring";
+import Users from "@/pages/users";
 import Configuration from "@/pages/configuration";
 import Logs from "@/pages/logs";
 import Help from "@/pages/help";
@@ -27,9 +29,11 @@ function Router() {
           <Route path="/devices" component={Devices} />
           <Route path="/images" component={Images} />
           <Route path="/deployments" component={Deployments} />
+          <Route path="/templates" component={Templates} />
           <Route path="/network" component={Network} />
           <Route path="/workstations" component={Workstations} />
           <Route path="/monitoring" component={Monitoring} />
+          <Route path="/users" component={Users} />
           <Route path="/configuration" component={Configuration} />
           <Route path="/logs" component={Logs} />
           <Route path="/help" component={Help} />

@@ -9,7 +9,17 @@ import {
   insertSystemMetricsSchema,
   insertAlertSchema,
   insertAlertRuleSchema,
-  updateServerStatusSchema
+  updateServerStatusSchema,
+  insertUserSchema,
+  insertRoleSchema,
+  insertPermissionSchema,
+  insertUserRoleSchema,
+  insertRolePermissionSchema,
+  insertDeploymentTemplateSchema,
+  insertTemplateStepSchema,
+  insertTemplateVariableSchema,
+  insertTemplateDeploymentSchema,
+  insertAuditLogSchema
 } from "@shared/schema";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -546,6 +556,551 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(image);
     } catch (error) {
       res.status(500).json({ message: "Failed to increment download count" });
+    }
+  });
+
+  // User Management endpoints
+  app.get("/api/users", async (req, res) => {
+    try {
+      const users = await storage.getUsers();
+      res.json(users);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch users" });
+    }
+  });
+
+  app.get("/api/users/:id", async (req, res) => {
+    try {
+      const user = await storage.getUser(req.params.id);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      res.json(user);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch user" });
+    }
+  });
+
+  app.post("/api/users", async (req, res) => {
+    try {
+      const userData = insertUserSchema.parse(req.body);
+      const user = await storage.createUser(userData);
+      
+      // Log user creation
+      await storage.createAuditLog({
+        action: "create_user",
+        entity: "user",
+        entityId: user.id,
+        userId: user.id, // In real implementation, this would be the current authenticated user
+        details: JSON.stringify({ username: user.username, email: user.email }),
+      });
+      
+      res.status(201).json(user);
+    } catch (error) {
+      res.status(400).json({ message: "Invalid user data" });
+    }
+  });
+
+  app.put("/api/users/:id", async (req, res) => {
+    try {
+      const userData = insertUserSchema.partial().parse(req.body);
+      const user = await storage.updateUser(req.params.id, userData);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      
+      // Log user update
+      await storage.createAuditLog({
+        action: "update_user",
+        entity: "user",
+        entityId: user.id,
+        userId: user.id, // In real implementation, this would be the current authenticated user
+        details: JSON.stringify(userData),
+      });
+      
+      res.json(user);
+    } catch (error) {
+      res.status(400).json({ message: "Invalid user data" });
+    }
+  });
+
+  app.delete("/api/users/:id", async (req, res) => {
+    try {
+      const user = await storage.getUser(req.params.id);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      
+      const deleted = await storage.deleteUser(req.params.id);
+      if (!deleted) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      
+      // Log user deletion
+      await storage.createAuditLog({
+        action: "delete_user",
+        entity: "user",
+        entityId: req.params.id,
+        userId: req.params.id, // In real implementation, this would be the current authenticated user
+        details: JSON.stringify({ username: user.username }),
+      });
+      
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ message: "Failed to delete user" });
+    }
+  });
+
+  app.put("/api/users/:id/toggle-active", async (req, res) => {
+    try {
+      const user = await storage.toggleUserActive(req.params.id);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      
+      // Log user status change
+      await storage.createAuditLog({
+        action: user.isActive ? "activate_user" : "deactivate_user",
+        entity: "user",
+        entityId: user.id,
+        userId: user.id, // In real implementation, this would be the current authenticated user
+        details: JSON.stringify({ isActive: user.isActive }),
+      });
+      
+      res.json(user);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to toggle user status" });
+    }
+  });
+
+  // Role Management endpoints
+  app.get("/api/roles", async (req, res) => {
+    try {
+      const roles = await storage.getRoles();
+      res.json(roles);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch roles" });
+    }
+  });
+
+  app.get("/api/roles/:id", async (req, res) => {
+    try {
+      const role = await storage.getRole(req.params.id);
+      if (!role) {
+        return res.status(404).json({ message: "Role not found" });
+      }
+      res.json(role);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch role" });
+    }
+  });
+
+  app.post("/api/roles", async (req, res) => {
+    try {
+      const roleData = insertRoleSchema.parse(req.body);
+      const role = await storage.createRole(roleData);
+      
+      // Log role creation
+      await storage.createAuditLog({
+        action: "create_role",
+        entity: "role",
+        entityId: role.id,
+        userId: "system", // In real implementation, this would be the current authenticated user
+        details: JSON.stringify({ name: role.name, description: role.description }),
+      });
+      
+      res.status(201).json(role);
+    } catch (error) {
+      res.status(400).json({ message: "Invalid role data" });
+    }
+  });
+
+  app.put("/api/roles/:id", async (req, res) => {
+    try {
+      const roleData = insertRoleSchema.partial().parse(req.body);
+      const role = await storage.updateRole(req.params.id, roleData);
+      if (!role) {
+        return res.status(404).json({ message: "Role not found" });
+      }
+      
+      // Log role update
+      await storage.createAuditLog({
+        action: "update_role",
+        entity: "role",
+        entityId: role.id,
+        userId: "system", // In real implementation, this would be the current authenticated user
+        details: JSON.stringify(roleData),
+      });
+      
+      res.json(role);
+    } catch (error) {
+      res.status(400).json({ message: "Invalid role data" });
+    }
+  });
+
+  app.delete("/api/roles/:id", async (req, res) => {
+    try {
+      const role = await storage.getRole(req.params.id);
+      if (!role) {
+        return res.status(404).json({ message: "Role not found" });
+      }
+      
+      const deleted = await storage.deleteRole(req.params.id);
+      if (!deleted) {
+        return res.status(404).json({ message: "Role not found" });
+      }
+      
+      // Log role deletion
+      await storage.createAuditLog({
+        action: "delete_role",
+        entity: "role",
+        entityId: req.params.id,
+        userId: "system", // In real implementation, this would be the current authenticated user
+        details: JSON.stringify({ name: role.name }),
+      });
+      
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ message: "Failed to delete role" });
+    }
+  });
+
+  // Permission Management endpoints
+  app.get("/api/permissions", async (req, res) => {
+    try {
+      const permissions = await storage.getPermissions();
+      res.json(permissions);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch permissions" });
+    }
+  });
+
+  app.post("/api/permissions", async (req, res) => {
+    try {
+      const permissionData = insertPermissionSchema.parse(req.body);
+      const permission = await storage.createPermission(permissionData);
+      res.status(201).json(permission);
+    } catch (error) {
+      res.status(400).json({ message: "Invalid permission data" });
+    }
+  });
+
+  // User-Role Assignment endpoints
+  app.post("/api/users/:userId/roles", async (req, res) => {
+    try {
+      const { roleId } = req.body;
+      const userRole = await storage.assignUserRole({
+        userId: req.params.userId,
+        roleId,
+      });
+      
+      // Log role assignment
+      await storage.createAuditLog({
+        action: "assign_user_role",
+        entity: "user_role",
+        entityId: userRole.id,
+        userId: "system", // In real implementation, this would be the current authenticated user
+        details: JSON.stringify({ userId: req.params.userId, roleId }),
+      });
+      
+      res.status(201).json(userRole);
+    } catch (error) {
+      res.status(400).json({ message: "Failed to assign role" });
+    }
+  });
+
+  app.delete("/api/users/:userId/roles/:roleId", async (req, res) => {
+    try {
+      const removed = await storage.removeUserRole(req.params.userId, req.params.roleId);
+      if (!removed) {
+        return res.status(404).json({ message: "User role assignment not found" });
+      }
+      
+      // Log role removal
+      await storage.createAuditLog({
+        action: "remove_user_role",
+        entity: "user_role",
+        entityId: `${req.params.userId}-${req.params.roleId}`,
+        userId: "system", // In real implementation, this would be the current authenticated user
+        details: JSON.stringify({ userId: req.params.userId, roleId: req.params.roleId }),
+      });
+      
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ message: "Failed to remove role" });
+    }
+  });
+
+  // Role-Permission Assignment endpoints
+  app.post("/api/roles/:roleId/permissions", async (req, res) => {
+    try {
+      const { permissionId } = req.body;
+      const rolePermission = await storage.assignRolePermission({
+        roleId: req.params.roleId,
+        permissionId,
+      });
+      res.status(201).json(rolePermission);
+    } catch (error) {
+      res.status(400).json({ message: "Failed to assign permission" });
+    }
+  });
+
+  app.delete("/api/roles/:roleId/permissions/:permissionId", async (req, res) => {
+    try {
+      const removed = await storage.removeRolePermission(req.params.roleId, req.params.permissionId);
+      if (!removed) {
+        return res.status(404).json({ message: "Role permission assignment not found" });
+      }
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ message: "Failed to remove permission" });
+    }
+  });
+
+  // Deployment Template endpoints
+  app.get("/api/templates", async (req, res) => {
+    try {
+      const templates = await storage.getTemplates();
+      res.json(templates);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch templates" });
+    }
+  });
+
+  app.get("/api/templates/:id", async (req, res) => {
+    try {
+      const template = await storage.getTemplate(req.params.id);
+      if (!template) {
+        return res.status(404).json({ message: "Template not found" });
+      }
+      res.json(template);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch template" });
+    }
+  });
+
+  app.post("/api/templates", async (req, res) => {
+    try {
+      const templateData = insertDeploymentTemplateSchema.parse(req.body);
+      const template = await storage.createTemplate(templateData);
+      
+      // Log template creation
+      await storage.createAuditLog({
+        action: "create_template",
+        entity: "template",
+        entityId: template.id,
+        userId: template.createdBy,
+        details: JSON.stringify({ name: template.name }),
+      });
+      
+      res.status(201).json(template);
+    } catch (error) {
+      res.status(400).json({ message: "Invalid template data" });
+    }
+  });
+
+  app.put("/api/templates/:id", async (req, res) => {
+    try {
+      const templateData = insertDeploymentTemplateSchema.partial().parse(req.body);
+      const template = await storage.updateTemplate(req.params.id, templateData);
+      if (!template) {
+        return res.status(404).json({ message: "Template not found" });
+      }
+      
+      // Log template update
+      await storage.createAuditLog({
+        action: "update_template",
+        entity: "template",
+        entityId: template.id,
+        userId: template.createdBy,
+        details: JSON.stringify(templateData),
+      });
+      
+      res.json(template);
+    } catch (error) {
+      res.status(400).json({ message: "Invalid template data" });
+    }
+  });
+
+  app.delete("/api/templates/:id", async (req, res) => {
+    try {
+      const template = await storage.getTemplate(req.params.id);
+      if (!template) {
+        return res.status(404).json({ message: "Template not found" });
+      }
+      
+      const deleted = await storage.deleteTemplate(req.params.id);
+      if (!deleted) {
+        return res.status(404).json({ message: "Template not found" });
+      }
+      
+      // Log template deletion
+      await storage.createAuditLog({
+        action: "delete_template",
+        entity: "template",
+        entityId: req.params.id,
+        userId: template.createdBy,
+        details: JSON.stringify({ name: template.name }),
+      });
+      
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ message: "Failed to delete template" });
+    }
+  });
+
+  app.post("/api/templates/:id/duplicate", async (req, res) => {
+    try {
+      const { name } = req.body;
+      if (!name) {
+        return res.status(400).json({ message: "New template name is required" });
+      }
+      
+      const duplicatedTemplate = await storage.duplicateTemplate(req.params.id, name);
+      if (!duplicatedTemplate) {
+        return res.status(404).json({ message: "Template not found" });
+      }
+      
+      // Log template duplication
+      await storage.createAuditLog({
+        action: "duplicate_template",
+        entity: "template",
+        entityId: duplicatedTemplate.id,
+        userId: duplicatedTemplate.createdBy,
+        details: JSON.stringify({ originalId: req.params.id, newName: name }),
+      });
+      
+      res.status(201).json(duplicatedTemplate);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to duplicate template" });
+    }
+  });
+
+  // Template Steps endpoints
+  app.get("/api/templates/:templateId/steps", async (req, res) => {
+    try {
+      const steps = await storage.getTemplateSteps(req.params.templateId);
+      res.json(steps);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch template steps" });
+    }
+  });
+
+  app.post("/api/templates/:templateId/steps", async (req, res) => {
+    try {
+      const stepData = insertTemplateStepSchema.parse({
+        ...req.body,
+        templateId: req.params.templateId,
+      });
+      const step = await storage.createTemplateStep(stepData);
+      res.status(201).json(step);
+    } catch (error) {
+      res.status(400).json({ message: "Invalid step data" });
+    }
+  });
+
+  app.put("/api/template-steps/:id", async (req, res) => {
+    try {
+      const stepData = insertTemplateStepSchema.partial().parse(req.body);
+      const step = await storage.updateTemplateStep(req.params.id, stepData);
+      if (!step) {
+        return res.status(404).json({ message: "Template step not found" });
+      }
+      res.json(step);
+    } catch (error) {
+      res.status(400).json({ message: "Invalid step data" });
+    }
+  });
+
+  app.delete("/api/template-steps/:id", async (req, res) => {
+    try {
+      const deleted = await storage.deleteTemplateStep(req.params.id);
+      if (!deleted) {
+        return res.status(404).json({ message: "Template step not found" });
+      }
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ message: "Failed to delete template step" });
+    }
+  });
+
+  // Template Variables endpoints
+  app.get("/api/templates/:templateId/variables", async (req, res) => {
+    try {
+      const variables = await storage.getTemplateVariables(req.params.templateId);
+      res.json(variables);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch template variables" });
+    }
+  });
+
+  app.post("/api/templates/:templateId/variables", async (req, res) => {
+    try {
+      const variableData = insertTemplateVariableSchema.parse({
+        ...req.body,
+        templateId: req.params.templateId,
+      });
+      const variable = await storage.createTemplateVariable(variableData);
+      res.status(201).json(variable);
+    } catch (error) {
+      res.status(400).json({ message: "Invalid variable data" });
+    }
+  });
+
+  app.put("/api/template-variables/:id", async (req, res) => {
+    try {
+      const variableData = insertTemplateVariableSchema.partial().parse(req.body);
+      const variable = await storage.updateTemplateVariable(req.params.id, variableData);
+      if (!variable) {
+        return res.status(404).json({ message: "Template variable not found" });
+      }
+      res.json(variable);
+    } catch (error) {
+      res.status(400).json({ message: "Invalid variable data" });
+    }
+  });
+
+  app.delete("/api/template-variables/:id", async (req, res) => {
+    try {
+      const deleted = await storage.deleteTemplateVariable(req.params.id);
+      if (!deleted) {
+        return res.status(404).json({ message: "Template variable not found" });
+      }
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ message: "Failed to delete template variable" });
+    }
+  });
+
+  // Template Deployment endpoints
+  app.get("/api/template-deployments", async (req, res) => {
+    try {
+      const templateDeployments = await storage.getTemplateDeployments();
+      res.json(templateDeployments);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch template deployments" });
+    }
+  });
+
+  app.post("/api/template-deployments", async (req, res) => {
+    try {
+      const deploymentData = insertTemplateDeploymentSchema.parse(req.body);
+      const deployment = await storage.createTemplateDeployment(deploymentData);
+      res.status(201).json(deployment);
+    } catch (error) {
+      res.status(400).json({ message: "Invalid template deployment data" });
+    }
+  });
+
+  // Audit Logs endpoints
+  app.get("/api/audit-logs", async (req, res) => {
+    try {
+      const limit = req.query.limit ? parseInt(req.query.limit as string) : 50;
+      const userId = req.query.userId as string | undefined;
+      const logs = await storage.getAuditLogs(limit, userId);
+      res.json(logs);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch audit logs" });
     }
   });
 

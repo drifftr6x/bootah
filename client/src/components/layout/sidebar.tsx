@@ -13,6 +13,9 @@ import {
   Settings,
   FileText,
   HelpCircle,
+  Users,
+  Workflow,
+  Shield,
 } from "lucide-react";
 
 const navigation = [
@@ -20,9 +23,11 @@ const navigation = [
   { name: "Device Management", href: "/devices", icon: Monitor },
   { name: "Image Library", href: "/images", icon: HardDrive },
   { name: "Deployments", href: "/deployments", icon: Zap },
+  { name: "Templates", href: "/templates", icon: Workflow },
   { name: "Network Discovery", href: "/network", icon: Wifi },
   { name: "Workstations", href: "/workstations", icon: Laptop },
   { name: "Monitoring", href: "/monitoring", icon: Activity },
+  { name: "User Management", href: "/users", icon: Users },
   { name: "Configuration", href: "/configuration", icon: Settings },
   { name: "Logs & History", href: "/logs", icon: FileText },
   { name: "Help & Support", href: "/help", icon: HelpCircle },

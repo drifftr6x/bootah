@@ -16,7 +16,30 @@ import {
   type InsertAlert,
   type AlertRule,
   type InsertAlertRule,
-  type DashboardStats
+  type DashboardStats,
+  type User,
+  type InsertUser,
+  type Role,
+  type InsertRole,
+  type Permission,
+  type InsertPermission,
+  type UserRole,
+  type InsertUserRole,
+  type RolePermission,
+  type InsertRolePermission,
+  type DeploymentTemplate,
+  type InsertDeploymentTemplate,
+  type TemplateStep,
+  type InsertTemplateStep,
+  type TemplateVariable,
+  type InsertTemplateVariable,
+  type TemplateDeployment,
+  type InsertTemplateDeployment,
+  type AuditLog,
+  type InsertAuditLog,
+  type UserWithRoles,
+  type RoleWithPermissions,
+  type DeploymentTemplateWithDetails
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 
@@ -75,6 +98,69 @@ export interface IStorage {
 
   // Dashboard Stats
   getDashboardStats(): Promise<DashboardStats>;
+
+  // User Management
+  getUsers(): Promise<UserWithRoles[]>;
+  getUser(id: string): Promise<UserWithRoles | undefined>;
+  getUserByUsername(username: string): Promise<User | undefined>;
+  getUserByEmail(email: string): Promise<User | undefined>;
+  createUser(user: InsertUser): Promise<User>;
+  updateUser(id: string, user: Partial<InsertUser>): Promise<User | undefined>;
+  deleteUser(id: string): Promise<boolean>;
+  toggleUserActive(id: string): Promise<User | undefined>;
+
+  // Roles
+  getRoles(): Promise<RoleWithPermissions[]>;
+  getRole(id: string): Promise<RoleWithPermissions | undefined>;
+  createRole(role: InsertRole): Promise<Role>;
+  updateRole(id: string, role: Partial<InsertRole>): Promise<Role | undefined>;
+  deleteRole(id: string): Promise<boolean>;
+
+  // Permissions
+  getPermissions(): Promise<Permission[]>;
+  getPermission(id: string): Promise<Permission | undefined>;
+  createPermission(permission: InsertPermission): Promise<Permission>;
+  deletePermission(id: string): Promise<boolean>;
+
+  // User-Role Assignments
+  getUserRoles(userId: string): Promise<UserRole[]>;
+  assignUserRole(userRole: InsertUserRole): Promise<UserRole>;
+  removeUserRole(userId: string, roleId: string): Promise<boolean>;
+
+  // Role-Permission Assignments
+  getRolePermissions(roleId: string): Promise<RolePermission[]>;
+  assignRolePermission(rolePermission: InsertRolePermission): Promise<RolePermission>;
+  removeRolePermission(roleId: string, permissionId: string): Promise<boolean>;
+
+  // Deployment Templates
+  getTemplates(): Promise<DeploymentTemplateWithDetails[]>;
+  getTemplate(id: string): Promise<DeploymentTemplateWithDetails | undefined>;
+  createTemplate(template: InsertDeploymentTemplate): Promise<DeploymentTemplate>;
+  updateTemplate(id: string, template: Partial<InsertDeploymentTemplate>): Promise<DeploymentTemplate | undefined>;
+  deleteTemplate(id: string): Promise<boolean>;
+  duplicateTemplate(id: string, newName: string): Promise<DeploymentTemplate | undefined>;
+
+  // Template Steps
+  getTemplateSteps(templateId: string): Promise<TemplateStep[]>;
+  createTemplateStep(step: InsertTemplateStep): Promise<TemplateStep>;
+  updateTemplateStep(id: string, step: Partial<InsertTemplateStep>): Promise<TemplateStep | undefined>;
+  deleteTemplateStep(id: string): Promise<boolean>;
+
+  // Template Variables
+  getTemplateVariables(templateId: string): Promise<TemplateVariable[]>;
+  createTemplateVariable(variable: InsertTemplateVariable): Promise<TemplateVariable>;
+  updateTemplateVariable(id: string, variable: Partial<InsertTemplateVariable>): Promise<TemplateVariable | undefined>;
+  deleteTemplateVariable(id: string): Promise<boolean>;
+
+  // Template Deployments
+  getTemplateDeployments(): Promise<TemplateDeployment[]>;
+  getTemplateDeployment(id: string): Promise<TemplateDeployment | undefined>;
+  createTemplateDeployment(templateDeployment: InsertTemplateDeployment): Promise<TemplateDeployment>;
+  updateTemplateDeployment(id: string, templateDeployment: Partial<InsertTemplateDeployment>): Promise<TemplateDeployment | undefined>;
+
+  // Audit Logs
+  getAuditLogs(limit?: number, userId?: string): Promise<AuditLog[]>;
+  createAuditLog(log: InsertAuditLog): Promise<AuditLog>;
 }
 
 export class MemStorage implements IStorage {
@@ -86,6 +172,20 @@ export class MemStorage implements IStorage {
   private alerts: Map<string, Alert> = new Map();
   private alertRules: Map<string, AlertRule> = new Map();
   private serverStatus: ServerStatus;
+  
+  // User Management & RBAC
+  private users: Map<string, User> = new Map();
+  private roles: Map<string, Role> = new Map();
+  private permissions: Map<string, Permission> = new Map();
+  private userRoles: Map<string, UserRole> = new Map();
+  private rolePermissions: Map<string, RolePermission> = new Map();
+  
+  // Deployment Templates
+  private templates: Map<string, DeploymentTemplate> = new Map();
+  private templateSteps: Map<string, TemplateStep> = new Map();
+  private templateVariables: Map<string, TemplateVariable> = new Map();
+  private templateDeployments: Map<string, TemplateDeployment> = new Map();
+  private auditLogs: AuditLog[] = [];
 
   constructor() {
     // Initialize server status
@@ -108,6 +208,8 @@ export class MemStorage implements IStorage {
 
     // Initialize with some sample data for demonstration
     this.initializeSampleData();
+    this.initializeUserManagement();
+    this.initializeTemplates();
   }
 
   private initializeSampleData() {
@@ -652,6 +754,735 @@ export class MemStorage implements IStorage {
       imagesCount: images.length,
       totalImageSize,
     };
+  }
+
+  // Initialize sample user management data
+  private initializeUserManagement() {
+    // Sample permissions
+    const permissions = [
+      { id: randomUUID(), name: "view_dashboard", description: "View dashboard" },
+      { id: randomUUID(), name: "manage_devices", description: "Manage devices" },
+      { id: randomUUID(), name: "manage_images", description: "Manage OS images" },
+      { id: randomUUID(), name: "manage_deployments", description: "Manage deployments" },
+      { id: randomUUID(), name: "manage_users", description: "Manage users" },
+      { id: randomUUID(), name: "manage_roles", description: "Manage roles" },
+      { id: randomUUID(), name: "view_logs", description: "View activity logs" },
+      { id: randomUUID(), name: "manage_system", description: "Manage system settings" },
+    ];
+
+    permissions.forEach(p => this.permissions.set(p.id, p));
+
+    // Sample roles
+    const adminRole: Role = {
+      id: randomUUID(),
+      name: "Administrator",
+      description: "Full system access",
+      isSystemRole: true,
+      createdAt: new Date(),
+    };
+
+    const operatorRole: Role = {
+      id: randomUUID(),
+      name: "Operator",
+      description: "Deploy and manage images",
+      isSystemRole: true,
+      createdAt: new Date(),
+    };
+
+    const viewerRole: Role = {
+      id: randomUUID(),
+      name: "Viewer",
+      description: "Read-only access",
+      isSystemRole: true,
+      createdAt: new Date(),
+    };
+
+    this.roles.set(adminRole.id, adminRole);
+    this.roles.set(operatorRole.id, operatorRole);
+    this.roles.set(viewerRole.id, viewerRole);
+
+    // Assign all permissions to admin
+    permissions.forEach(perm => {
+      const rolePermission: RolePermission = {
+        id: randomUUID(),
+        roleId: adminRole.id,
+        permissionId: perm.id,
+        assignedAt: new Date(),
+      };
+      this.rolePermissions.set(rolePermission.id, rolePermission);
+    });
+
+    // Assign deployment permissions to operator
+    const operatorPerms = permissions.filter(p => 
+      ["view_dashboard", "manage_devices", "manage_images", "manage_deployments", "view_logs"].includes(p.name)
+    );
+    operatorPerms.forEach(perm => {
+      const rolePermission: RolePermission = {
+        id: randomUUID(),
+        roleId: operatorRole.id,
+        permissionId: perm.id,
+        assignedAt: new Date(),
+      };
+      this.rolePermissions.set(rolePermission.id, rolePermission);
+    });
+
+    // Assign view permissions to viewer
+    const viewerPerms = permissions.filter(p => 
+      ["view_dashboard", "view_logs"].includes(p.name)
+    );
+    viewerPerms.forEach(perm => {
+      const rolePermission: RolePermission = {
+        id: randomUUID(),
+        roleId: viewerRole.id,
+        permissionId: perm.id,
+        assignedAt: new Date(),
+      };
+      this.rolePermissions.set(rolePermission.id, rolePermission);
+    });
+
+    // Sample users
+    const adminUser: User = {
+      id: randomUUID(),
+      username: "admin",
+      email: "admin@bootah.local",
+      firstName: "System",
+      lastName: "Administrator",
+      isActive: true,
+      lastLoginAt: new Date(),
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    const operatorUser: User = {
+      id: randomUUID(),
+      username: "operator",
+      email: "operator@bootah.local",
+      firstName: "IT",
+      lastName: "Operator",
+      isActive: true,
+      lastLoginAt: new Date(Date.now() - 3600000), // 1 hour ago
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    this.users.set(adminUser.id, adminUser);
+    this.users.set(operatorUser.id, operatorUser);
+
+    // Assign roles to users
+    const adminUserRole: UserRole = {
+      id: randomUUID(),
+      userId: adminUser.id,
+      roleId: adminRole.id,
+      assignedAt: new Date(),
+    };
+
+    const operatorUserRole: UserRole = {
+      id: randomUUID(),
+      userId: operatorUser.id,
+      roleId: operatorRole.id,
+      assignedAt: new Date(),
+    };
+
+    this.userRoles.set(adminUserRole.id, adminUserRole);
+    this.userRoles.set(operatorUserRole.id, operatorUserRole);
+  }
+
+  // Initialize sample deployment templates
+  private initializeTemplates() {
+    // Windows deployment template
+    const winTemplate: DeploymentTemplate = {
+      id: randomUUID(),
+      name: "Windows 11 Enterprise Deployment",
+      description: "Complete Windows 11 Enterprise deployment with domain join and software installation",
+      version: "1.0",
+      isActive: true,
+      createdBy: Array.from(this.users.values())[0]?.id || "admin",
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    // Linux deployment template
+    const linuxTemplate: DeploymentTemplate = {
+      id: randomUUID(),
+      name: "Ubuntu Server Setup",
+      description: "Ubuntu 22.04 LTS server deployment with Docker and monitoring tools",
+      version: "1.2",
+      isActive: true,
+      createdBy: Array.from(this.users.values())[0]?.id || "admin",
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    this.templates.set(winTemplate.id, winTemplate);
+    this.templates.set(linuxTemplate.id, linuxTemplate);
+
+    // Windows template steps
+    const winSteps = [
+      {
+        id: randomUUID(),
+        templateId: winTemplate.id,
+        stepNumber: 1,
+        name: "Boot from Network",
+        description: "Configure BIOS/UEFI for PXE boot",
+        action: "pxe_boot",
+        parameters: { bootMode: "uefi", networkInterface: "primary" },
+        timeoutSeconds: 300,
+        retryCount: 3,
+        isOptional: false,
+        dependsOn: null,
+      },
+      {
+        id: randomUUID(),
+        templateId: winTemplate.id,
+        stepNumber: 2,
+        name: "Deploy Windows Image",
+        description: "Deploy Windows 11 Enterprise base image",
+        action: "deploy_image",
+        parameters: { imageId: "{{WINDOWS_IMAGE_ID}}", partitionScheme: "gpt" },
+        timeoutSeconds: 2400,
+        retryCount: 1,
+        isOptional: false,
+        dependsOn: null,
+      },
+      {
+        id: randomUUID(),
+        templateId: winTemplate.id,
+        stepNumber: 3,
+        name: "Domain Join",
+        description: "Join computer to Active Directory domain",
+        action: "domain_join",
+        parameters: { domain: "{{DOMAIN_NAME}}", ou: "{{TARGET_OU}}" },
+        timeoutSeconds: 180,
+        retryCount: 2,
+        isOptional: true,
+        dependsOn: null,
+      }
+    ];
+
+    winSteps.forEach(step => this.templateSteps.set(step.id, step));
+
+    // Template variables
+    const winVariables = [
+      {
+        id: randomUUID(),
+        templateId: winTemplate.id,
+        name: "WINDOWS_IMAGE_ID",
+        description: "Windows 11 Enterprise Image ID",
+        defaultValue: "",
+        isRequired: true,
+        variableType: "string" as const,
+      },
+      {
+        id: randomUUID(),
+        templateId: winTemplate.id,
+        name: "DOMAIN_NAME",
+        description: "Active Directory Domain Name",
+        defaultValue: "company.local",
+        isRequired: false,
+        variableType: "string" as const,
+      },
+      {
+        id: randomUUID(),
+        templateId: winTemplate.id,
+        name: "TARGET_OU",
+        description: "Target Organizational Unit",
+        defaultValue: "OU=Workstations,DC=company,DC=local",
+        isRequired: false,
+        variableType: "string" as const,
+      }
+    ];
+
+    winVariables.forEach(variable => this.templateVariables.set(variable.id, variable));
+  }
+
+  // User Management Implementation
+  async getUsers(): Promise<UserWithRoles[]> {
+    const users = Array.from(this.users.values());
+    const usersWithRoles: UserWithRoles[] = [];
+
+    for (const user of users) {
+      const userRoles = Array.from(this.userRoles.values())
+        .filter(ur => ur.userId === user.id)
+        .map(ur => this.roles.get(ur.roleId))
+        .filter(Boolean) as Role[];
+
+      usersWithRoles.push({
+        ...user,
+        roles: userRoles,
+      });
+    }
+
+    return usersWithRoles;
+  }
+
+  async getUser(id: string): Promise<UserWithRoles | undefined> {
+    const user = this.users.get(id);
+    if (!user) return undefined;
+
+    const userRoles = Array.from(this.userRoles.values())
+      .filter(ur => ur.userId === id)
+      .map(ur => this.roles.get(ur.roleId))
+      .filter(Boolean) as Role[];
+
+    return {
+      ...user,
+      roles: userRoles,
+    };
+  }
+
+  async getUserByUsername(username: string): Promise<User | undefined> {
+    return Array.from(this.users.values()).find(user => user.username === username);
+  }
+
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    return Array.from(this.users.values()).find(user => user.email === email);
+  }
+
+  async createUser(insertUser: InsertUser): Promise<User> {
+    const id = randomUUID();
+    const user: User = {
+      ...insertUser,
+      id,
+      isActive: insertUser.isActive ?? true,
+      lastLoginAt: insertUser.lastLoginAt ?? null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    this.users.set(id, user);
+    return user;
+  }
+
+  async updateUser(id: string, updateData: Partial<InsertUser>): Promise<User | undefined> {
+    const user = this.users.get(id);
+    if (!user) return undefined;
+
+    const updatedUser = { 
+      ...user, 
+      ...updateData, 
+      updatedAt: new Date() 
+    };
+    this.users.set(id, updatedUser);
+    return updatedUser;
+  }
+
+  async deleteUser(id: string): Promise<boolean> {
+    // Remove user role assignments
+    Array.from(this.userRoles.values())
+      .filter(ur => ur.userId === id)
+      .forEach(ur => this.userRoles.delete(ur.id));
+    
+    return this.users.delete(id);
+  }
+
+  async toggleUserActive(id: string): Promise<User | undefined> {
+    const user = this.users.get(id);
+    if (!user) return undefined;
+
+    const updatedUser = { 
+      ...user, 
+      isActive: !user.isActive, 
+      updatedAt: new Date() 
+    };
+    this.users.set(id, updatedUser);
+    return updatedUser;
+  }
+
+  // Role Management Implementation
+  async getRoles(): Promise<RoleWithPermissions[]> {
+    const roles = Array.from(this.roles.values());
+    const rolesWithPermissions: RoleWithPermissions[] = [];
+
+    for (const role of roles) {
+      const rolePermissions = Array.from(this.rolePermissions.values())
+        .filter(rp => rp.roleId === role.id)
+        .map(rp => this.permissions.get(rp.permissionId))
+        .filter(Boolean) as Permission[];
+
+      rolesWithPermissions.push({
+        ...role,
+        permissions: rolePermissions,
+      });
+    }
+
+    return rolesWithPermissions;
+  }
+
+  async getRole(id: string): Promise<RoleWithPermissions | undefined> {
+    const role = this.roles.get(id);
+    if (!role) return undefined;
+
+    const rolePermissions = Array.from(this.rolePermissions.values())
+      .filter(rp => rp.roleId === id)
+      .map(rp => this.permissions.get(rp.permissionId))
+      .filter(Boolean) as Permission[];
+
+    return {
+      ...role,
+      permissions: rolePermissions,
+    };
+  }
+
+  async createRole(insertRole: InsertRole): Promise<Role> {
+    const id = randomUUID();
+    const role: Role = {
+      ...insertRole,
+      id,
+      isSystemRole: insertRole.isSystemRole ?? false,
+      createdAt: new Date(),
+    };
+    this.roles.set(id, role);
+    return role;
+  }
+
+  async updateRole(id: string, updateData: Partial<InsertRole>): Promise<Role | undefined> {
+    const role = this.roles.get(id);
+    if (!role) return undefined;
+
+    const updatedRole = { ...role, ...updateData };
+    this.roles.set(id, updatedRole);
+    return updatedRole;
+  }
+
+  async deleteRole(id: string): Promise<boolean> {
+    // Remove role permission assignments
+    Array.from(this.rolePermissions.values())
+      .filter(rp => rp.roleId === id)
+      .forEach(rp => this.rolePermissions.delete(rp.id));
+    
+    // Remove user role assignments
+    Array.from(this.userRoles.values())
+      .filter(ur => ur.roleId === id)
+      .forEach(ur => this.userRoles.delete(ur.id));
+    
+    return this.roles.delete(id);
+  }
+
+  // Permission Management Implementation
+  async getPermissions(): Promise<Permission[]> {
+    return Array.from(this.permissions.values());
+  }
+
+  async getPermission(id: string): Promise<Permission | undefined> {
+    return this.permissions.get(id);
+  }
+
+  async createPermission(insertPermission: InsertPermission): Promise<Permission> {
+    const id = randomUUID();
+    const permission: Permission = {
+      ...insertPermission,
+      id,
+    };
+    this.permissions.set(id, permission);
+    return permission;
+  }
+
+  async deletePermission(id: string): Promise<boolean> {
+    // Remove role permission assignments
+    Array.from(this.rolePermissions.values())
+      .filter(rp => rp.permissionId === id)
+      .forEach(rp => this.rolePermissions.delete(rp.id));
+    
+    return this.permissions.delete(id);
+  }
+
+  // User-Role Assignment Implementation
+  async getUserRoles(userId: string): Promise<UserRole[]> {
+    return Array.from(this.userRoles.values()).filter(ur => ur.userId === userId);
+  }
+
+  async assignUserRole(insertUserRole: InsertUserRole): Promise<UserRole> {
+    const id = randomUUID();
+    const userRole: UserRole = {
+      ...insertUserRole,
+      id,
+      assignedAt: new Date(),
+    };
+    this.userRoles.set(id, userRole);
+    return userRole;
+  }
+
+  async removeUserRole(userId: string, roleId: string): Promise<boolean> {
+    const userRole = Array.from(this.userRoles.values())
+      .find(ur => ur.userId === userId && ur.roleId === roleId);
+    
+    if (!userRole) return false;
+    return this.userRoles.delete(userRole.id);
+  }
+
+  // Role-Permission Assignment Implementation
+  async getRolePermissions(roleId: string): Promise<RolePermission[]> {
+    return Array.from(this.rolePermissions.values()).filter(rp => rp.roleId === roleId);
+  }
+
+  async assignRolePermission(insertRolePermission: InsertRolePermission): Promise<RolePermission> {
+    const id = randomUUID();
+    const rolePermission: RolePermission = {
+      ...insertRolePermission,
+      id,
+      assignedAt: new Date(),
+    };
+    this.rolePermissions.set(id, rolePermission);
+    return rolePermission;
+  }
+
+  async removeRolePermission(roleId: string, permissionId: string): Promise<boolean> {
+    const rolePermission = Array.from(this.rolePermissions.values())
+      .find(rp => rp.roleId === roleId && rp.permissionId === permissionId);
+    
+    if (!rolePermission) return false;
+    return this.rolePermissions.delete(rolePermission.id);
+  }
+
+  // Template Management Implementation
+  async getTemplates(): Promise<DeploymentTemplateWithDetails[]> {
+    const templates = Array.from(this.templates.values());
+    const templatesWithDetails: DeploymentTemplateWithDetails[] = [];
+
+    for (const template of templates) {
+      const steps = Array.from(this.templateSteps.values())
+        .filter(step => step.templateId === template.id)
+        .sort((a, b) => a.stepNumber - b.stepNumber);
+
+      const variables = Array.from(this.templateVariables.values())
+        .filter(variable => variable.templateId === template.id);
+
+      templatesWithDetails.push({
+        ...template,
+        steps,
+        variables,
+      });
+    }
+
+    return templatesWithDetails;
+  }
+
+  async getTemplate(id: string): Promise<DeploymentTemplateWithDetails | undefined> {
+    const template = this.templates.get(id);
+    if (!template) return undefined;
+
+    const steps = Array.from(this.templateSteps.values())
+      .filter(step => step.templateId === id)
+      .sort((a, b) => a.stepNumber - b.stepNumber);
+
+    const variables = Array.from(this.templateVariables.values())
+      .filter(variable => variable.templateId === id);
+
+    return {
+      ...template,
+      steps,
+      variables,
+    };
+  }
+
+  async createTemplate(insertTemplate: InsertDeploymentTemplate): Promise<DeploymentTemplate> {
+    const id = randomUUID();
+    const template: DeploymentTemplate = {
+      ...insertTemplate,
+      id,
+      isActive: insertTemplate.isActive ?? true,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    this.templates.set(id, template);
+    return template;
+  }
+
+  async updateTemplate(id: string, updateData: Partial<InsertDeploymentTemplate>): Promise<DeploymentTemplate | undefined> {
+    const template = this.templates.get(id);
+    if (!template) return undefined;
+
+    const updatedTemplate = { 
+      ...template, 
+      ...updateData, 
+      updatedAt: new Date() 
+    };
+    this.templates.set(id, updatedTemplate);
+    return updatedTemplate;
+  }
+
+  async deleteTemplate(id: string): Promise<boolean> {
+    // Remove template steps
+    Array.from(this.templateSteps.values())
+      .filter(step => step.templateId === id)
+      .forEach(step => this.templateSteps.delete(step.id));
+    
+    // Remove template variables
+    Array.from(this.templateVariables.values())
+      .filter(variable => variable.templateId === id)
+      .forEach(variable => this.templateVariables.delete(variable.id));
+    
+    return this.templates.delete(id);
+  }
+
+  async duplicateTemplate(id: string, newName: string): Promise<DeploymentTemplate | undefined> {
+    const originalTemplate = await this.getTemplate(id);
+    if (!originalTemplate) return undefined;
+
+    // Create new template
+    const newTemplate = await this.createTemplate({
+      name: newName,
+      description: `Copy of ${originalTemplate.description}`,
+      version: "1.0",
+      createdBy: originalTemplate.createdBy,
+    });
+
+    // Copy steps
+    for (const step of originalTemplate.steps) {
+      await this.createTemplateStep({
+        templateId: newTemplate.id,
+        stepNumber: step.stepNumber,
+        name: step.name,
+        description: step.description,
+        action: step.action,
+        parameters: step.parameters,
+        timeoutSeconds: step.timeoutSeconds,
+        retryCount: step.retryCount,
+        isOptional: step.isOptional,
+        dependsOn: step.dependsOn,
+      });
+    }
+
+    // Copy variables
+    for (const variable of originalTemplate.variables) {
+      await this.createTemplateVariable({
+        templateId: newTemplate.id,
+        name: variable.name,
+        description: variable.description,
+        defaultValue: variable.defaultValue,
+        isRequired: variable.isRequired,
+        variableType: variable.variableType,
+      });
+    }
+
+    return newTemplate;
+  }
+
+  // Template Steps Implementation
+  async getTemplateSteps(templateId: string): Promise<TemplateStep[]> {
+    return Array.from(this.templateSteps.values())
+      .filter(step => step.templateId === templateId)
+      .sort((a, b) => a.stepNumber - b.stepNumber);
+  }
+
+  async createTemplateStep(insertStep: InsertTemplateStep): Promise<TemplateStep> {
+    const id = randomUUID();
+    const step: TemplateStep = {
+      ...insertStep,
+      id,
+      timeoutSeconds: insertStep.timeoutSeconds ?? 300,
+      retryCount: insertStep.retryCount ?? 0,
+      isOptional: insertStep.isOptional ?? false,
+      dependsOn: insertStep.dependsOn ?? null,
+    };
+    this.templateSteps.set(id, step);
+    return step;
+  }
+
+  async updateTemplateStep(id: string, updateData: Partial<InsertTemplateStep>): Promise<TemplateStep | undefined> {
+    const step = this.templateSteps.get(id);
+    if (!step) return undefined;
+
+    const updatedStep = { ...step, ...updateData };
+    this.templateSteps.set(id, updatedStep);
+    return updatedStep;
+  }
+
+  async deleteTemplateStep(id: string): Promise<boolean> {
+    return this.templateSteps.delete(id);
+  }
+
+  // Template Variables Implementation
+  async getTemplateVariables(templateId: string): Promise<TemplateVariable[]> {
+    return Array.from(this.templateVariables.values())
+      .filter(variable => variable.templateId === templateId);
+  }
+
+  async createTemplateVariable(insertVariable: InsertTemplateVariable): Promise<TemplateVariable> {
+    const id = randomUUID();
+    const variable: TemplateVariable = {
+      ...insertVariable,
+      id,
+      defaultValue: insertVariable.defaultValue ?? "",
+      isRequired: insertVariable.isRequired ?? false,
+    };
+    this.templateVariables.set(id, variable);
+    return variable;
+  }
+
+  async updateTemplateVariable(id: string, updateData: Partial<InsertTemplateVariable>): Promise<TemplateVariable | undefined> {
+    const variable = this.templateVariables.get(id);
+    if (!variable) return undefined;
+
+    const updatedVariable = { ...variable, ...updateData };
+    this.templateVariables.set(id, updatedVariable);
+    return updatedVariable;
+  }
+
+  async deleteTemplateVariable(id: string): Promise<boolean> {
+    return this.templateVariables.delete(id);
+  }
+
+  // Template Deployments Implementation
+  async getTemplateDeployments(): Promise<TemplateDeployment[]> {
+    return Array.from(this.templateDeployments.values());
+  }
+
+  async getTemplateDeployment(id: string): Promise<TemplateDeployment | undefined> {
+    return this.templateDeployments.get(id);
+  }
+
+  async createTemplateDeployment(insertTemplateDeployment: InsertTemplateDeployment): Promise<TemplateDeployment> {
+    const id = randomUUID();
+    const templateDeployment: TemplateDeployment = {
+      ...insertTemplateDeployment,
+      id,
+      status: insertTemplateDeployment.status ?? "pending",
+      progress: insertTemplateDeployment.progress ?? 0,
+      startedAt: new Date(),
+      completedAt: insertTemplateDeployment.completedAt ?? null,
+      errorMessage: insertTemplateDeployment.errorMessage ?? null,
+    };
+    this.templateDeployments.set(id, templateDeployment);
+    return templateDeployment;
+  }
+
+  async updateTemplateDeployment(id: string, updateData: Partial<InsertTemplateDeployment>): Promise<TemplateDeployment | undefined> {
+    const templateDeployment = this.templateDeployments.get(id);
+    if (!templateDeployment) return undefined;
+
+    const updatedTemplateDeployment = { ...templateDeployment, ...updateData };
+    this.templateDeployments.set(id, updatedTemplateDeployment);
+    return updatedTemplateDeployment;
+  }
+
+  // Audit Logs Implementation
+  async getAuditLogs(limit: number = 50, userId?: string): Promise<AuditLog[]> {
+    let logs = this.auditLogs;
+    
+    if (userId) {
+      logs = logs.filter(log => log.userId === userId);
+    }
+    
+    return logs
+      .sort((a, b) => (b.timestamp?.getTime() || 0) - (a.timestamp?.getTime() || 0))
+      .slice(0, limit);
+  }
+
+  async createAuditLog(insertLog: InsertAuditLog): Promise<AuditLog> {
+    const log: AuditLog = {
+      ...insertLog,
+      id: randomUUID(),
+      timestamp: new Date(),
+      details: insertLog.details ?? null,
+    };
+    this.auditLogs.unshift(log);
+    
+    // Keep only last 1000 audit logs
+    if (this.auditLogs.length > 1000) {
+      this.auditLogs = this.auditLogs.slice(0, 1000);
+    }
+    
+    return log;
   }
 }
 

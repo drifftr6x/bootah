@@ -113,6 +113,113 @@ export const alertRules = pgTable("alert_rules", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// User Management & RBAC Tables
+export const users = pgTable("users", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  username: text("username").notNull().unique(),
+  email: text("email").notNull().unique(),
+  fullName: text("full_name").notNull(),
+  passwordHash: text("password_hash").notNull(),
+  isActive: boolean("is_active").default(true),
+  lastLogin: timestamp("last_login"),
+  profileImage: text("profile_image"),
+  department: text("department"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const roles = pgTable("roles", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull().unique(),
+  description: text("description"),
+  isSystemRole: boolean("is_system_role").default(false), // admin, operator, viewer
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const permissions = pgTable("permissions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull().unique(),
+  resource: text("resource").notNull(), // devices, images, deployments, users, etc.
+  action: text("action").notNull(), // create, read, update, delete, deploy, etc.
+  description: text("description"),
+});
+
+export const userRoles = pgTable("user_roles", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  roleId: varchar("role_id").notNull().references(() => roles.id, { onDelete: "cascade" }),
+  assignedAt: timestamp("assigned_at").defaultNow(),
+  assignedBy: varchar("assigned_by").references(() => users.id),
+});
+
+export const rolePermissions = pgTable("role_permissions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  roleId: varchar("role_id").notNull().references(() => roles.id, { onDelete: "cascade" }),
+  permissionId: varchar("permission_id").notNull().references(() => permissions.id, { onDelete: "cascade" }),
+});
+
+// Deployment Templates
+export const deploymentTemplates = pgTable("deployment_templates", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  description: text("description"),
+  category: text("category").notNull(), // standard, custom, rescue, diagnostic
+  isDefault: boolean("is_default").default(false),
+  isActive: boolean("is_active").default(true),
+  estimatedDuration: integer("estimated_duration"), // minutes
+  compatibleOSTypes: text("compatible_os_types").array().default(sql`'{}'`),
+  tags: text("tags").array().default(sql`'{}'`),
+  createdBy: varchar("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const templateSteps = pgTable("template_steps", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  templateId: varchar("template_id").notNull().references(() => deploymentTemplates.id, { onDelete: "cascade" }),
+  stepOrder: integer("step_order").notNull(),
+  name: text("name").notNull(),
+  type: text("type").notNull(), // image_deploy, script_run, reboot, wait, custom
+  configuration: text("configuration").notNull(), // JSON string
+  isOptional: boolean("is_optional").default(false),
+  timeoutMinutes: integer("timeout_minutes").default(30),
+  retryCount: integer("retry_count").default(0),
+});
+
+export const templateVariables = pgTable("template_variables", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  templateId: varchar("template_id").notNull().references(() => deploymentTemplates.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  type: text("type").notNull(), // string, number, boolean, select, image, device
+  defaultValue: text("default_value"),
+  isRequired: boolean("is_required").default(true),
+  options: text("options").array().default(sql`'{}'`), // for select type
+  description: text("description"),
+});
+
+export const templateDeployments = pgTable("template_deployments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  templateId: varchar("template_id").notNull().references(() => deploymentTemplates.id),
+  deploymentId: varchar("deployment_id").notNull().references(() => deployments.id),
+  variables: text("variables"), // JSON string of variable values
+  currentStep: integer("current_step").default(0),
+  startedBy: varchar("started_by").references(() => users.id),
+  startedAt: timestamp("started_at").defaultNow(),
+});
+
+// Audit Logs for User Actions
+export const auditLogs = pgTable("audit_logs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id),
+  action: text("action").notNull(), // login, logout, create, update, delete, deploy, etc.
+  resource: text("resource"), // user, role, device, image, deployment, template
+  resourceId: text("resource_id"),
+  details: text("details"), // JSON string with additional context
+  ipAddress: text("ip_address"),
+  userAgent: text("user_agent"),
+  timestamp: timestamp("timestamp").defaultNow(),
+});
+
 // Insert schemas
 export const insertDeviceSchema = createInsertSchema(devices).omit({
   id: true,
@@ -157,6 +264,57 @@ export const updateServerStatusSchema = createInsertSchema(serverStatus).omit({
   lastUpdated: true,
 });
 
+// User Management & RBAC Insert Schemas
+export const insertUserSchema = createInsertSchema(users).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  lastLogin: true,
+});
+
+export const insertRoleSchema = createInsertSchema(roles).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertPermissionSchema = createInsertSchema(permissions).omit({
+  id: true,
+});
+
+export const insertUserRoleSchema = createInsertSchema(userRoles).omit({
+  id: true,
+  assignedAt: true,
+});
+
+export const insertRolePermissionSchema = createInsertSchema(rolePermissions).omit({
+  id: true,
+});
+
+// Deployment Templates Insert Schemas
+export const insertDeploymentTemplateSchema = createInsertSchema(deploymentTemplates).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertTemplateStepSchema = createInsertSchema(templateSteps).omit({
+  id: true,
+});
+
+export const insertTemplateVariableSchema = createInsertSchema(templateVariables).omit({
+  id: true,
+});
+
+export const insertTemplateDeploymentSchema = createInsertSchema(templateDeployments).omit({
+  id: true,
+  startedAt: true,
+});
+
+export const insertAuditLogSchema = createInsertSchema(auditLogs).omit({
+  id: true,
+  timestamp: true,
+});
+
 // Types
 export type Device = typeof devices.$inferSelect;
 export type InsertDevice = z.infer<typeof insertDeviceSchema>;
@@ -182,10 +340,60 @@ export type InsertAlert = z.infer<typeof insertAlertSchema>;
 export type AlertRule = typeof alertRules.$inferSelect;
 export type InsertAlertRule = z.infer<typeof insertAlertRuleSchema>;
 
+// User Management & RBAC Types
+export type User = typeof users.$inferSelect;
+export type InsertUser = z.infer<typeof insertUserSchema>;
+
+export type Role = typeof roles.$inferSelect;
+export type InsertRole = z.infer<typeof insertRoleSchema>;
+
+export type Permission = typeof permissions.$inferSelect;
+export type InsertPermission = z.infer<typeof insertPermissionSchema>;
+
+export type UserRole = typeof userRoles.$inferSelect;
+export type InsertUserRole = z.infer<typeof insertUserRoleSchema>;
+
+export type RolePermission = typeof rolePermissions.$inferSelect;
+export type InsertRolePermission = z.infer<typeof insertRolePermissionSchema>;
+
+// Deployment Templates Types
+export type DeploymentTemplate = typeof deploymentTemplates.$inferSelect;
+export type InsertDeploymentTemplate = z.infer<typeof insertDeploymentTemplateSchema>;
+
+export type TemplateStep = typeof templateSteps.$inferSelect;
+export type InsertTemplateStep = z.infer<typeof insertTemplateStepSchema>;
+
+export type TemplateVariable = typeof templateVariables.$inferSelect;
+export type InsertTemplateVariable = z.infer<typeof insertTemplateVariableSchema>;
+
+export type TemplateDeployment = typeof templateDeployments.$inferSelect;
+export type InsertTemplateDeployment = z.infer<typeof insertTemplateDeploymentSchema>;
+
+export type AuditLog = typeof auditLogs.$inferSelect;
+export type InsertAuditLog = z.infer<typeof insertAuditLogSchema>;
+
 // Extended types for API responses
 export type DeploymentWithDetails = Deployment & {
   device: Device;
   image: Image;
+};
+
+export type UserWithRoles = User & {
+  roles: (UserRole & { role: Role })[];
+};
+
+export type RoleWithPermissions = Role & {
+  permissions: (RolePermission & { permission: Permission })[];
+};
+
+export type DeploymentTemplateWithDetails = DeploymentTemplate & {
+  steps: TemplateStep[];
+  variables: TemplateVariable[];
+  creator?: User;
+};
+
+export type TemplateStepWithConfig = TemplateStep & {
+  parsedConfiguration: any; // Parsed JSON configuration
 };
 
 export type DashboardStats = {
@@ -194,4 +402,15 @@ export type DashboardStats = {
   successRate: number;
   imagesCount: number;
   totalImageSize: number;
+};
+
+// Permission checking types
+export type PermissionCheck = {
+  resource: string;
+  action: string;
+  resourceId?: string;
+};
+
+export type UserPermissions = {
+  [resource: string]: string[]; // resource -> actions[]
 };
