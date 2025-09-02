@@ -1105,6 +1105,101 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Cloud Storage Integration for OS Images
+  const { ObjectStorageService, ObjectNotFoundError } = await import("./objectStorage");
+  
+  // Serve public images from cloud storage  
+  app.get("/public-objects/:filePath(*)", async (req, res) => {
+    const filePath = req.params.filePath;
+    const objectStorageService = new ObjectStorageService();
+    try {
+      const file = await objectStorageService.searchPublicObject(filePath);
+      if (!file) {
+        return res.status(404).json({ error: "File not found" });
+      }
+      objectStorageService.downloadObject(file, res);
+    } catch (error) {
+      console.error("Error searching for public object:", error);
+      return res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // Get presigned upload URL for OS image
+  app.post("/api/images/upload", async (req, res) => {
+    try {
+      const { filename } = req.body;
+      if (!filename) {
+        return res.status(400).json({ error: "filename is required" });
+      }
+
+      const objectStorageService = new ObjectStorageService();
+      const uploadURL = await objectStorageService.getImageUploadURL(filename);
+      res.json({ uploadURL });
+    } catch (error) {
+      console.error("Error generating upload URL:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // Update image record after upload to cloud storage
+  app.put("/api/images/:id/cloud-upload", async (req, res) => {
+    try {
+      const { cloudUrl } = req.body;
+      if (!cloudUrl) {
+        return res.status(400).json({ error: "cloudUrl is required" });
+      }
+
+      const objectStorageService = new ObjectStorageService();
+      
+      // Set ACL policy for the uploaded image (public for OS images)
+      const objectPath = await objectStorageService.trySetObjectEntityAclPolicy(
+        cloudUrl,
+        {
+          owner: "system",
+          visibility: "public"
+        }
+      );
+
+      // Update the image record with cloud storage URL
+      const image = await storage.updateImage(req.params.id, { 
+        path: objectPath,
+        cloudUrl: cloudUrl
+      });
+      
+      if (!image) {
+        return res.status(404).json({ message: "Image not found" });
+      }
+
+      // Log image upload
+      await storage.createActivityLog({
+        type: "system",
+        message: `OS image uploaded to cloud storage: ${image.name}`,
+        deviceId: null,
+        deploymentId: null,
+      });
+
+      res.json(image);
+    } catch (error) {
+      console.error("Error updating image with cloud URL:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // Serve private images from cloud storage
+  app.get("/objects/:objectPath(*)", async (req, res) => {
+    const objectStorageService = new ObjectStorageService();
+    try {
+      const objectFile = await objectStorageService.getObjectEntityFile(req.path);
+      objectStorageService.downloadObject(objectFile, res);
+    } catch (error) {
+      console.error("Error accessing object:", error);
+      if (error instanceof ObjectNotFoundError) {
+        return res.sendStatus(404);
+      }
+      return res.sendStatus(500);
+    }
+  });
+
   const httpServer = createServer(app);
   
   // WebSocket server for real-time updates

@@ -31,6 +31,7 @@ export const images = pgTable("images", {
   isValidated: boolean("is_validated").default(false),
   validationDate: timestamp("validation_date"),
   downloadCount: integer("download_count").default(0),
+  cloudUrl: text("cloud_url"), // Cloud storage URL for the image
   uploadedAt: timestamp("uploaded_at").defaultNow(),
 });
 
