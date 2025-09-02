@@ -27,6 +27,7 @@ const navigation = [
   { name: "Network Discovery", href: "/network", icon: Wifi },
   { name: "Workstations", href: "/workstations", icon: Laptop },
   { name: "Monitoring", href: "/monitoring", icon: Activity },
+  { name: "Security Center", href: "/security", icon: Shield },
   { name: "User Management", href: "/users", icon: Users },
   { name: "Configuration", href: "/configuration", icon: Settings },
   { name: "Logs & History", href: "/logs", icon: FileText },

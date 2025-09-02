@@ -39,7 +39,19 @@ import {
   type InsertAuditLog,
   type UserWithRoles,
   type RoleWithPermissions,
-  type DeploymentTemplateWithDetails
+  type DeploymentTemplateWithDetails,
+  type SecurityIncident,
+  type InsertSecurityIncident,
+  type CompliancePolicy,
+  type InsertCompliancePolicy,
+  type SecurityAssessment,
+  type InsertSecurityAssessment,
+  type Certificate,
+  type InsertCertificate,
+  type SecurityConfiguration,
+  type InsertSecurityConfiguration,
+  type ComplianceReport,
+  type InsertComplianceReport
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 
@@ -161,6 +173,45 @@ export interface IStorage {
   // Audit Logs
   getAuditLogs(limit?: number, userId?: string): Promise<AuditLog[]>;
   createAuditLog(log: InsertAuditLog): Promise<AuditLog>;
+
+  // Security & Compliance
+  getSecurityIncidents(): Promise<SecurityIncident[]>;
+  getSecurityIncident(id: string): Promise<SecurityIncident | undefined>;
+  createSecurityIncident(incident: InsertSecurityIncident): Promise<SecurityIncident>;
+  updateSecurityIncident(id: string, incident: Partial<InsertSecurityIncident>): Promise<SecurityIncident | undefined>;
+  resolveSecurityIncident(id: string, resolution: string): Promise<SecurityIncident | undefined>;
+
+  getCompliancePolicies(): Promise<CompliancePolicy[]>;
+  getCompliancePolicy(id: string): Promise<CompliancePolicy | undefined>;
+  createCompliancePolicy(policy: InsertCompliancePolicy): Promise<CompliancePolicy>;
+  updateCompliancePolicy(id: string, policy: Partial<InsertCompliancePolicy>): Promise<CompliancePolicy | undefined>;
+  deleteCompliancePolicy(id: string): Promise<boolean>;
+
+  getSecurityAssessments(): Promise<SecurityAssessment[]>;
+  getSecurityAssessment(id: string): Promise<SecurityAssessment | undefined>;
+  createSecurityAssessment(assessment: InsertSecurityAssessment): Promise<SecurityAssessment>;
+  updateSecurityAssessment(id: string, assessment: Partial<InsertSecurityAssessment>): Promise<SecurityAssessment | undefined>;
+  deleteSecurityAssessment(id: string): Promise<boolean>;
+
+  getCertificates(): Promise<Certificate[]>;
+  getCertificate(id: string): Promise<Certificate | undefined>;
+  getExpiringCertificates(days?: number): Promise<Certificate[]>;
+  createCertificate(certificate: InsertCertificate): Promise<Certificate>;
+  updateCertificate(id: string, certificate: Partial<InsertCertificate>): Promise<Certificate | undefined>;
+  deleteCertificate(id: string): Promise<boolean>;
+
+  getSecurityConfigurations(): Promise<SecurityConfiguration[]>;
+  getSecurityConfiguration(id: string): Promise<SecurityConfiguration | undefined>;
+  createSecurityConfiguration(config: InsertSecurityConfiguration): Promise<SecurityConfiguration>;
+  updateSecurityConfiguration(id: string, config: Partial<InsertSecurityConfiguration>): Promise<SecurityConfiguration | undefined>;
+  deleteSecurityConfiguration(id: string): Promise<boolean>;
+
+  getComplianceReports(): Promise<ComplianceReport[]>;
+  getComplianceReport(id: string): Promise<ComplianceReport | undefined>;
+  createComplianceReport(report: InsertComplianceReport): Promise<ComplianceReport>;
+  updateComplianceReport(id: string, report: Partial<InsertComplianceReport>): Promise<ComplianceReport | undefined>;
+  deleteComplianceReport(id: string): Promise<boolean>;
+  approveComplianceReport(id: string, approvedBy: string): Promise<ComplianceReport | undefined>;
 }
 
 export class MemStorage implements IStorage {
@@ -186,6 +237,14 @@ export class MemStorage implements IStorage {
   private templateVariables: Map<string, TemplateVariable> = new Map();
   private templateDeployments: Map<string, TemplateDeployment> = new Map();
   private auditLogs: AuditLog[] = [];
+
+  // Security & Compliance
+  private securityIncidents: Map<string, SecurityIncident> = new Map();
+  private compliancePolicies: Map<string, CompliancePolicy> = new Map();
+  private securityAssessments: Map<string, SecurityAssessment> = new Map();
+  private certificates: Map<string, Certificate> = new Map();
+  private securityConfigurations: Map<string, SecurityConfiguration> = new Map();
+  private complianceReports: Map<string, ComplianceReport> = new Map();
 
   constructor() {
     // Initialize server status
@@ -1483,6 +1542,245 @@ export class MemStorage implements IStorage {
     }
     
     return log;
+  }
+
+  // Security Incidents Implementation
+  async getSecurityIncidents(): Promise<SecurityIncident[]> {
+    return Array.from(this.securityIncidents.values()).sort((a, b) => 
+      (b.detectedAt?.getTime() || 0) - (a.detectedAt?.getTime() || 0)
+    );
+  }
+
+  async getSecurityIncident(id: string): Promise<SecurityIncident | undefined> {
+    return this.securityIncidents.get(id);
+  }
+
+  async createSecurityIncident(insertIncident: InsertSecurityIncident): Promise<SecurityIncident> {
+    const incident: SecurityIncident = {
+      ...insertIncident,
+      id: randomUUID(),
+      detectedAt: new Date(),
+      affectedSystems: insertIncident.affectedSystems ?? [],
+      mitigationSteps: insertIncident.mitigationSteps ?? [],
+    };
+    this.securityIncidents.set(incident.id, incident);
+    return incident;
+  }
+
+  async updateSecurityIncident(id: string, update: Partial<InsertSecurityIncident>): Promise<SecurityIncident | undefined> {
+    const incident = this.securityIncidents.get(id);
+    if (!incident) return undefined;
+    
+    const updated = { ...incident, ...update };
+    this.securityIncidents.set(id, updated);
+    return updated;
+  }
+
+  async resolveSecurityIncident(id: string, resolution: string): Promise<SecurityIncident | undefined> {
+    const incident = this.securityIncidents.get(id);
+    if (!incident) return undefined;
+    
+    const resolved = {
+      ...incident,
+      status: "resolved" as const,
+      resolution,
+      resolvedAt: new Date()
+    };
+    this.securityIncidents.set(id, resolved);
+    return resolved;
+  }
+
+  // Compliance Policies Implementation
+  async getCompliancePolicies(): Promise<CompliancePolicy[]> {
+    return Array.from(this.compliancePolicies.values()).sort((a, b) => 
+      (b.createdAt?.getTime() || 0) - (a.createdAt?.getTime() || 0)
+    );
+  }
+
+  async getCompliancePolicy(id: string): Promise<CompliancePolicy | undefined> {
+    return this.compliancePolicies.get(id);
+  }
+
+  async createCompliancePolicy(insertPolicy: InsertCompliancePolicy): Promise<CompliancePolicy> {
+    const policy: CompliancePolicy = {
+      ...insertPolicy,
+      id: randomUUID(),
+      createdAt: new Date(),
+      requirements: insertPolicy.requirements ?? [],
+    };
+    this.compliancePolicies.set(policy.id, policy);
+    return policy;
+  }
+
+  async updateCompliancePolicy(id: string, update: Partial<InsertCompliancePolicy>): Promise<CompliancePolicy | undefined> {
+    const policy = this.compliancePolicies.get(id);
+    if (!policy) return undefined;
+    
+    const updated = { ...policy, ...update };
+    this.compliancePolicies.set(id, updated);
+    return updated;
+  }
+
+  async deleteCompliancePolicy(id: string): Promise<boolean> {
+    return this.compliancePolicies.delete(id);
+  }
+
+  // Security Assessments Implementation
+  async getSecurityAssessments(): Promise<SecurityAssessment[]> {
+    return Array.from(this.securityAssessments.values()).sort((a, b) => 
+      (b.scheduledAt?.getTime() || 0) - (a.scheduledAt?.getTime() || 0)
+    );
+  }
+
+  async getSecurityAssessment(id: string): Promise<SecurityAssessment | undefined> {
+    return this.securityAssessments.get(id);
+  }
+
+  async createSecurityAssessment(insertAssessment: InsertSecurityAssessment): Promise<SecurityAssessment> {
+    const assessment: SecurityAssessment = {
+      ...insertAssessment,
+      id: randomUUID(),
+    };
+    this.securityAssessments.set(assessment.id, assessment);
+    return assessment;
+  }
+
+  async updateSecurityAssessment(id: string, update: Partial<InsertSecurityAssessment>): Promise<SecurityAssessment | undefined> {
+    const assessment = this.securityAssessments.get(id);
+    if (!assessment) return undefined;
+    
+    const updated = { ...assessment, ...update };
+    this.securityAssessments.set(id, updated);
+    return updated;
+  }
+
+  async deleteSecurityAssessment(id: string): Promise<boolean> {
+    return this.securityAssessments.delete(id);
+  }
+
+  // Certificates Implementation
+  async getCertificates(): Promise<Certificate[]> {
+    return Array.from(this.certificates.values()).sort((a, b) => 
+      (a.expiresAt?.getTime() || 0) - (b.expiresAt?.getTime() || 0)
+    );
+  }
+
+  async getCertificate(id: string): Promise<Certificate | undefined> {
+    return this.certificates.get(id);
+  }
+
+  async getExpiringCertificates(days: number = 30): Promise<Certificate[]> {
+    const threshold = new Date();
+    threshold.setDate(threshold.getDate() + days);
+    
+    return Array.from(this.certificates.values())
+      .filter(cert => cert.expiresAt && cert.expiresAt <= threshold && cert.status === "active")
+      .sort((a, b) => (a.expiresAt?.getTime() || 0) - (b.expiresAt?.getTime() || 0));
+  }
+
+  async createCertificate(insertCertificate: InsertCertificate): Promise<Certificate> {
+    const certificate: Certificate = {
+      ...insertCertificate,
+      id: randomUUID(),
+      usedBy: insertCertificate.usedBy ?? [],
+    };
+    this.certificates.set(certificate.id, certificate);
+    return certificate;
+  }
+
+  async updateCertificate(id: string, update: Partial<InsertCertificate>): Promise<Certificate | undefined> {
+    const certificate = this.certificates.get(id);
+    if (!certificate) return undefined;
+    
+    const updated = { ...certificate, ...update };
+    this.certificates.set(id, updated);
+    return updated;
+  }
+
+  async deleteCertificate(id: string): Promise<boolean> {
+    return this.certificates.delete(id);
+  }
+
+  // Security Configurations Implementation
+  async getSecurityConfigurations(): Promise<SecurityConfiguration[]> {
+    return Array.from(this.securityConfigurations.values()).sort((a, b) => 
+      a.category.localeCompare(b.category) || a.setting.localeCompare(b.setting)
+    );
+  }
+
+  async getSecurityConfiguration(id: string): Promise<SecurityConfiguration | undefined> {
+    return this.securityConfigurations.get(id);
+  }
+
+  async createSecurityConfiguration(insertConfig: InsertSecurityConfiguration): Promise<SecurityConfiguration> {
+    const config: SecurityConfiguration = {
+      ...insertConfig,
+      id: randomUUID(),
+      lastUpdated: new Date(),
+    };
+    this.securityConfigurations.set(config.id, config);
+    return config;
+  }
+
+  async updateSecurityConfiguration(id: string, update: Partial<InsertSecurityConfiguration>): Promise<SecurityConfiguration | undefined> {
+    const config = this.securityConfigurations.get(id);
+    if (!config) return undefined;
+    
+    const updated = { ...config, ...update, lastUpdated: new Date() };
+    this.securityConfigurations.set(id, updated);
+    return updated;
+  }
+
+  async deleteSecurityConfiguration(id: string): Promise<boolean> {
+    return this.securityConfigurations.delete(id);
+  }
+
+  // Compliance Reports Implementation
+  async getComplianceReports(): Promise<ComplianceReport[]> {
+    return Array.from(this.complianceReports.values()).sort((a, b) => 
+      (b.createdAt?.getTime() || 0) - (a.createdAt?.getTime() || 0)
+    );
+  }
+
+  async getComplianceReport(id: string): Promise<ComplianceReport | undefined> {
+    return this.complianceReports.get(id);
+  }
+
+  async createComplianceReport(insertReport: InsertComplianceReport): Promise<ComplianceReport> {
+    const report: ComplianceReport = {
+      ...insertReport,
+      id: randomUUID(),
+      createdAt: new Date(),
+    };
+    this.complianceReports.set(report.id, report);
+    return report;
+  }
+
+  async updateComplianceReport(id: string, update: Partial<InsertComplianceReport>): Promise<ComplianceReport | undefined> {
+    const report = this.complianceReports.get(id);
+    if (!report) return undefined;
+    
+    const updated = { ...report, ...update };
+    this.complianceReports.set(id, updated);
+    return updated;
+  }
+
+  async deleteComplianceReport(id: string): Promise<boolean> {
+    return this.complianceReports.delete(id);
+  }
+
+  async approveComplianceReport(id: string, approvedBy: string): Promise<ComplianceReport | undefined> {
+    const report = this.complianceReports.get(id);
+    if (!report) return undefined;
+    
+    const approved = {
+      ...report,
+      status: "approved" as const,
+      approvedBy,
+      approvedAt: new Date()
+    };
+    this.complianceReports.set(id, approved);
+    return approved;
   }
 }
 

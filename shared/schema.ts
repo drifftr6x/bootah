@@ -220,6 +220,111 @@ export const auditLogs = pgTable("audit_logs", {
   timestamp: timestamp("timestamp").defaultNow(),
 });
 
+// Security & Compliance Tables
+export const securityIncidents = pgTable("security_incidents", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  title: text("title").notNull(),
+  description: text("description").notNull(),
+  severity: text("severity").notNull(), // low, medium, high, critical
+  category: text("category").notNull(), // unauthorized_access, malware, data_breach, policy_violation
+  status: text("status").notNull().default("open"), // open, investigating, resolved, closed
+  affectedSystems: text("affected_systems").array().default(sql`'{}'`),
+  sourceIp: text("source_ip"),
+  detectedBy: text("detected_by"), // system, user, automated
+  assignedTo: varchar("assigned_to").references(() => users.id),
+  reportedBy: varchar("reported_by").references(() => users.id),
+  detectedAt: timestamp("detected_at").defaultNow(),
+  resolvedAt: timestamp("resolved_at"),
+  resolution: text("resolution"),
+  mitigationSteps: text("mitigation_steps").array().default(sql`'{}'`),
+});
+
+export const compliancePolicies = pgTable("compliance_policies", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  framework: text("framework").notNull(), // ISO27001, SOC2, GDPR, HIPAA, PCI-DSS
+  description: text("description").notNull(),
+  category: text("category").notNull(), // access_control, data_protection, network_security, audit
+  requirements: text("requirements").array().default(sql`'{}'`),
+  isActive: boolean("is_active").default(true),
+  complianceLevel: text("compliance_level").notNull(), // compliant, partial, non_compliant
+  lastAssessed: timestamp("last_assessed"),
+  nextReview: timestamp("next_review"),
+  owner: varchar("owner").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const securityAssessments = pgTable("security_assessments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  type: text("type").notNull(), // vulnerability_scan, penetration_test, compliance_audit, risk_assessment
+  status: text("status").notNull().default("scheduled"), // scheduled, in_progress, completed, failed
+  scope: text("scope").notNull(), // network, application, system, physical
+  findings: integer("findings").default(0),
+  criticalIssues: integer("critical_issues").default(0),
+  highIssues: integer("high_issues").default(0),
+  mediumIssues: integer("medium_issues").default(0),
+  lowIssues: integer("low_issues").default(0),
+  overallScore: real("overall_score"), // 0-100
+  assessor: varchar("assessor").references(() => users.id),
+  scheduledAt: timestamp("scheduled_at"),
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+  reportPath: text("report_path"),
+});
+
+export const certificates = pgTable("certificates", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  type: text("type").notNull(), // ssl, ca, client, server
+  domain: text("domain"),
+  issuer: text("issuer").notNull(),
+  subject: text("subject").notNull(),
+  serialNumber: text("serial_number"),
+  fingerprint: text("fingerprint"),
+  keyAlgorithm: text("key_algorithm"),
+  keySize: integer("key_size"),
+  status: text("status").notNull().default("active"), // active, expired, revoked, pending
+  issuedAt: timestamp("issued_at").notNull(),
+  expiresAt: timestamp("expires_at").notNull(),
+  lastChecked: timestamp("last_checked"),
+  autoRenew: boolean("auto_renew").default(false),
+  usedBy: text("used_by").array().default(sql`'{}'`), // services using this cert
+});
+
+export const securityConfigurations = pgTable("security_configurations", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  category: text("category").notNull(), // firewall, encryption, authentication, monitoring
+  setting: text("setting").notNull(),
+  value: text("value").notNull(),
+  defaultValue: text("default_value"),
+  description: text("description"),
+  severity: text("severity").notNull(), // info, warning, critical
+  isCompliant: boolean("is_compliant").default(true),
+  recommendedValue: text("recommended_value"),
+  lastUpdated: timestamp("last_updated").defaultNow(),
+  updatedBy: varchar("updated_by").references(() => users.id),
+});
+
+export const complianceReports = pgTable("compliance_reports", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  framework: text("framework").notNull(), // ISO27001, SOC2, GDPR, etc.
+  reportType: text("report_type").notNull(), // quarterly, annual, incident, audit
+  period: text("period").notNull(), // Q1 2024, 2024, etc.
+  overallScore: real("overall_score"), // 0-100
+  totalControls: integer("total_controls").default(0),
+  compliantControls: integer("compliant_controls").default(0),
+  partialControls: integer("partial_controls").default(0),
+  nonCompliantControls: integer("non_compliant_controls").default(0),
+  status: text("status").notNull().default("draft"), // draft, final, approved
+  generatedBy: varchar("generated_by").references(() => users.id),
+  approvedBy: varchar("approved_by").references(() => users.id),
+  reportPath: text("report_path"),
+  createdAt: timestamp("created_at").defaultNow(),
+  approvedAt: timestamp("approved_at"),
+});
+
 // Insert schemas
 export const insertDeviceSchema = createInsertSchema(devices).omit({
   id: true,
@@ -315,6 +420,35 @@ export const insertAuditLogSchema = createInsertSchema(auditLogs).omit({
   timestamp: true,
 });
 
+// Security & Compliance Insert Schemas
+export const insertSecurityIncidentSchema = createInsertSchema(securityIncidents).omit({
+  id: true,
+  detectedAt: true,
+});
+
+export const insertCompliancePolicySchema = createInsertSchema(compliancePolicies).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertSecurityAssessmentSchema = createInsertSchema(securityAssessments).omit({
+  id: true,
+});
+
+export const insertCertificateSchema = createInsertSchema(certificates).omit({
+  id: true,
+});
+
+export const insertSecurityConfigurationSchema = createInsertSchema(securityConfigurations).omit({
+  id: true,
+  lastUpdated: true,
+});
+
+export const insertComplianceReportSchema = createInsertSchema(complianceReports).omit({
+  id: true,
+  createdAt: true,
+});
+
 // Types
 export type Device = typeof devices.$inferSelect;
 export type InsertDevice = z.infer<typeof insertDeviceSchema>;
@@ -371,6 +505,25 @@ export type InsertTemplateDeployment = z.infer<typeof insertTemplateDeploymentSc
 
 export type AuditLog = typeof auditLogs.$inferSelect;
 export type InsertAuditLog = z.infer<typeof insertAuditLogSchema>;
+
+// Security & Compliance Types
+export type SecurityIncident = typeof securityIncidents.$inferSelect;
+export type InsertSecurityIncident = z.infer<typeof insertSecurityIncidentSchema>;
+
+export type CompliancePolicy = typeof compliancePolicies.$inferSelect;
+export type InsertCompliancePolicy = z.infer<typeof insertCompliancePolicySchema>;
+
+export type SecurityAssessment = typeof securityAssessments.$inferSelect;
+export type InsertSecurityAssessment = z.infer<typeof insertSecurityAssessmentSchema>;
+
+export type Certificate = typeof certificates.$inferSelect;
+export type InsertCertificate = z.infer<typeof insertCertificateSchema>;
+
+export type SecurityConfiguration = typeof securityConfigurations.$inferSelect;
+export type InsertSecurityConfiguration = z.infer<typeof insertSecurityConfigurationSchema>;
+
+export type ComplianceReport = typeof complianceReports.$inferSelect;
+export type InsertComplianceReport = z.infer<typeof insertComplianceReportSchema>;
 
 // Extended types for API responses
 export type DeploymentWithDetails = Deployment & {

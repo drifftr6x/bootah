@@ -12,6 +12,7 @@ import Templates from "@/pages/templates";
 import Network from "@/pages/network";
 import Workstations from "@/pages/workstations";
 import Monitoring from "@/pages/monitoring";
+import Security from "@/pages/security";
 import Users from "@/pages/users";
 import Configuration from "@/pages/configuration";
 import Logs from "@/pages/logs";
@@ -33,6 +34,7 @@ function Router() {
           <Route path="/network" component={Network} />
           <Route path="/workstations" component={Workstations} />
           <Route path="/monitoring" component={Monitoring} />
+          <Route path="/security" component={Security} />
           <Route path="/users" component={Users} />
           <Route path="/configuration" component={Configuration} />
           <Route path="/logs" component={Logs} />
