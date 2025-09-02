@@ -7,20 +7,92 @@ import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { DeploymentWithDetails } from "@shared/schema";
 import { Link } from "wouter";
+import { cn } from "@/lib/utils";
+import { Activity, Clock, Zap, CheckCircle, AlertCircle } from "lucide-react";
+import { useEffect, useState } from "react";
 
 function getStatusColor(status: string) {
   switch (status) {
     case "deploying":
-      return "bg-secondary/10 text-secondary border-secondary/20";
+      return "bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/20";
     case "completed":
-      return "bg-secondary/10 text-secondary border-secondary/20";
+      return "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20";
     case "failed":
-      return "bg-destructive/10 text-destructive border-destructive/20";
+      return "bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20";
     case "pending":
-      return "bg-muted text-muted-foreground border-border";
+      return "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20";
     default:
-      return "bg-muted text-muted-foreground border-border";
+      return "bg-gray-500/10 text-gray-600 dark:text-gray-400 border-gray-500/20";
   }
+}
+
+function getStatusIcon(status: string) {
+  switch (status) {
+    case "deploying":
+      return Activity;
+    case "completed":
+      return CheckCircle;
+    case "failed":
+      return AlertCircle;
+    case "pending":
+      return Clock;
+    default:
+      return Clock;
+  }
+}
+
+function AnimatedProgress({ value, isDeploying }: { value: number; isDeploying: boolean }) {
+  const [displayValue, setDisplayValue] = useState(value);
+  
+  useEffect(() => {
+    const duration = 500;
+    let startTime: number;
+    let animationFrame: number;
+    
+    const animate = (timestamp: number) => {
+      if (!startTime) startTime = timestamp;
+      const progress = Math.min((timestamp - startTime) / duration, 1);
+      
+      const easeOutCubic = 1 - Math.pow(1 - progress, 3);
+      const currentValue = displayValue + (value - displayValue) * easeOutCubic;
+      
+      setDisplayValue(currentValue);
+      
+      if (progress < 1) {
+        animationFrame = requestAnimationFrame(animate);
+      }
+    };
+    
+    animationFrame = requestAnimationFrame(animate);
+    
+    return () => cancelAnimationFrame(animationFrame);
+  }, [value, displayValue]);
+  
+  return (
+    <div className="flex items-center space-x-2 w-full">
+      <div className="relative flex-1">
+        <Progress 
+          value={displayValue} 
+          className={cn(
+            "h-2 transition-all duration-300",
+            isDeploying && "animate-pulse"
+          )}
+        />
+        {isDeploying && (
+          <div 
+            className="absolute top-0 left-0 h-2 bg-gradient-to-r from-orange-500/40 to-yellow-500/40 rounded-full animate-pulse transition-all duration-500"
+            style={{ width: `${Math.min(displayValue, 100)}%` }}
+          />
+        )}
+      </div>
+      <span className={cn(
+        "text-sm font-medium min-w-[3rem] text-right transition-all duration-300",
+        isDeploying ? "text-orange-600 dark:text-orange-400" : "text-muted-foreground"
+      )}>
+        {Math.round(displayValue)}%
+      </span>
+    </div>
+  );
 }
 
 function formatETA(progress: number): string {
@@ -142,36 +214,50 @@ export default function DeploymentsTable() {
                       </div>
                     </td>
                     <td className="p-4">
-                      <div className="flex items-center space-x-2">
-                        <Progress 
-                          value={deployment.progress || 0} 
-                          className="flex-1"
-                          data-testid={`progress-deployment-${deployment.id}`}
-                        />
-                        <span className="text-sm text-muted-foreground" data-testid={`text-progress-${deployment.id}`}>
-                          {deployment.progress || 0}%
-                        </span>
-                      </div>
+                      <AnimatedProgress 
+                        value={deployment.progress || 0}
+                        isDeploying={deployment.status === "deploying"}
+                      />
                     </td>
                     <td className="p-4">
                       <Badge 
                         variant="outline" 
-                        className={getStatusColor(deployment.status)}
+                        className={cn(
+                          getStatusColor(deployment.status),
+                          "transition-all duration-300",
+                          deployment.status === "deploying" && "animate-pulse"
+                        )}
                         data-testid={`status-${deployment.id}`}
                       >
-                        <span className={`status-indicator ${
-                          deployment.status === "deploying" ? "status-deploying" : 
-                          deployment.status === "completed" ? "status-online" :
-                          deployment.status === "failed" ? "status-offline" : "status-idle"
-                        } mr-1`} />
-                        {deployment.status === "deploying" && deployment.progress && deployment.progress > 90 
-                          ? "Finalizing" 
-                          : deployment.status.charAt(0).toUpperCase() + deployment.status.slice(1)
-                        }
+                        <div className="flex items-center space-x-2">
+                          {(() => {
+                            const Icon = getStatusIcon(deployment.status);
+                            return (
+                              <Icon className={cn(
+                                "w-3 h-3",
+                                deployment.status === "deploying" && "animate-spin"
+                              )} />
+                            );
+                          })()}
+                          <span>
+                            {deployment.status === "deploying" && deployment.progress && deployment.progress > 90 
+                              ? "Finalizing" 
+                              : deployment.status.charAt(0).toUpperCase() + deployment.status.slice(1)
+                            }
+                          </span>
+                        </div>
                       </Badge>
                     </td>
-                    <td className="p-4 text-sm text-muted-foreground" data-testid={`text-eta-${deployment.id}`}>
-                      {formatETA(deployment.progress || 0)}
+                    <td className="p-4">
+                      <div className="flex items-center space-x-2">
+                        <Clock className="w-3 h-3 text-muted-foreground" />
+                        <span className={cn(
+                          "text-sm transition-all duration-300",
+                          deployment.status === "deploying" ? "text-orange-600 dark:text-orange-400" : "text-muted-foreground"
+                        )} data-testid={`text-eta-${deployment.id}`}>
+                          {formatETA(deployment.progress || 0)}
+                        </span>
+                      </div>
                     </td>
                     <td className="p-4">
                       <Button

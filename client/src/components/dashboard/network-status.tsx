@@ -3,6 +3,7 @@ import { Progress } from "@/components/ui/progress";
 import { useQuery } from "@tanstack/react-query";
 import type { ServerStatus } from "@shared/schema";
 import { cn } from "@/lib/utils";
+import { Wifi, WifiOff, Activity } from "lucide-react";
 
 interface ServiceStatus {
   name: string;
@@ -52,38 +53,75 @@ export default function NetworkStatus() {
           const isOnline = serverStatus?.[service.key] ?? false;
           
           return (
-            <div key={service.name} className="flex items-center justify-between">
+            <div key={service.name} className="flex items-center justify-between p-3 rounded-lg transition-all duration-300 hover:bg-muted/50">
               <div className="flex items-center space-x-3">
-                <span 
-                  className={cn(
-                    "status-indicator",
-                    isOnline ? "status-online" : "status-offline"
+                <div className="relative">
+                  {isOnline ? (
+                    <Wifi className={cn(
+                      "w-5 h-5 text-emerald-500 transition-all duration-500",
+                      "animate-pulse"
+                    )} />
+                  ) : (
+                    <WifiOff className="w-5 h-5 text-red-500" />
                   )}
-                />
-                <span className="text-sm text-foreground" data-testid={`text-service-${service.name.toLowerCase().replace(/\s+/g, "-")}`}>
-                  {service.name}
-                </span>
+                  {isOnline && (
+                    <div className="absolute inset-0 w-5 h-5 bg-emerald-500/20 rounded-full animate-ping" />
+                  )}
+                </div>
+                <div>
+                  <span className="text-sm font-medium text-foreground" data-testid={`text-service-${service.name.toLowerCase().replace(/\s+/g, "-")}`}>
+                    {service.name}
+                  </span>
+                  <div className={cn(
+                    "text-xs transition-all duration-300",
+                    isOnline ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"
+                  )}>
+                    {isOnline ? "Connected" : "Disconnected"}
+                  </div>
+                </div>
               </div>
-              <span className="text-sm text-secondary" data-testid={`text-endpoint-${service.name.toLowerCase().replace(/\s+/g, "-")}`}>
-                {service.endpoint}
-              </span>
+              <div className="text-right">
+                <span className="text-sm text-secondary" data-testid={`text-endpoint-${service.name.toLowerCase().replace(/\s+/g, "-")}`}>
+                  {service.endpoint}
+                </span>
+                {isOnline && (
+                  <div className="flex items-center justify-end mt-1 space-x-1">
+                    <Activity className="w-3 h-3 text-emerald-500 animate-pulse" />
+                    <span className="text-xs text-emerald-600 dark:text-emerald-400">Active</span>
+                  </div>
+                )}
+              </div>
             </div>
           );
         })}
         
         {serverStatus && (
-          <div className="mt-6 p-4 bg-muted rounded-lg">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-sm text-muted-foreground">Network Traffic</span>
-              <span className="text-sm text-foreground" data-testid="text-network-traffic">
-                {(serverStatus.networkTraffic || 0).toFixed(1)} MB/s
-              </span>
+          <div className="mt-6 p-4 bg-gradient-to-r from-cyan-500/10 to-blue-500/10 border border-cyan-500/20 rounded-lg transition-all duration-500 hover:shadow-lg hover:shadow-cyan-500/10">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center space-x-2">
+                <Activity className="w-4 h-4 text-cyan-500 animate-pulse" />
+                <span className="text-sm font-medium text-foreground">Network Traffic</span>
+              </div>
+              <div className="text-right">
+                <span className="text-lg font-bold text-cyan-500" data-testid="text-network-traffic">
+                  {(serverStatus.networkTraffic || 0).toFixed(1)} MB/s
+                </span>
+                <div className="text-xs text-muted-foreground">Real-time</div>
+              </div>
             </div>
-            <Progress 
-              value={Math.min(((serverStatus.networkTraffic || 0) / 10) * 100, 100)} 
-              className="h-2"
-              data-testid="progress-network-utilization"
-            />
+            <div className="relative">
+              <Progress 
+                value={Math.min(((serverStatus.networkTraffic || 0) / 10) * 100, 100)} 
+                className="h-3 bg-slate-200 dark:bg-slate-800"
+                data-testid="progress-network-utilization"
+              />
+              <div className="absolute inset-0 h-3 bg-gradient-to-r from-cyan-500/20 to-blue-500/20 rounded-full animate-pulse" 
+                   style={{ width: `${Math.min(((serverStatus.networkTraffic || 0) / 10) * 100, 100)}%` }} />
+            </div>
+            <div className="flex justify-between text-xs text-muted-foreground mt-2">
+              <span>0 MB/s</span>
+              <span>10 MB/s</span>
+            </div>
           </div>
         )}
       </CardContent>
