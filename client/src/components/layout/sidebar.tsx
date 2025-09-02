@@ -10,6 +10,7 @@ import {
   Wifi,
   Settings,
   FileText,
+  HelpCircle,
 } from "lucide-react";
 
 const navigation = [
@@ -20,6 +21,7 @@ const navigation = [
   { name: "Network Discovery", href: "/network", icon: Wifi },
   { name: "Configuration", href: "/configuration", icon: Settings },
   { name: "Logs & History", href: "/logs", icon: FileText },
+  { name: "Help & Support", href: "/help", icon: HelpCircle },
 ];
 
 function formatUptime(seconds: number): string {

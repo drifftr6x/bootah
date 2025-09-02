@@ -11,6 +11,7 @@ import Deployments from "@/pages/deployments";
 import Network from "@/pages/network";
 import Configuration from "@/pages/configuration";
 import Logs from "@/pages/logs";
+import Help from "@/pages/help";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -27,6 +28,7 @@ function Router() {
           <Route path="/network" component={Network} />
           <Route path="/configuration" component={Configuration} />
           <Route path="/logs" component={Logs} />
+          <Route path="/help" component={Help} />
           <Route component={NotFound} />
         </Switch>
       </div>
