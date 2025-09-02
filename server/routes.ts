@@ -273,6 +273,73 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Network scan endpoint  
+  app.post("/api/network/scan", async (req, res) => {
+    try {
+      // Simulate network discovery with realistic delay
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // Simulate discovering new devices occasionally
+      const shouldDiscoverNew = Math.random() > 0.7; // 30% chance
+      
+      if (shouldDiscoverNew) {
+        const newDeviceId = Math.random().toString(36).substr(2, 9);
+        const deviceTypes = [
+          { name: "WORKSTATION", manufacturer: "Dell", model: "OptiPlex 7090" },
+          { name: "LAPTOP", manufacturer: "HP", model: "EliteBook 840" },
+          { name: "LAB-PC", manufacturer: "Lenovo", model: "ThinkCentre M90" },
+          { name: "KIOSK", manufacturer: "Intel", model: "NUC 11" },
+        ];
+        
+        const deviceType = deviceTypes[Math.floor(Math.random() * deviceTypes.length)];
+        const deviceNumber = Math.floor(Math.random() * 99) + 1;
+        
+        const newDevice = await storage.createDevice({
+          name: `${deviceType.name}-${deviceNumber.toString().padStart(2, '0')}`,
+          macAddress: `00:${Math.floor(Math.random() * 256).toString(16).padStart(2, '0')}:${Math.floor(Math.random() * 256).toString(16).padStart(2, '0')}:${Math.floor(Math.random() * 256).toString(16).padStart(2, '0')}:${Math.floor(Math.random() * 256).toString(16).padStart(2, '0')}:${Math.floor(Math.random() * 256).toString(16).padStart(2, '0')}`.toUpperCase(),
+          ipAddress: `192.168.1.${Math.floor(Math.random() * 200) + 50}`,
+          manufacturer: deviceType.manufacturer,
+          model: deviceType.model,
+          status: Math.random() > 0.5 ? "online" : "offline",
+        });
+
+        // Log the discovery
+        await storage.createActivityLog({
+          type: "discovery",
+          message: `Network scan discovered new device: ${newDevice.name} (${newDevice.macAddress})`,
+          deviceId: newDevice.id,
+          deploymentId: null,
+        });
+
+        res.json({ 
+          message: "Network scan completed", 
+          discovered: 1,
+          newDevices: [newDevice]
+        });
+      } else {
+        // Update last seen for existing online devices
+        const devices = await storage.getDevices();
+        const onlineDevices = devices.filter(d => d.status === "online");
+        
+        // Update last seen time for online devices (handled internally by storage)
+        for (const device of onlineDevices) {
+          await storage.updateDevice(device.id, {
+            status: "online" // Just refresh the status to update lastSeen internally
+          });
+        }
+
+        res.json({ 
+          message: "Network scan completed", 
+          discovered: 0,
+          updatedDevices: onlineDevices.length
+        });
+      }
+    } catch (error) {
+      console.error("Network scan error:", error);
+      res.status(500).json({ message: "Network scan failed" });
+    }
+  });
+
   // Activity logs endpoint
   app.get("/api/activity", async (req, res) => {
     try {

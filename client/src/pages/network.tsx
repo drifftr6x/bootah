@@ -2,15 +2,49 @@ import Header from "@/components/layout/header";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest } from "@/lib/queryClient";
 import type { Device } from "@shared/schema";
 import { Wifi, RefreshCw, WifiOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export default function Network() {
-  const { data: devices, isLoading, refetch } = useQuery<Device[]>({
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  
+  const { data: devices, isLoading } = useQuery<Device[]>({
     queryKey: ["/api/devices"],
     refetchInterval: 5000, // Refresh every 5 seconds for network discovery
+  });
+
+  const networkScanMutation = useMutation({
+    mutationFn: async () => {
+      return apiRequest("POST", "/api/network/scan");
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/devices"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/activity"] });
+      
+      if (data.discovered > 0) {
+        toast({
+          title: "Network Scan Complete",
+          description: `Discovered ${data.discovered} new device(s) on the network.`,
+        });
+      } else {
+        toast({
+          title: "Network Scan Complete",
+          description: `Scan completed. Updated ${data.updatedDevices || 0} existing devices.`,
+        });
+      }
+    },
+    onError: () => {
+      toast({
+        title: "Scan Failed",
+        description: "Network scan failed. Please try again.",
+        variant: "destructive",
+      });
+    },
   });
 
   const onlineDevices = devices?.filter(device => device.status === "online") || [];
@@ -20,8 +54,10 @@ export default function Network() {
   ) || [];
 
   const handleScan = () => {
-    refetch();
+    networkScanMutation.mutate();
   };
+
+  const isScanLoading = networkScanMutation.isPending;
 
   return (
     <>
@@ -87,15 +123,15 @@ export default function Network() {
           <CardHeader className="p-6 border-b border-border">
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-semibold text-foreground">Network Discovery</h3>
-              <Button onClick={handleScan} disabled={isLoading} data-testid="button-scan-network">
-                <RefreshCw className={cn("w-4 h-4 mr-2", isLoading && "animate-spin")} />
-                {isLoading ? "Scanning..." : "Scan Network"}
+              <Button onClick={handleScan} disabled={isScanLoading || isLoading} data-testid="button-scan-network">
+                <RefreshCw className={cn("w-4 h-4 mr-2", (isScanLoading || isLoading) && "animate-spin")} />
+                {isScanLoading ? "Scanning..." : "Scan Network"}
               </Button>
             </div>
           </CardHeader>
           <CardContent className="p-6">
             <p className="text-sm text-muted-foreground">
-              Automatically discover PXE-capable devices on the network. Devices will appear below as they are detected.
+              Scan the network to discover new PXE-capable devices. Click "Scan Network" to search for devices on your network.
             </p>
           </CardContent>
         </Card>
