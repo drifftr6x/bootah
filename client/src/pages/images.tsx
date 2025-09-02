@@ -427,20 +427,20 @@ export default function ImagesPage() {
         </div>
       </div>
 
-      <div className="flex items-center justify-between mb-4">
-        <Tabs value={selectedTab} onValueChange={setSelectedTab} className="flex-1">
-          <TabsList className="grid w-full grid-cols-3 max-w-lg">
-            <TabsTrigger value="library" data-testid="tab-library">Image Library</TabsTrigger>
-            <TabsTrigger value="upload" data-testid="tab-upload">Add New Image</TabsTrigger>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+        <Tabs value={selectedTab} onValueChange={setSelectedTab} className="w-full sm:w-auto">
+          <TabsList className="grid w-full grid-cols-3 max-w-md">
+            <TabsTrigger value="library" data-testid="tab-library">Library</TabsTrigger>
+            <TabsTrigger value="upload" data-testid="tab-upload">Add Image</TabsTrigger>
             <TabsTrigger value="analytics" data-testid="tab-analytics">Analytics</TabsTrigger>
           </TabsList>
         </Tabs>
         
-        <div className="flex items-center space-x-2">
+        <div className="flex items-center justify-end">
           <ImageUploader
             onComplete={handleCloudUpload}
             maxFileSize={5368709120} // 5GB for OS images
-            buttonClassName="bg-blue-600 hover:bg-blue-700"
+            buttonClassName="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2"
           >
             <Cloud className="h-4 w-4 mr-2" />
             Upload to Cloud
@@ -448,10 +448,10 @@ export default function ImagesPage() {
         </div>
       </div>
 
-      <Tabs value={selectedTab} onValueChange={setSelectedTab} className="space-y-6"
-            style={{ display: 'contents' }}>
+      <div className="space-y-6">
 
-        <TabsContent value="library" className="space-y-6">
+        {selectedTab === "library" && (
+          <div className="space-y-6">
           {/* Search and Filter Controls */}
           <Card>
             <CardHeader>
@@ -751,9 +751,11 @@ export default function ImagesPage() {
               </CardContent>
             </Card>
           )}
-        </TabsContent>
+          </div>
+        )}
 
-        <TabsContent value="upload" className="space-y-6">
+        {selectedTab === "upload" && (
+          <div className="space-y-6">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -1098,9 +1100,11 @@ export default function ImagesPage() {
               </Form>
             </CardContent>
           </Card>
-        </TabsContent>
+          </div>
+        )}
 
-        <TabsContent value="analytics" className="space-y-6">
+        {selectedTab === "analytics" && (
+          <div className="space-y-6">
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             <Card data-testid="stat-total-images">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -1231,8 +1235,8 @@ export default function ImagesPage() {
               </div>
             </CardContent>
           </Card>
-        </TabsContent>
-      </Tabs>
+          </div>
+        )}
 
       {/* Validation Dialog */}
       <Dialog open={isValidationDialogOpen} onOpenChange={setIsValidationDialogOpen}>
