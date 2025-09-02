@@ -1,0 +1,29 @@
+version: '3.8'
+services:
+  bootah:
+    build: .
+    container_name: bootah
+    network_mode: host
+    environment:
+      - BOOTAH_HTTP_PORT=8080
+      - BOOTAH_WEB_ROOT=/app/webui
+      - BOOTAH_DB_PATH=/app/data/bootah.db
+      - BOOTAH_IMAGES_DIR=/app/data/images
+      - BOOTAH_JWT_SECRET=change-me
+      # Storage: local (default) or s3
+      # - BOOTAH_STORAGE=s3
+      # - BOOTAH_S3_ENDPOINT=play.min.io:9000
+      # - BOOTAH_S3_BUCKET=bootah
+      # - BOOTAH_S3_ACCESS_KEY=...
+      # - BOOTAH_S3_SECRET_KEY=...
+      # - BOOTAH_S3_REGION=us-east-1
+      # - BOOTAH_S3_USE_SSL=true
+      # OIDC (optional)
+      # - BOOTAH_OIDC_ISSUER=https://accounts.google.com
+      # - BOOTAH_OIDC_CLIENT_ID=...
+      # - BOOTAH_OIDC_CLIENT_SECRET=...
+      # - BOOTAH_OIDC_REDIRECT_URL=http://localhost:8080/api/auth/oidc/callback
+    volumes:
+      - ./data:/app/data
+      - ./webui:/app/webui:ro
+    restart: unless-stopped
