@@ -2,6 +2,8 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import { storage } from "./storage";
+import { TFTPServer, PXEHTTPServer, DHCPProxy } from "./pxe-server";
+import { imagingEngine } from "./imaging-engine";
 import { 
   insertDeviceSchema, 
   insertImageSchema, 
@@ -24,6 +26,22 @@ import {
 } from "@shared/schema";
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Initialize PXE servers
+  const tftpServer = new TFTPServer(6969); // Use non-privileged port
+  const pxeHttpServer = new PXEHTTPServer();
+  const dhcpProxy = new DHCPProxy(4067); // Use non-privileged port
+  
+  // Setup PXE HTTP routes
+  pxeHttpServer.setupRoutes(app);
+  
+  // Start PXE servers
+  try {
+    await tftpServer.start();
+    await dhcpProxy.start();
+    console.log("PXE servers started successfully");
+  } catch (error) {
+    console.error("Failed to start PXE servers:", error);
+  }
   // Devices endpoints
   app.get("/api/devices", async (req, res) => {
     try {
@@ -97,6 +115,123 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(images);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch images" });
+    }
+  });
+
+  // Real image capture endpoint
+  app.post("/api/images/capture", async (req, res) => {
+    try {
+      const { deviceId, sourceDevice, imageName, description, compression, excludeSwap, excludeTmp } = req.body;
+      
+      if (!deviceId || !sourceDevice || !imageName) {
+        return res.status(400).json({ error: "Missing required fields: deviceId, sourceDevice, imageName" });
+      }
+
+      // Start capture process
+      const capturePromise = imagingEngine.captureImage({
+        deviceId,
+        sourceDevice,
+        imageName,
+        description,
+        compression: compression || "gzip",
+        excludeSwap: excludeSwap || false,
+        excludeTmp: excludeTmp || false
+      }, (progress, message) => {
+        // Broadcast progress via WebSocket
+        wss.clients.forEach((client: WebSocket) => {
+          if (client.readyState === WebSocket.OPEN) {
+            client.send(JSON.stringify({
+              type: "capture_progress",
+              deviceId,
+              progress,
+              message
+            }));
+          }
+        });
+      });
+
+      // Don't wait for completion, return immediately
+      res.json({ message: "Image capture started", deviceId, imageName });
+
+    } catch (error) {
+      console.error("Error starting image capture:", error);
+      res.status(500).json({ error: "Failed to start image capture" });
+    }
+  });
+
+  // Real deployment execution endpoint  
+  app.post("/api/deployments/execute", async (req, res) => {
+    try {
+      const { deploymentId, imageId, targetDevice, targetMacAddress, verifyAfterDeploy } = req.body;
+      
+      if (!deploymentId || !imageId || !targetDevice) {
+        return res.status(400).json({ error: "Missing required fields: deploymentId, imageId, targetDevice" });
+      }
+
+      // Start deployment process
+      const deploymentPromise = imagingEngine.deployImage({
+        deploymentId,
+        imageId,
+        targetDevice,
+        targetMacAddress: targetMacAddress || "",
+        verifyAfterDeploy: verifyAfterDeploy || false
+      }, (progress, message) => {
+        // Broadcast progress via WebSocket
+        wss.clients.forEach((client: WebSocket) => {
+          if (client.readyState === WebSocket.OPEN) {
+            client.send(JSON.stringify({
+              type: "deployment_progress",
+              deploymentId,
+              progress,
+              message
+            }));
+          }
+        });
+      });
+
+      // Don't wait for completion, return immediately
+      res.json({ message: "Deployment started", deploymentId });
+
+    } catch (error) {
+      console.error("Error starting deployment:", error);
+      res.status(500).json({ error: "Failed to start deployment" });
+    }
+  });
+
+  // Get system information for imaging
+  app.get("/api/system/info", async (req, res) => {
+    try {
+      const systemInfo = await imagingEngine.getSystemInfo();
+      res.json({ systemInfo });
+    } catch (error) {
+      console.error("Error getting system info:", error);
+      res.status(500).json({ error: "Failed to get system information" });
+    }
+  });
+
+  // Get active imaging operations
+  app.get("/api/imaging/operations", async (req, res) => {
+    try {
+      const operations = imagingEngine.getActiveOperations();
+      res.json({ operations });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to get active operations" });
+    }
+  });
+
+  // Cancel imaging operation
+  app.delete("/api/imaging/operations/:operationId", async (req, res) => {
+    try {
+      const { operationId } = req.params;
+      const cancelled = imagingEngine.cancelOperation(operationId);
+      
+      if (cancelled) {
+        res.json({ message: "Operation cancelled" });
+      } else {
+        res.status(404).json({ error: "Operation not found" });
+      }
+    } catch (error) {
+      res.status(500).json({ error: "Failed to cancel operation" });
     }
   });
 

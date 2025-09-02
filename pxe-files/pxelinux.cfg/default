@@ -1,0 +1,39 @@
+DEFAULT menu.c32
+PROMPT 0
+TIMEOUT 300
+ONTIMEOUT local
+
+MENU TITLE Bootah64x PXE Boot Menu
+MENU BACKGROUND bootah-bg.png
+
+LABEL local
+  MENU LABEL ^1) Boot from Local Disk
+  MENU DEFAULT
+  localboot 0
+
+LABEL capture
+  MENU LABEL ^2) Capture System Image
+  KERNEL vmlinuz
+  APPEND initrd=initrd.img boot=live fetch=http://SERVERIP:5000/pxe-files/bootah-capture.squashfs
+
+LABEL deploy
+  MENU LABEL ^3) Deploy System Image
+  KERNEL vmlinuz
+  APPEND initrd=initrd.img boot=live fetch=http://SERVERIP:5000/pxe-files/bootah-deploy.squashfs
+
+LABEL memtest
+  MENU LABEL ^4) Memory Test
+  KERNEL memtest86+.bin
+
+LABEL tools
+  MENU LABEL ^5) System Tools
+  KERNEL vmlinuz
+  APPEND initrd=initrd.img boot=live fetch=http://SERVERIP:5000/pxe-files/bootah-tools.squashfs
+
+LABEL reboot
+  MENU LABEL ^6) Reboot
+  com32 reboot.c32
+
+LABEL poweroff
+  MENU LABEL ^7) Power Off
+  com32 poweroff.c32
