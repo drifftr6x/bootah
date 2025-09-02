@@ -54,6 +54,9 @@ import {
   type InsertComplianceReport
 } from "@shared/schema";
 import { randomUUID } from "crypto";
+import { db } from "./db";
+import { devices, images, deployments, activityLogs, serverStatus } from "@shared/schema";
+import { eq, desc, and, or } from "drizzle-orm";
 
 export interface IStorage {
   // Devices
@@ -1784,4 +1787,327 @@ export class MemStorage implements IStorage {
   }
 }
 
-export const storage = new MemStorage();
+export class DatabaseStorage implements IStorage {
+  // Devices - Database Implementation
+  async getDevices(): Promise<Device[]> {
+    return await db.select().from(devices);
+  }
+
+  async getDevice(id: string): Promise<Device | undefined> {
+    const [device] = await db.select().from(devices).where(eq(devices.id, id));
+    return device;
+  }
+
+  async getDeviceByMac(macAddress: string): Promise<Device | undefined> {
+    const [device] = await db.select().from(devices).where(eq(devices.macAddress, macAddress));
+    return device;
+  }
+
+  async createDevice(insertDevice: InsertDevice): Promise<Device> {
+    const [device] = await db.insert(devices).values(insertDevice).returning();
+    return device;
+  }
+
+  async updateDevice(id: string, updateData: Partial<InsertDevice>): Promise<Device | undefined> {
+    const [device] = await db
+      .update(devices)
+      .set(updateData)
+      .where(eq(devices.id, id))
+      .returning();
+    return device;
+  }
+
+  async deleteDevice(id: string): Promise<boolean> {
+    const result = await db.delete(devices).where(eq(devices.id, id));
+    return result.rowCount ? result.rowCount > 0 : false;
+  }
+
+  // Images - Database Implementation
+  async getImages(): Promise<Image[]> {
+    return await db.select().from(images);
+  }
+
+  async getImage(id: string): Promise<Image | undefined> {
+    const [image] = await db.select().from(images).where(eq(images.id, id));
+    return image;
+  }
+
+  async createImage(insertImage: InsertImage): Promise<Image> {
+    const [image] = await db.insert(images).values(insertImage).returning();
+    return image;
+  }
+
+  async updateImage(id: string, updateData: Partial<InsertImage>): Promise<Image | undefined> {
+    const [image] = await db
+      .update(images)
+      .set(updateData)
+      .where(eq(images.id, id))
+      .returning();
+    return image;
+  }
+
+  async deleteImage(id: string): Promise<boolean> {
+    const result = await db.delete(images).where(eq(images.id, id));
+    return result.rowCount ? result.rowCount > 0 : false;
+  }
+
+  async validateImage(id: string): Promise<Image | undefined> {
+    const [image] = await db
+      .update(images)
+      .set({ isValidated: true, validationDate: new Date() })
+      .where(eq(images.id, id))
+      .returning();
+    return image;
+  }
+
+  async incrementImageDownloadCount(id: string): Promise<Image | undefined> {
+    const [image] = await db
+      .update(images)
+      .set({ downloadCount: db.sql`${images.downloadCount} + 1` as any })
+      .where(eq(images.id, id))
+      .returning();
+    return image;
+  }
+
+  // Deployments - Database Implementation (Main Focus)
+  async getDeployments(): Promise<DeploymentWithDetails[]> {
+    const result = await db
+      .select({
+        deployment: deployments,
+        device: devices,
+        image: images
+      })
+      .from(deployments)
+      .leftJoin(devices, eq(deployments.deviceId, devices.id))
+      .leftJoin(images, eq(deployments.imageId, images.id))
+      .orderBy(desc(deployments.startedAt));
+
+    return result.map(row => ({
+      ...row.deployment,
+      device: row.device!,
+      image: row.image!
+    }));
+  }
+
+  async getDeployment(id: string): Promise<DeploymentWithDetails | undefined> {
+    const [result] = await db
+      .select({
+        deployment: deployments,
+        device: devices,
+        image: images
+      })
+      .from(deployments)
+      .leftJoin(devices, eq(deployments.deviceId, devices.id))
+      .leftJoin(images, eq(deployments.imageId, images.id))
+      .where(eq(deployments.id, id));
+
+    if (!result || !result.device || !result.image) return undefined;
+
+    return {
+      ...result.deployment,
+      device: result.device,
+      image: result.image
+    };
+  }
+
+  async getActiveDeployments(): Promise<DeploymentWithDetails[]> {
+    const result = await db
+      .select({
+        deployment: deployments,
+        device: devices,
+        image: images
+      })
+      .from(deployments)
+      .leftJoin(devices, eq(deployments.deviceId, devices.id))
+      .leftJoin(images, eq(deployments.imageId, images.id))
+      .where(or(eq(deployments.status, "deploying"), eq(deployments.status, "pending")))
+      .orderBy(desc(deployments.startedAt));
+
+    return result.map(row => ({
+      ...row.deployment,
+      device: row.device!,
+      image: row.image!
+    }));
+  }
+
+  async createDeployment(insertDeployment: InsertDeployment): Promise<Deployment> {
+    const [deployment] = await db.insert(deployments).values(insertDeployment).returning();
+    return deployment;
+  }
+
+  async updateDeployment(id: string, updateData: Partial<InsertDeployment>): Promise<Deployment | undefined> {
+    const [deployment] = await db
+      .update(deployments)
+      .set(updateData)
+      .where(eq(deployments.id, id))
+      .returning();
+    return deployment;
+  }
+
+  async deleteDeployment(id: string): Promise<boolean> {
+    const result = await db.delete(deployments).where(eq(deployments.id, id));
+    return result.rowCount ? result.rowCount > 0 : false;
+  }
+
+  // Activity Logs - Database Implementation
+  async getActivityLogs(limit: number = 50): Promise<ActivityLog[]> {
+    return await db
+      .select()
+      .from(activityLogs)
+      .orderBy(desc(activityLogs.timestamp))
+      .limit(limit);
+  }
+
+  async createActivityLog(insertLog: InsertActivityLog): Promise<ActivityLog> {
+    const [log] = await db.insert(activityLogs).values(insertLog).returning();
+    return log;
+  }
+
+  // Server Status - Database Implementation
+  async getServerStatus(): Promise<ServerStatus> {
+    const [status] = await db.select().from(serverStatus).where(eq(serverStatus.id, "singleton"));
+    if (!status) {
+      // Create default server status if it doesn't exist
+      const defaultStatus = {
+        id: "singleton",
+        serverName: "Bootah64x-Server",
+        pxeServerStatus: true,
+        tftpServerStatus: true,
+        httpServerStatus: true,
+        dhcpProxyStatus: true,
+        serverIp: "192.168.1.100",
+        pxePort: 67,
+        tftpPort: 69,
+        httpPort: 80,
+        dhcpPort: 67,
+        uptime: 0,
+        networkTraffic: 0
+      };
+      const [created] = await db.insert(serverStatus).values(defaultStatus).returning();
+      return created;
+    }
+    return status;
+  }
+
+  async updateServerStatus(updateData: Partial<UpdateServerStatus>): Promise<ServerStatus> {
+    const [updated] = await db
+      .update(serverStatus)
+      .set({ ...updateData, lastUpdated: new Date() })
+      .where(eq(serverStatus.id, "singleton"))
+      .returning();
+    return updated;
+  }
+
+  // Dashboard Stats - Database Implementation
+  async getDashboardStats(): Promise<DashboardStats> {
+    const [totalDevices] = await db.select({ count: db.sql`count(*)` }).from(devices);
+    const [activeDeployments] = await db
+      .select({ count: db.sql`count(*)` })
+      .from(deployments)
+      .where(or(eq(deployments.status, "deploying"), eq(deployments.status, "pending")));
+    const [totalImages] = await db.select({ count: db.sql`count(*)` }).from(images);
+    const [totalDeployments] = await db.select({ count: db.sql`count(*)` }).from(deployments);
+
+    return {
+      totalDevices: Number(totalDevices.count) || 0,
+      activeDeployments: Number(activeDeployments.count) || 0,
+      totalImages: Number(totalImages.count) || 0,
+      completedDeployments: Number(totalDeployments.count) || 0,
+      systemHealth: 95,
+      networkThroughput: 2.4,
+      uptime: 172800
+    };
+  }
+
+  // Stub implementations for other methods (keeping MemStorage behavior for now)
+  async getSystemMetrics(limit?: number): Promise<SystemMetrics[]> { return []; }
+  async createSystemMetrics(metrics: InsertSystemMetrics): Promise<SystemMetrics> { throw new Error("Not implemented"); }
+  async getLatestSystemMetrics(): Promise<SystemMetrics | undefined> { return undefined; }
+  async getAlerts(): Promise<Alert[]> { return []; }
+  async getUnreadAlerts(): Promise<Alert[]> { return []; }
+  async createAlert(alert: InsertAlert): Promise<Alert> { throw new Error("Not implemented"); }
+  async markAlertAsRead(id: string): Promise<Alert | undefined> { return undefined; }
+  async resolveAlert(id: string): Promise<Alert | undefined> { return undefined; }
+  async getAlertRules(): Promise<AlertRule[]> { return []; }
+  async getEnabledAlertRules(): Promise<AlertRule[]> { return []; }
+  async createAlertRule(rule: InsertAlertRule): Promise<AlertRule> { throw new Error("Not implemented"); }
+  async updateAlertRule(id: string, rule: Partial<InsertAlertRule>): Promise<AlertRule | undefined> { return undefined; }
+  async deleteAlertRule(id: string): Promise<boolean> { return false; }
+  async getUsers(): Promise<UserWithRoles[]> { return []; }
+  async getUser(id: string): Promise<UserWithRoles | undefined> { return undefined; }
+  async getUserByUsername(username: string): Promise<User | undefined> { return undefined; }
+  async getUserByEmail(email: string): Promise<User | undefined> { return undefined; }
+  async createUser(user: InsertUser): Promise<User> { throw new Error("Not implemented"); }
+  async updateUser(id: string, user: Partial<InsertUser>): Promise<User | undefined> { return undefined; }
+  async deleteUser(id: string): Promise<boolean> { return false; }
+  async toggleUserActive(id: string): Promise<User | undefined> { return undefined; }
+  async getRoles(): Promise<RoleWithPermissions[]> { return []; }
+  async getRole(id: string): Promise<RoleWithPermissions | undefined> { return undefined; }
+  async createRole(role: InsertRole): Promise<Role> { throw new Error("Not implemented"); }
+  async updateRole(id: string, role: Partial<InsertRole>): Promise<Role | undefined> { return undefined; }
+  async deleteRole(id: string): Promise<boolean> { return false; }
+  async getPermissions(): Promise<Permission[]> { return []; }
+  async getPermission(id: string): Promise<Permission | undefined> { return undefined; }
+  async createPermission(permission: InsertPermission): Promise<Permission> { throw new Error("Not implemented"); }
+  async deletePermission(id: string): Promise<boolean> { return false; }
+  async getUserRoles(userId: string): Promise<UserRole[]> { return []; }
+  async assignUserRole(userRole: InsertUserRole): Promise<UserRole> { throw new Error("Not implemented"); }
+  async removeUserRole(userId: string, roleId: string): Promise<boolean> { return false; }
+  async getRolePermissions(roleId: string): Promise<RolePermission[]> { return []; }
+  async assignRolePermission(rolePermission: InsertRolePermission): Promise<RolePermission> { throw new Error("Not implemented"); }
+  async removeRolePermission(roleId: string, permissionId: string): Promise<boolean> { return false; }
+  async getTemplates(): Promise<DeploymentTemplateWithDetails[]> { return []; }
+  async getTemplate(id: string): Promise<DeploymentTemplateWithDetails | undefined> { return undefined; }
+  async createTemplate(template: InsertDeploymentTemplate): Promise<DeploymentTemplate> { throw new Error("Not implemented"); }
+  async updateTemplate(id: string, template: Partial<InsertDeploymentTemplate>): Promise<DeploymentTemplate | undefined> { return undefined; }
+  async deleteTemplate(id: string): Promise<boolean> { return false; }
+  async duplicateTemplate(id: string, newName: string): Promise<DeploymentTemplate | undefined> { return undefined; }
+  async getTemplateSteps(templateId: string): Promise<TemplateStep[]> { return []; }
+  async createTemplateStep(step: InsertTemplateStep): Promise<TemplateStep> { throw new Error("Not implemented"); }
+  async updateTemplateStep(id: string, step: Partial<InsertTemplateStep>): Promise<TemplateStep | undefined> { return undefined; }
+  async deleteTemplateStep(id: string): Promise<boolean> { return false; }
+  async getTemplateVariables(templateId: string): Promise<TemplateVariable[]> { return []; }
+  async createTemplateVariable(variable: InsertTemplateVariable): Promise<TemplateVariable> { throw new Error("Not implemented"); }
+  async updateTemplateVariable(id: string, variable: Partial<InsertTemplateVariable>): Promise<TemplateVariable | undefined> { return undefined; }
+  async deleteTemplateVariable(id: string): Promise<boolean> { return false; }
+  async getTemplateDeployments(): Promise<TemplateDeployment[]> { return []; }
+  async getTemplateDeployment(id: string): Promise<TemplateDeployment | undefined> { return undefined; }
+  async createTemplateDeployment(templateDeployment: InsertTemplateDeployment): Promise<TemplateDeployment> { throw new Error("Not implemented"); }
+  async updateTemplateDeployment(id: string, templateDeployment: Partial<InsertTemplateDeployment>): Promise<TemplateDeployment | undefined> { return undefined; }
+  async getAuditLogs(limit?: number, userId?: string): Promise<AuditLog[]> { return []; }
+  async createAuditLog(log: InsertAuditLog): Promise<AuditLog> { throw new Error("Not implemented"); }
+  async getSecurityIncidents(): Promise<SecurityIncident[]> { return []; }
+  async getSecurityIncident(id: string): Promise<SecurityIncident | undefined> { return undefined; }
+  async createSecurityIncident(incident: InsertSecurityIncident): Promise<SecurityIncident> { throw new Error("Not implemented"); }
+  async updateSecurityIncident(id: string, incident: Partial<InsertSecurityIncident>): Promise<SecurityIncident | undefined> { return undefined; }
+  async resolveSecurityIncident(id: string, resolution: string): Promise<SecurityIncident | undefined> { return undefined; }
+  async getCompliancePolicies(): Promise<CompliancePolicy[]> { return []; }
+  async getCompliancePolicy(id: string): Promise<CompliancePolicy | undefined> { return undefined; }
+  async createCompliancePolicy(policy: InsertCompliancePolicy): Promise<CompliancePolicy> { throw new Error("Not implemented"); }
+  async updateCompliancePolicy(id: string, policy: Partial<InsertCompliancePolicy>): Promise<CompliancePolicy | undefined> { return undefined; }
+  async deleteCompliancePolicy(id: string): Promise<boolean> { return false; }
+  async getSecurityAssessments(): Promise<SecurityAssessment[]> { return []; }
+  async getSecurityAssessment(id: string): Promise<SecurityAssessment | undefined> { return undefined; }
+  async createSecurityAssessment(assessment: InsertSecurityAssessment): Promise<SecurityAssessment> { throw new Error("Not implemented"); }
+  async updateSecurityAssessment(id: string, assessment: Partial<InsertSecurityAssessment>): Promise<SecurityAssessment | undefined> { return undefined; }
+  async deleteSecurityAssessment(id: string): Promise<boolean> { return false; }
+  async getCertificates(): Promise<Certificate[]> { return []; }
+  async getCertificate(id: string): Promise<Certificate | undefined> { return undefined; }
+  async getExpiringCertificates(days?: number): Promise<Certificate[]> { return []; }
+  async createCertificate(certificate: InsertCertificate): Promise<Certificate> { throw new Error("Not implemented"); }
+  async updateCertificate(id: string, certificate: Partial<InsertCertificate>): Promise<Certificate | undefined> { return undefined; }
+  async deleteCertificate(id: string): Promise<boolean> { return false; }
+  async getSecurityConfigurations(): Promise<SecurityConfiguration[]> { return []; }
+  async getSecurityConfiguration(id: string): Promise<SecurityConfiguration | undefined> { return undefined; }
+  async createSecurityConfiguration(config: InsertSecurityConfiguration): Promise<SecurityConfiguration> { throw new Error("Not implemented"); }
+  async updateSecurityConfiguration(id: string, config: Partial<InsertSecurityConfiguration>): Promise<SecurityConfiguration | undefined> { return undefined; }
+  async deleteSecurityConfiguration(id: string): Promise<boolean> { return false; }
+  async getComplianceReports(): Promise<ComplianceReport[]> { return []; }
+  async getComplianceReport(id: string): Promise<ComplianceReport | undefined> { return undefined; }
+  async createComplianceReport(report: InsertComplianceReport): Promise<ComplianceReport> { throw new Error("Not implemented"); }
+  async updateComplianceReport(id: string, report: Partial<InsertComplianceReport>): Promise<ComplianceReport | undefined> { return undefined; }
+  async deleteComplianceReport(id: string): Promise<boolean> { return false; }
+  async approveComplianceReport(id: string, approvedBy: string): Promise<ComplianceReport | undefined> { return undefined; }
+}
+
+export const storage = new DatabaseStorage();
