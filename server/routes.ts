@@ -600,6 +600,112 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Clonezilla Integration Endpoints
+  
+  // Update deployment status from Clonezilla scripts
+  app.post("/api/deployments/status", async (req, res) => {
+    try {
+      const { deviceMac, status, progress } = req.body;
+      
+      if (!deviceMac || !status) {
+        return res.status(400).json({ error: "Missing required fields: deviceMac, status" });
+      }
+      
+      // Find device by MAC address
+      const devices = await storage.getDevices();
+      const device = devices.find(d => d.macAddress.toLowerCase() === deviceMac.toLowerCase());
+      
+      if (!device) {
+        return res.status(404).json({ error: "Device not found" });
+      }
+      
+      // Find active deployment for this device
+      const activeDeployments = await storage.getActiveDeployments();
+      const deployment = activeDeployments.find(d => d.deviceId === device.id);
+      
+      if (deployment) {
+        await storage.updateDeployment(deployment.id, { 
+          status, 
+          progress: progress || deployment.progress 
+        });
+        
+        // Broadcast status update via WebSocket
+        wss.clients.forEach((client: WebSocket) => {
+          if (client.readyState === WebSocket.OPEN) {
+            client.send(JSON.stringify({
+              type: "deployment_progress",
+              deploymentId: deployment.id,
+              deviceId: device.id,
+              status,
+              progress
+            }));
+          }
+        });
+      }
+      
+      res.json({ message: "Status updated successfully" });
+    } catch (error) {
+      console.error("Error updating deployment status:", error);
+      res.status(500).json({ error: "Failed to update deployment status" });
+    }
+  });
+  
+  // Activity logging endpoint for Clonezilla scripts
+  app.post("/api/activity", async (req, res) => {
+    try {
+      const { action, details, deviceMac, level } = req.body;
+      
+      if (!action || !details) {
+        return res.status(400).json({ error: "Missing required fields: action, details" });
+      }
+      
+      // Find device by MAC if provided
+      let deviceId = null;
+      if (deviceMac) {
+        const devices = await storage.getDevices();
+        const device = devices.find(d => d.macAddress.toLowerCase() === deviceMac.toLowerCase());
+        if (device) {
+          deviceId = device.id;
+        }
+      }
+      
+      // Map level to activity log type
+      const typeMap: Record<string, string> = {
+        info: "info",
+        success: "deployment",
+        error: "error",
+        warning: "warning"
+      };
+      
+      const type = typeMap[level || "info"] || "info";
+      
+      await storage.createActivityLog({
+        type,
+        message: `[Clonezilla ${action}] ${details}`,
+        deviceId,
+        deploymentId: null,
+      });
+      
+      // Broadcast activity via WebSocket
+      wss.clients.forEach((client: WebSocket) => {
+        if (client.readyState === WebSocket.OPEN) {
+          client.send(JSON.stringify({
+            type: "activity",
+            action,
+            details,
+            level,
+            timestamp: new Date().toISOString()
+          }));
+        }
+      });
+      
+      res.json({ message: "Activity logged successfully" });
+    } catch (error) {
+      console.error("Error logging activity:", error);
+      res.status(500).json({ error: "Failed to log activity" });
+    }
+  });
+  
   // Network scan endpoint  
   app.post("/api/network/scan", async (req, res) => {
     try {
