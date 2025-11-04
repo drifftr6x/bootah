@@ -51,12 +51,12 @@ LABEL deploy-image
   ENDTEXT
 
 LABEL capture-batch
-  MENU LABEL ^5) Batch Capture (Auto mode)
+  MENU LABEL ^5) Quick Capture (Minimal prompts)
   KERNEL /clonezilla/vmlinuz
-  APPEND initrd=/clonezilla/initrd.img boot=live union=overlay username=user config components quiet noswap nolocales edd=on nomodeset ocs_prerun="mount -t nfs BOOTAH_SERVER_IP:/pxe-images /home/partimag" ocs_live_run="ocs-sr -q2 -c -j2 -z1p -i 4096 -sfsck -senc -p true savedisk auto-$(date +%Y%m%d-%H%M%S) sda" ocs_live_extra_param="" ocs_live_batch="yes" keyboard-layouts= locales= vga=788 ip=frommedia nosplash netboot=nfs nfsroot=BOOTAH_SERVER_IP:/pxe-files/clonezilla
+  APPEND initrd=/clonezilla/initrd.img boot=live union=overlay username=user config components quiet noswap nolocales edd=on nomodeset ocs_prerun="mount -t nfs BOOTAH_SERVER_IP:/pxe-images /home/partimag" ocs_live_run="ocs-sr -q2 -c -j2 -z1p -i 4096 -sfsck -senc -p true savedisk ask_user sda" ocs_live_extra_param="" ocs_live_batch="no" keyboard-layouts= locales= vga=788 ip=frommedia nosplash netboot=nfs nfsroot=BOOTAH_SERVER_IP:/pxe-files/clonezilla
   TEXT HELP
-  Fully automated capture of sda disk
-  No user interaction required
+  Quick capture of sda disk
+  Prompts only for image name
   Auto-reboot after completion
   ENDTEXT
 
