@@ -4,41 +4,100 @@ TIMEOUT 300
 ONTIMEOUT local
 
 MENU TITLE Bootah64x PXE Boot Menu
-MENU BACKGROUND bootah-bg.png
+MENU COLOR screen 37;40 #80ffffff #00000000 std
+MENU COLOR border 30;44 #40ffffff #00000000 std
+MENU COLOR title 1;36;44 #ffff00ff #00000000 std
+MENU COLOR unsel 37;44 #ffffffff #00000000 std
+MENU COLOR hotkey 1;37;44 #ffff00ff #00000000 std
+MENU COLOR sel 7;37;40 #ff000000 #ffffffff all
+MENU COLOR hotsel 1;7;37;40 #ffff00ff #ffffffff all
+MENU COLOR scrollbar 30;44 #40ffffff #00000000 std
 
 LABEL local
   MENU LABEL ^1) Boot from Local Disk
   MENU DEFAULT
   localboot 0
+  TEXT HELP
+  Boot normally from the local hard drive
+  ENDTEXT
 
-LABEL capture
-  MENU LABEL ^2) Capture System Image
-  KERNEL vmlinuz
-  APPEND initrd=initrd.img boot=live fetch=http://127.0.0.1:5000/pxe-files/bootah-capture-script.sh
+LABEL clonezilla-live
+  MENU LABEL ^2) Clonezilla Live (Full Environment)
+  KERNEL /clonezilla/vmlinuz
+  APPEND initrd=/clonezilla/initrd.img boot=live union=overlay username=user config components quiet noswap nolocales edd=on nomodeset ocs_live_run="ocs-live-general" ocs_live_extra_param="" keyboard-layouts= ocs_live_batch="no" locales= vga=788 ip=frommedia nosplash netboot=nfs nfsroot=BOOTAH_SERVER_IP:/pxe-files/clonezilla live-media-path=/live toram=filesystem.squashfs
+  TEXT HELP
+  Boot into full Clonezilla Live environment with GUI
+  Supports all imaging operations and system recovery
+  ENDTEXT
 
-LABEL deploy
-  MENU LABEL ^3) Deploy System Image  
-  KERNEL vmlinuz
-  APPEND initrd=initrd.img boot=live fetch=http://127.0.0.1:5000/pxe-files/bootah-deploy-script.sh
+LABEL capture-image
+  MENU LABEL ^3) Capture System Image
+  KERNEL /clonezilla/vmlinuz
+  APPEND initrd=/clonezilla/initrd.img boot=live union=overlay username=user config components quiet noswap nolocales edd=on nomodeset ocs_prerun="mount -t nfs BOOTAH_SERVER_IP:/pxe-images /home/partimag" ocs_live_run="ocs-sr -q2 -c -j2 -z1p -i 4096 -sfsck -senc -p choose savedisk ask_user" ocs_live_extra_param="" keyboard-layouts= ocs_live_batch="no" locales= vga=788 ip=frommedia nosplash netboot=nfs nfsroot=BOOTAH_SERVER_IP:/pxe-files/clonezilla
+  TEXT HELP
+  Automated image capture mode
+  Captures entire disk to NFS share
+  Compression and verification enabled
+  ENDTEXT
 
-LABEL interactive
-  MENU LABEL ^4) Interactive Mode
-  KERNEL vmlinuz
-  APPEND initrd=initrd.img boot=live fetch=http://127.0.0.1:5000/pxe-files/bootah-interactive.sh
+LABEL deploy-image
+  MENU LABEL ^4) Deploy System Image
+  KERNEL /clonezilla/vmlinuz
+  APPEND initrd=/clonezilla/initrd.img boot=live union=overlay username=user config components quiet noswap nolocales edd=on nomodeset ocs_prerun="mount -t nfs BOOTAH_SERVER_IP:/pxe-images /home/partimag" ocs_live_run="ocs-sr -g auto -e1 auto -e2 -r -j2 -c -p choose restoredisk ask_user ask_user" ocs_live_extra_param="" keyboard-layouts= ocs_live_batch="no" locales= vga=788 ip=frommedia nosplash netboot=nfs nfsroot=BOOTAH_SERVER_IP:/pxe-files/clonezilla
+  TEXT HELP
+  Automated image deployment mode
+  Restores disk image from NFS share
+  Auto-reboot after completion
+  ENDTEXT
+
+LABEL capture-batch
+  MENU LABEL ^5) Batch Capture (Auto mode)
+  KERNEL /clonezilla/vmlinuz
+  APPEND initrd=/clonezilla/initrd.img boot=live union=overlay username=user config components quiet noswap nolocales edd=on nomodeset ocs_prerun="mount -t nfs BOOTAH_SERVER_IP:/pxe-images /home/partimag" ocs_live_run="ocs-sr -q2 -c -j2 -z1p -i 4096 -sfsck -senc -p true savedisk auto-$(date +%Y%m%d-%H%M%S) sda" ocs_live_extra_param="" ocs_live_batch="yes" keyboard-layouts= locales= vga=788 ip=frommedia nosplash netboot=nfs nfsroot=BOOTAH_SERVER_IP:/pxe-files/clonezilla
+  TEXT HELP
+  Fully automated capture of sda disk
+  No user interaction required
+  Auto-reboot after completion
+  ENDTEXT
+
+LABEL deploy-batch
+  MENU LABEL ^6) Batch Deploy (Auto mode)
+  KERNEL /clonezilla/vmlinuz
+  APPEND initrd=/clonezilla/initrd.img boot=live union=overlay username=user config components quiet noswap nolocales edd=on nomodeset ocs_prerun="mount -t nfs BOOTAH_SERVER_IP:/pxe-images /home/partimag" ocs_live_run="ocs-sr -g auto -e1 auto -e2 -r -j2 -c -p true restoredisk BOOTAH_IMAGE_NAME sda" ocs_live_extra_param="" ocs_live_batch="yes" keyboard-layouts= locales= vga=788 ip=frommedia nosplash netboot=nfs nfsroot=BOOTAH_SERVER_IP:/pxe-files/clonezilla
+  TEXT HELP
+  Fully automated deployment
+  Replace BOOTAH_IMAGE_NAME with your image
+  Auto-reboot after completion
+  ENDTEXT
+
+LABEL clonezilla-shell
+  MENU LABEL ^7) Clonezilla Shell (Advanced)
+  KERNEL /clonezilla/vmlinuz
+  APPEND initrd=/clonezilla/initrd.img boot=live union=overlay username=user config components quiet noswap nolocales edd=on nomodeset ocs_prerun="mount -t nfs BOOTAH_SERVER_IP:/pxe-images /home/partimag" ocs_live_run="/bin/bash" ocs_live_extra_param="" keyboard-layouts= ocs_live_batch="no" locales= vga=788 ip=frommedia nosplash netboot=nfs nfsroot=BOOTAH_SERVER_IP:/pxe-files/clonezilla
+  TEXT HELP
+  Boot to command line shell
+  For advanced users and troubleshooting
+  Full access to Clonezilla tools
+  ENDTEXT
 
 LABEL memtest
-  MENU LABEL ^4) Memory Test
-  KERNEL memtest86+.bin
-
-LABEL tools
-  MENU LABEL ^5) System Tools
-  KERNEL vmlinuz
-  APPEND initrd=initrd.img boot=live fetch=http://SERVERIP:5000/pxe-files/bootah-tools.squashfs
+  MENU LABEL ^8) Memory Test (Memtest86+)
+  KERNEL /memtest86+.bin
+  TEXT HELP
+  Test system RAM for errors
+  Runs comprehensive memory diagnostics
+  ENDTEXT
 
 LABEL reboot
-  MENU LABEL ^6) Reboot
-  com32 reboot.c32
+  MENU LABEL ^9) Reboot System
+  COM32 reboot.c32
+  TEXT HELP
+  Restart the computer
+  ENDTEXT
 
 LABEL poweroff
-  MENU LABEL ^7) Power Off
-  com32 poweroff.c32
+  MENU LABEL ^0) Power Off System
+  COM32 poweroff.c32
+  TEXT HELP
+  Shut down the computer
+  ENDTEXT
