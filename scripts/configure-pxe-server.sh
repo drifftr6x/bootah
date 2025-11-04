@@ -25,6 +25,18 @@ fi
 # Replace placeholder IP with actual server IP
 echo "Updating PXE configuration with server IP..."
 sed -i "s/BOOTAH_SERVER_IP/$SERVER_IP/g" "$PXE_CONFIG_FILE"
+
+# Replace full path placeholders
+sed -i "s|PXE_FILES_FULL_PATH|$PXE_FILES_PATH|g" "$PXE_CONFIG_FILE"
+sed -i "s|PXE_IMAGES_FULL_PATH|$PXE_IMAGES_PATH|g" "$PXE_CONFIG_FILE"
+
+# Also update wrapper scripts
+for script in pxe-files/bootah-clonezilla-capture.sh pxe-files/bootah-clonezilla-deploy.sh; do
+    if [ -f "$script" ]; then
+        sed -i "s/BOOTAH_SERVER_IP/$SERVER_IP/g" "$script"
+    fi
+done
+
 echo "✅ Configuration updated"
 
 # Setup NFS exports
