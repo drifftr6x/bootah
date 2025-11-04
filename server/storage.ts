@@ -19,6 +19,7 @@ import {
   type DashboardStats,
   type User,
   type InsertUser,
+  type UpsertUser,
   type Role,
   type InsertRole,
   type Permission,
@@ -55,7 +56,7 @@ import {
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
-import { devices, images, deployments, activityLogs, serverStatus } from "@shared/schema";
+import { devices, images, deployments, activityLogs, serverStatus, users } from "@shared/schema";
 import { eq, desc, and, or, count } from "drizzle-orm";
 
 export interface IStorage {
@@ -123,6 +124,7 @@ export interface IStorage {
   updateUser(id: string, user: Partial<InsertUser>): Promise<User | undefined>;
   deleteUser(id: string): Promise<boolean>;
   toggleUserActive(id: string): Promise<User | undefined>;
+  upsertUser(user: UpsertUser): Promise<User>; // For Replit Auth
 
   // Roles
   getRoles(): Promise<RoleWithPermissions[]>;
@@ -2053,6 +2055,27 @@ export class DatabaseStorage implements IStorage {
   async updateUser(id: string, user: Partial<InsertUser>): Promise<User | undefined> { return undefined; }
   async deleteUser(id: string): Promise<boolean> { return false; }
   async toggleUserActive(id: string): Promise<User | undefined> { return undefined; }
+  
+  async upsertUser(userData: UpsertUser): Promise<User> {
+    const [user] = await db
+      .insert(users)
+      .values(userData)
+      .onConflictDoUpdate({
+        target: users.id,
+        set: {
+          // Only update fields that are actually provided (not undefined)
+          ...(userData.email !== undefined && { email: userData.email }),
+          ...(userData.firstName !== undefined && { firstName: userData.firstName }),
+          ...(userData.lastName !== undefined && { lastName: userData.lastName }),
+          ...(userData.profileImageUrl !== undefined && { profileImageUrl: userData.profileImageUrl }),
+          lastLogin: new Date(),
+          updatedAt: new Date(),
+        },
+      })
+      .returning();
+    return user;
+  }
+  
   async getRoles(): Promise<RoleWithPermissions[]> { return []; }
   async getRole(id: string): Promise<RoleWithPermissions | undefined> { return undefined; }
   async createRole(role: InsertRole): Promise<Role> { throw new Error("Not implemented"); }

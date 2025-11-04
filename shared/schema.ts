@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, integer, timestamp, real, boolean, bigint } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, integer, timestamp, real, boolean, bigint, jsonb, index } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -114,16 +114,31 @@ export const alertRules = pgTable("alert_rules", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-// User Management & RBAC Tables
+// Session storage table for Replit Auth
+export const sessions = pgTable(
+  "sessions",
+  {
+    sid: varchar("sid").primaryKey(),
+    sess: jsonb("sess").notNull(),
+    expire: timestamp("expire").notNull(),
+  },
+  (table) => [index("IDX_session_expire").on(table.expire)],
+);
+
+// User Management & RBAC Tables (integrated with Replit Auth)
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  username: text("username").notNull().unique(),
-  email: text("email").notNull().unique(),
-  fullName: text("full_name").notNull(),
-  passwordHash: text("password_hash").notNull(),
+  // Replit Auth fields
+  email: varchar("email").unique(),
+  firstName: varchar("first_name"),
+  lastName: varchar("last_name"),
+  profileImageUrl: varchar("profile_image_url"),
+  // RBAC fields
+  username: text("username").unique(),
+  fullName: text("full_name"),
+  passwordHash: text("password_hash"),
   isActive: boolean("is_active").default(true),
   lastLogin: timestamp("last_login"),
-  profileImage: text("profile_image"),
   department: text("department"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -478,6 +493,7 @@ export type InsertAlertRule = z.infer<typeof insertAlertRuleSchema>;
 // User Management & RBAC Types
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
+export type UpsertUser = typeof users.$inferInsert;
 
 export type Role = typeof roles.$inferSelect;
 export type InsertRole = z.infer<typeof insertRoleSchema>;

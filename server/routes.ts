@@ -4,6 +4,7 @@ import { WebSocketServer, WebSocket } from "ws";
 import { storage } from "./storage";
 import { TFTPServer, PXEHTTPServer, DHCPProxy } from "./pxe-server";
 import { imagingEngine } from "./imaging-engine";
+import { setupAuth, isAuthenticated } from "./replitAuth";
 import { 
   insertDeviceSchema, 
   insertImageSchema, 
@@ -26,6 +27,24 @@ import {
 } from "@shared/schema";
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Setup Authentication - must be before other routes
+  await setupAuth(app);
+
+  // Auth endpoint for user info
+  app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      res.json(user);
+    } catch (error) {
+      console.error("Error fetching user:", error);
+      res.status(500).json({ message: "Failed to fetch user" });
+    }
+  });
+
   // Initialize PXE servers
   const tftpServer = new TFTPServer(6969); // Use non-privileged port
   const pxeHttpServer = new PXEHTTPServer();

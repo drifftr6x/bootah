@@ -4,8 +4,10 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useWebSocket } from "@/hooks/useWebSocket";
+import { useAuth } from "@/hooks/useAuth";
 import Sidebar from "@/components/layout/sidebar";
 import Dashboard from "@/pages/dashboard";
+import Landing from "@/pages/landing";
 import Devices from "@/pages/devices";
 import Images from "@/pages/images";
 import Capture from "@/pages/capture";
@@ -21,10 +23,28 @@ import Logs from "@/pages/logs";
 import Help from "@/pages/help";
 import NotFound from "@/pages/not-found";
 
-function Router() {
-  // Initialize WebSocket connection for real-time updates
+function AuthenticatedApp() {
+  const { isAuthenticated, isLoading } = useAuth();
   const { isConnected } = useWebSocket();
 
+  // Show loading state while checking auth
+  if (isLoading) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-background">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show landing page if not authenticated
+  if (!isAuthenticated) {
+    return <Landing />;
+  }
+
+  // Show main app if authenticated
   return (
     <div className="flex h-screen overflow-hidden bg-background">
       <Sidebar />
@@ -63,7 +83,7 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <Toaster />
-        <Router />
+        <AuthenticatedApp />
       </TooltipProvider>
     </QueryClientProvider>
   );
