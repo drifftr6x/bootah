@@ -82,6 +82,7 @@ export interface IStorage {
   getDeployments(): Promise<DeploymentWithDetails[]>;
   getDeployment(id: string): Promise<DeploymentWithDetails | undefined>;
   getActiveDeployments(): Promise<DeploymentWithDetails[]>;
+  getScheduledDeployments(): Promise<DeploymentWithDetails[]>;
   createDeployment(deployment: InsertDeployment): Promise<Deployment>;
   updateDeployment(id: string, deployment: Partial<InsertDeployment>): Promise<Deployment | undefined>;
   deleteDeployment(id: string): Promise<boolean>;
@@ -608,6 +609,20 @@ export class MemStorage implements IStorage {
     return allDeployments.filter(deployment => 
       deployment.status === "deploying" || deployment.status === "pending"
     );
+  }
+
+  async getScheduledDeployments(): Promise<DeploymentWithDetails[]> {
+    const allDeployments = await this.getDeployments();
+    return allDeployments.filter(deployment => 
+      deployment.status === "scheduled"
+    ).sort((a, b) => {
+      // Sort by nextRunAt or scheduledFor
+      const aTime = a.nextRunAt || a.scheduledFor;
+      const bTime = b.nextRunAt || b.scheduledFor;
+      if (!aTime) return 1;
+      if (!bTime) return -1;
+      return new Date(aTime).getTime() - new Date(bTime).getTime();
+    });
   }
 
   async createDeployment(insertDeployment: InsertDeployment): Promise<Deployment> {
@@ -1925,6 +1940,26 @@ export class DatabaseStorage implements IStorage {
       .leftJoin(images, eq(deployments.imageId, images.id))
       .where(or(eq(deployments.status, "deploying"), eq(deployments.status, "pending")))
       .orderBy(desc(deployments.startedAt));
+
+    return result.map(row => ({
+      ...row.deployment,
+      device: row.device!,
+      image: row.image!
+    }));
+  }
+
+  async getScheduledDeployments(): Promise<DeploymentWithDetails[]> {
+    const result = await db
+      .select({
+        deployment: deployments,
+        device: devices,
+        image: images
+      })
+      .from(deployments)
+      .leftJoin(devices, eq(deployments.deviceId, devices.id))
+      .leftJoin(images, eq(deployments.imageId, images.id))
+      .where(eq(deployments.status, "scheduled"))
+      .orderBy(deployments.nextRunAt, deployments.scheduledFor);
 
     return result.map(row => ({
       ...row.deployment,

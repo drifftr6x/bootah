@@ -503,22 +503,58 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/deployments", async (req, res) => {
     try {
       const deploymentData = insertDeploymentSchema.parse(req.body);
-      const deployment = await storage.createDeployment(deploymentData);
       
-      // Update device status
-      await storage.updateDevice(deployment.deviceId, { status: "deploying" });
+      // Set appropriate status based on schedule type
+      const status = deploymentData.scheduleType === "instant" ? "deploying" : "scheduled";
       
-      // Log deployment start
-      const device = await storage.getDevice(deployment.deviceId);
-      const image = await storage.getImage(deployment.imageId);
+      // Calculate nextRunAt for delayed and recurring deployments
+      let nextRunAt = null;
+      if (deploymentData.scheduleType === "delayed" || deploymentData.scheduleType === "recurring") {
+        // Set nextRunAt to scheduledFor so scheduler can uniformly query by nextRunAt
+        nextRunAt = deploymentData.scheduledFor;
+      }
       
-      if (device && image) {
-        await storage.createActivityLog({
-          type: "deployment",
-          message: `${device.name} started ${image.name} deployment`,
-          deviceId: device.id,
-          deploymentId: deployment.id,
-        });
+      // Set startedAt for instant deployments only
+      const startedAt = deploymentData.scheduleType === "instant" ? new Date() : undefined;
+      
+      const deployment = await storage.createDeployment({
+        ...deploymentData,
+        status,
+        nextRunAt,
+        startedAt,
+        createdBy: req.user?.id,
+      });
+      
+      // Only update device status and start immediately for instant deployments
+      if (deploymentData.scheduleType === "instant") {
+        await storage.updateDevice(deployment.deviceId, { status: "deploying" });
+        
+        // Log deployment start
+        const device = await storage.getDevice(deployment.deviceId);
+        const image = await storage.getImage(deployment.imageId);
+        
+        if (device && image) {
+          await storage.createActivityLog({
+            type: "deployment",
+            message: `${device.name} started ${image.name} deployment`,
+            deviceId: device.id,
+            deploymentId: deployment.id,
+          });
+        }
+      } else {
+        // Log scheduled deployment creation
+        const device = await storage.getDevice(deployment.deviceId);
+        const image = await storage.getImage(deployment.imageId);
+        
+        if (device && image) {
+          const scheduleTime = deployment.scheduledFor ? new Date(deployment.scheduledFor).toLocaleString() : "unknown";
+          await storage.createActivityLog({
+            type: "info",
+            message: `${image.name} deployment scheduled for ${device.name} at ${scheduleTime}`,
+            deviceId: device.id,
+            deploymentId: deployment.id,
+          });
+        }
       }
       
       res.status(201).json(deployment);
@@ -597,6 +633,51 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(204).send();
     } catch (error) {
       res.status(500).json({ message: "Failed to delete deployment" });
+    }
+  });
+
+  // Scheduled deployments endpoints
+  app.get("/api/deployments/scheduled", async (req, res) => {
+    try {
+      const deployments = await storage.getScheduledDeployments();
+      res.json(deployments);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch scheduled deployments" });
+    }
+  });
+
+  app.patch("/api/deployments/:id/cancel-schedule", async (req, res) => {
+    try {
+      const deployment = await storage.getDeployment(req.params.id);
+      if (!deployment) {
+        return res.status(404).json({ message: "Deployment not found" });
+      }
+
+      // Only allow cancelling scheduled or pending deployments
+      if (deployment.status !== "scheduled" && deployment.status !== "pending") {
+        return res.status(400).json({ message: "Can only cancel scheduled or pending deployments" });
+      }
+
+      const updated = await storage.updateDeployment(req.params.id, {
+        status: "cancelled",
+      });
+
+      // Log cancellation
+      const device = await storage.getDevice(deployment.deviceId);
+      const image = await storage.getImage(deployment.imageId);
+      
+      if (device && image) {
+        await storage.createActivityLog({
+          type: "info",
+          message: `Scheduled ${image.name} deployment for ${device.name} was cancelled`,
+          deviceId: deployment.deviceId,
+          deploymentId: deployment.id,
+        });
+      }
+
+      res.json(updated);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to cancel scheduled deployment" });
     }
   });
 
