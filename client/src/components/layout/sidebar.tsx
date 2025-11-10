@@ -22,6 +22,7 @@ import {
   Shield,
   ChevronLeft,
   ChevronRight,
+  Radio,
 } from "lucide-react";
 
 const navigation = [
@@ -31,6 +32,7 @@ const navigation = [
   { name: "Image Capture", href: "/capture", icon: Camera },
   { name: "Deployments", href: "/deployments", icon: Zap },
   { name: "Scheduled", href: "/scheduled", icon: Calendar },
+  { name: "Multicast Sessions", href: "/multicast", icon: Radio },
   { name: "Templates", href: "/templates", icon: Workflow },
   { name: "Network Discovery", href: "/network", icon: Wifi },
   { name: "Workstations", href: "/workstations", icon: Laptop },
