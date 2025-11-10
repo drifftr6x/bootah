@@ -23,7 +23,9 @@ import {
   insertTemplateStepSchema,
   insertTemplateVariableSchema,
   insertTemplateDeploymentSchema,
-  insertAuditLogSchema
+  insertAuditLogSchema,
+  insertMulticastSessionSchema,
+  insertMulticastParticipantSchema
 } from "@shared/schema";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -686,6 +688,224 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(updated);
     } catch (error) {
       res.status(500).json({ message: "Failed to cancel scheduled deployment" });
+    }
+  });
+
+  // Multicast Sessions Endpoints
+  app.get("/api/multicast/sessions", async (req, res) => {
+    try {
+      const sessions = await storage.getMulticastSessions();
+      res.json(sessions);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch multicast sessions" });
+    }
+  });
+
+  app.get("/api/multicast/sessions/:id", async (req, res) => {
+    try {
+      const session = await storage.getMulticastSession(req.params.id);
+      if (!session) {
+        return res.status(404).json({ message: "Multicast session not found" });
+      }
+      
+      // Get participants for this session
+      const participants = await storage.getMulticastParticipants(req.params.id);
+      
+      res.json({ ...session, participants });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch multicast session" });
+    }
+  });
+
+  app.post("/api/multicast/sessions", async (req, res) => {
+    try {
+      const sessionData = insertMulticastSessionSchema.parse(req.body);
+      
+      // Assign a multicast address from the pool (239.255.0.1-254 range)
+      // Find the lowest unused address by checking all existing sessions
+      const existingSessions = await storage.getMulticastSessions();
+      const usedAddresses = new Set(existingSessions.map(s => s.multicastAddress));
+      
+      let multicastAddress = "";
+      for (let i = 1; i <= 254; i++) {
+        const address = `239.255.0.${i}`;
+        if (!usedAddresses.has(address)) {
+          multicastAddress = address;
+          break;
+        }
+      }
+      
+      if (!multicastAddress) {
+        return res.status(503).json({ message: "No available multicast addresses. Please delete completed sessions to free up addresses." });
+      }
+      
+      const session = await storage.createMulticastSession({
+        ...sessionData,
+        multicastAddress,
+        createdBy: req.user?.id,
+      });
+      
+      // Log session creation
+      const image = await storage.getImage(session.imageId);
+      if (image) {
+        await storage.createActivityLog({
+          type: "info",
+          message: `Multicast session "${session.name}" created for ${image.name}`,
+          deploymentId: null,
+          deviceId: null,
+        });
+      }
+      
+      res.status(201).json(session);
+    } catch (error) {
+      console.error("Error creating multicast session:", error);
+      res.status(400).json({ message: "Invalid multicast session data" });
+    }
+  });
+
+  app.patch("/api/multicast/sessions/:id", async (req, res) => {
+    try {
+      const session = await storage.getMulticastSession(req.params.id);
+      if (!session) {
+        return res.status(404).json({ message: "Multicast session not found" });
+      }
+
+      // Only allow certain status transitions
+      const { status, ...otherUpdates } = req.body;
+      
+      if (status) {
+        // Validate status transitions
+        if (session.status === "completed" || session.status === "cancelled") {
+          return res.status(400).json({ message: "Cannot modify completed or cancelled session" });
+        }
+        
+        // Set timestamps based on status
+        if (status === "active" && !session.startedAt) {
+          otherUpdates.startedAt = new Date();
+        } else if (status === "completed" || status === "failed" || status === "cancelled") {
+          otherUpdates.completedAt = new Date();
+        }
+      }
+
+      const updated = await storage.updateMulticastSession(req.params.id, {
+        ...otherUpdates,
+        ...(status && { status }),
+      });
+
+      // Log status change
+      if (status && status !== session.status) {
+        await storage.createActivityLog({
+          type: "info",
+          message: `Multicast session "${session.name}" status changed to ${status}`,
+          deploymentId: null,
+          deviceId: null,
+        });
+      }
+
+      res.json(updated);
+    } catch (error) {
+      console.error("Error updating multicast session:", error);
+      res.status(400).json({ message: "Invalid update data" });
+    }
+  });
+
+  app.delete("/api/multicast/sessions/:id", async (req, res) => {
+    try {
+      const session = await storage.getMulticastSession(req.params.id);
+      if (!session) {
+        return res.status(404).json({ message: "Multicast session not found" });
+      }
+
+      // Only allow deleting waiting or completed sessions
+      if (session.status === "active") {
+        return res.status(400).json({ message: "Cannot delete active multicast session. Cancel it first." });
+      }
+
+      const deleted = await storage.deleteMulticastSession(req.params.id);
+      if (!deleted) {
+        return res.status(404).json({ message: "Multicast session not found" });
+      }
+
+      await storage.createActivityLog({
+        type: "info",
+        message: `Multicast session "${session.name}" deleted`,
+        deploymentId: null,
+        deviceId: null,
+      });
+
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ message: "Failed to delete multicast session" });
+    }
+  });
+
+  // Multicast Participants Endpoints
+  app.post("/api/multicast/sessions/:id/participants", async (req, res) => {
+    try {
+      const sessionId = req.params.id;
+      const participantData = insertMulticastParticipantSchema.parse({
+        ...req.body,
+        sessionId,
+      });
+
+      const session = await storage.getMulticastSession(sessionId);
+      if (!session) {
+        return res.status(404).json({ message: "Multicast session not found" });
+      }
+
+      // Don't allow adding participants to active or completed sessions
+      if (session.status !== "waiting") {
+        return res.status(400).json({ message: "Can only add participants to waiting sessions" });
+      }
+
+      const participant = await storage.addMulticastParticipant(participantData);
+
+      // Log participant addition
+      const device = await storage.getDevice(participantData.deviceId);
+      if (device) {
+        await storage.createActivityLog({
+          type: "info",
+          message: `${device.name} added to multicast session "${session.name}"`,
+          deviceId: device.id,
+          deploymentId: null,
+        });
+      }
+
+      res.status(201).json(participant);
+    } catch (error: any) {
+      console.error("Error adding participant:", error);
+      if (error.message?.includes("already added")) {
+        return res.status(409).json({ message: error.message });
+      }
+      if (error.message?.includes("capacity")) {
+        return res.status(400).json({ message: error.message });
+      }
+      res.status(400).json({ message: "Failed to add participant" });
+    }
+  });
+
+  app.delete("/api/multicast/sessions/:id/participants/:participantId", async (req, res) => {
+    try {
+      const { id: sessionId, participantId } = req.params;
+
+      const session = await storage.getMulticastSession(sessionId);
+      if (!session) {
+        return res.status(404).json({ message: "Multicast session not found" });
+      }
+
+      // Don't allow removing participants from active sessions
+      if (session.status === "active") {
+        return res.status(400).json({ message: "Cannot remove participants from active session" });
+      }
+
+      const deleted = await storage.removeMulticastParticipant(participantId);
+      if (!deleted) {
+        return res.status(404).json({ message: "Participant not found" });
+      }
+
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ message: "Failed to remove participant" });
     }
   });
 
