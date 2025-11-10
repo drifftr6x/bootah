@@ -27,12 +27,13 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { insertUserSchema } from "@shared/schema";
 import { z } from "zod";
 import { useToast } from "@/hooks/use-toast";
-import { Users, UserPlus, Upload, Pencil, Trash2, Power, PowerOff } from "lucide-react";
+import { Users, UserPlus, Upload, Pencil, Trash2, Power, PowerOff, Shield } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 
@@ -49,17 +50,19 @@ export default function UserManagement() {
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<any>(null);
   const [csvText, setCsvText] = useState("");
+  const [selectedUserRoles, setSelectedUserRoles] = useState<string[]>([]);
 
-  const { data: users, isLoading } = useQuery({
+  const { data: users, isLoading } = useQuery<any[]>({
     queryKey: ["/api/admin/users"],
+  });
+
+  const { data: roles = [] } = useQuery<any[]>({
+    queryKey: ["/api/roles"],
   });
 
   const createUserMutation = useMutation({
     mutationFn: async (data: UserFormData) => {
-      return apiRequest("/api/admin/users", {
-        method: "POST",
-        body: JSON.stringify(data),
-      });
+      return apiRequest("POST", "/api/admin/users", data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
@@ -80,10 +83,7 @@ export default function UserManagement() {
 
   const updateUserMutation = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: Partial<UserFormData> }) => {
-      return apiRequest(`/api/admin/users/${id}`, {
-        method: "PUT",
-        body: JSON.stringify(data),
-      });
+      return apiRequest("PUT", `/api/admin/users/${id}`, data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
@@ -105,9 +105,7 @@ export default function UserManagement() {
 
   const deleteUserMutation = useMutation({
     mutationFn: async (id: string) => {
-      return apiRequest(`/api/admin/users/${id}`, {
-        method: "DELETE",
-      });
+      return apiRequest("DELETE", `/api/admin/users/${id}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
@@ -127,9 +125,7 @@ export default function UserManagement() {
 
   const toggleActiveMutation = useMutation({
     mutationFn: async (id: string) => {
-      return apiRequest(`/api/admin/users/${id}/toggle-active`, {
-        method: "POST",
-      });
+      return apiRequest("POST", `/api/admin/users/${id}/toggle-active`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
@@ -142,10 +138,8 @@ export default function UserManagement() {
 
   const importCsvMutation = useMutation({
     mutationFn: async (csvData: any[]) => {
-      return apiRequest("/api/admin/users/import-csv", {
-        method: "POST",
-        body: JSON.stringify({ csvData }),
-      });
+      const response = await apiRequest("POST", "/api/admin/users/import-csv", { csvData });
+      return await response.json();
     },
     onSuccess: (result: any) => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
@@ -162,6 +156,24 @@ export default function UserManagement() {
         description: error.message || "Failed to import users",
         variant: "destructive",
       });
+    },
+  });
+
+  const assignRoleMutation = useMutation({
+    mutationFn: async ({ userId, roleId }: { userId: string; roleId: string }) => {
+      return apiRequest("POST", `/api/users/${userId}/roles`, { roleId });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
+    },
+  });
+
+  const removeRoleMutation = useMutation({
+    mutationFn: async ({ userId, roleId }: { userId: string; roleId: string }) => {
+      return apiRequest("DELETE", `/api/users/${userId}/roles/${roleId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
     },
   });
 
@@ -188,7 +200,7 @@ export default function UserManagement() {
     createUserMutation.mutate(data);
   };
 
-  const handleEdit = (user: any) => {
+  const handleEdit = async (user: any) => {
     setSelectedUser(user);
     editForm.reset({
       username: user.username,
@@ -201,12 +213,49 @@ export default function UserManagement() {
       phoneNumber: user.phoneNumber,
       isActive: user.isActive,
     });
+    
+    try {
+      const response = await apiRequest("GET", `/api/users/${user.id}/roles`);
+      const userRoles = await response.json();
+      setSelectedUserRoles(userRoles.map((ur: any) => ur.roleId));
+    } catch (error) {
+      setSelectedUserRoles([]);
+    }
+    
     setIsEditDialogOpen(true);
   };
 
-  const handleUpdate = (data: Partial<UserFormData>) => {
+  const handleUpdate = async (data: Partial<UserFormData>) => {
     if (selectedUser) {
-      updateUserMutation.mutate({ id: selectedUser.id, data });
+      try {
+        await updateUserMutation.mutateAsync({ id: selectedUser.id, data });
+        
+        const response = await apiRequest("GET", `/api/users/${selectedUser.id}/roles`);
+        const currentRoles = await response.json();
+        const currentRoleIds = currentRoles.map((ur: any) => ur.roleId);
+        
+        const rolesToAdd = selectedUserRoles.filter(roleId => !currentRoleIds.includes(roleId));
+        const rolesToRemove = currentRoleIds.filter((roleId: string) => !selectedUserRoles.includes(roleId));
+        
+        for (const roleId of rolesToAdd) {
+          await assignRoleMutation.mutateAsync({ userId: selectedUser.id, roleId });
+        }
+        
+        for (const roleId of rolesToRemove) {
+          await removeRoleMutation.mutateAsync({ userId: selectedUser.id, roleId });
+        }
+        
+        setIsEditDialogOpen(false);
+        setSelectedUser(null);
+        setSelectedUserRoles([]);
+        queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
+      } catch (error: any) {
+        toast({
+          title: "Error",
+          description: error.message || "Failed to update user",
+          variant: "destructive",
+        });
+      }
     }
   };
 
@@ -289,6 +338,7 @@ export default function UserManagement() {
               <TableHead>Name</TableHead>
               <TableHead>Email</TableHead>
               <TableHead>Department</TableHead>
+              <TableHead>Roles</TableHead>
               <TableHead>Status</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
@@ -300,6 +350,24 @@ export default function UserManagement() {
                 <TableCell>{user.fullName || `${user.firstName || ''} ${user.lastName || ''}`.trim()}</TableCell>
                 <TableCell>{user.email}</TableCell>
                 <TableCell>{user.department || "-"}</TableCell>
+                <TableCell>
+                  <div className="flex flex-wrap gap-1">
+                    {user.roles?.map((userRole: any) => (
+                      <Badge
+                        key={userRole.id}
+                        variant="outline"
+                        className="text-xs"
+                        data-testid={`badge-role-${user.id}-${userRole.roleId}`}
+                      >
+                        <Shield className="h-3 w-3 mr-1" />
+                        {userRole.role?.name || userRole.roleId}
+                      </Badge>
+                    ))}
+                    {(!user.roles || user.roles.length === 0) && (
+                      <span className="text-xs text-muted-foreground">No roles</span>
+                    )}
+                  </div>
+                </TableCell>
                 <TableCell>
                   <Badge
                     variant={user.isActive ? "default" : "secondary"}
@@ -576,6 +644,39 @@ export default function UserManagement() {
                   )}
                 />
               </div>
+              
+              {/* Role Assignment Section */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <Shield className="h-4 w-4 text-muted-foreground" />
+                  <h4 className="text-sm font-medium">Assign Roles</h4>
+                </div>
+                <div className="grid grid-cols-3 gap-3 p-4 border rounded-lg bg-muted/50">
+                  {roles.map((role: any) => (
+                    <div key={role.id} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={`role-${role.id}`}
+                        checked={selectedUserRoles.includes(role.id)}
+                        onCheckedChange={(checked) => {
+                          if (checked) {
+                            setSelectedUserRoles([...selectedUserRoles, role.id]);
+                          } else {
+                            setSelectedUserRoles(selectedUserRoles.filter(id => id !== role.id));
+                          }
+                        }}
+                        data-testid={`checkbox-role-${role.id}`}
+                      />
+                      <label htmlFor={`role-${role.id}`} className="text-sm font-medium cursor-pointer">
+                        {role.name}
+                      </label>
+                    </div>
+                  ))}
+                  {roles.length === 0 && (
+                    <p className="text-sm text-muted-foreground col-span-3">No roles available</p>
+                  )}
+                </div>
+              </div>
+              
               <DialogFooter>
                 <Button
                   type="button"
