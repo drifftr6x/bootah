@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, integer, timestamp, real, boolean, bigint, jsonb, index } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, integer, timestamp, real, boolean, bigint, jsonb, index, foreignKey } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -133,16 +133,75 @@ export const users = pgTable("users", {
   firstName: varchar("first_name"),
   lastName: varchar("last_name"),
   profileImageUrl: varchar("profile_image_url"),
-  // RBAC fields
+  // Local Auth fields
   username: text("username").unique(),
   fullName: text("full_name"),
   passwordHash: text("password_hash"),
+  // Account status and security
   isActive: boolean("is_active").default(true),
+  isLocked: boolean("is_locked").default(false),
+  accountStatus: text("account_status").default("active"), // active, locked, disabled, pending
+  failedLoginAttempts: integer("failed_login_attempts").default(0),
+  lastFailedLogin: timestamp("last_failed_login"),
+  lockedUntil: timestamp("locked_until"),
+  forcePasswordChange: boolean("force_password_change").default(false),
+  // Password policy
+  passwordLastChanged: timestamp("password_last_changed"),
+  passwordExpiresAt: timestamp("password_expires_at"),
+  // User info
   lastLogin: timestamp("last_login"),
   department: text("department"),
+  jobTitle: text("job_title"),
+  phoneNumber: text("phone_number"),
+  // Timestamps
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-});
+  createdBy: varchar("created_by"),
+}, (users) => ({
+  createdByFk: foreignKey({ columns: [users.createdBy], foreignColumns: [users.id] }),
+}));
+
+// Password Reset Tokens
+export const passwordResetTokens = pgTable("password_reset_tokens", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  token: text("token").notNull().unique(), // SHA-256 hash of token
+  oneTimeCode: text("one_time_code"), // SHA-256 hash of 6-digit code
+  expiresAt: timestamp("expires_at").notNull(),
+  usedAt: timestamp("used_at"),
+  isUsed: boolean("is_used").default(false),
+  createdBy: varchar("created_by").references(() => users.id), // Admin who initiated reset
+  ipAddress: text("ip_address"),
+  createdAt: timestamp("created_at").defaultNow(),
+},
+(table) => [index("IDX_password_reset_userId").on(table.userId)],
+);
+
+// Login History
+export const loginHistory = pgTable("login_history", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id, { onDelete: "cascade" }),
+  username: text("username"), // Store username for failed attempts
+  success: boolean("success").notNull(),
+  failureReason: text("failure_reason"), // invalid_credentials, account_locked, account_disabled
+  ipAddress: text("ip_address"),
+  userAgent: text("user_agent"),
+  location: text("location"), // Optional: city, country
+  method: text("method").default("local"), // local, replit_auth
+  timestamp: timestamp("timestamp").defaultNow(),
+},
+(table) => [index("IDX_login_history_userId").on(table.userId)],
+);
+
+// Password History (prevent password reuse)
+export const passwordHistory = pgTable("password_history", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  passwordHash: text("password_hash").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+},
+(table) => [index("IDX_password_history_userId").on(table.userId)],
+);
 
 export const roles = pgTable("roles", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -391,6 +450,27 @@ export const insertUserSchema = createInsertSchema(users).omit({
   createdAt: true,
   updatedAt: true,
   lastLogin: true,
+  failedLoginAttempts: true,
+  lastFailedLogin: true,
+  lockedUntil: true,
+  passwordLastChanged: true,
+  passwordExpiresAt: true,
+});
+
+export const insertPasswordResetTokenSchema = createInsertSchema(passwordResetTokens).omit({
+  id: true,
+  createdAt: true,
+  usedAt: true,
+});
+
+export const insertLoginHistorySchema = createInsertSchema(loginHistory).omit({
+  id: true,
+  timestamp: true,
+});
+
+export const insertPasswordHistorySchema = createInsertSchema(passwordHistory).omit({
+  id: true,
+  createdAt: true,
 });
 
 export const insertRoleSchema = createInsertSchema(roles).omit({
@@ -494,6 +574,15 @@ export type InsertAlertRule = z.infer<typeof insertAlertRuleSchema>;
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type UpsertUser = typeof users.$inferInsert;
+
+export type PasswordResetToken = typeof passwordResetTokens.$inferSelect;
+export type InsertPasswordResetToken = z.infer<typeof insertPasswordResetTokenSchema>;
+
+export type LoginHistory = typeof loginHistory.$inferSelect;
+export type InsertLoginHistory = z.infer<typeof insertLoginHistorySchema>;
+
+export type PasswordHistory = typeof passwordHistory.$inferSelect;
+export type InsertPasswordHistory = z.infer<typeof insertPasswordHistorySchema>;
 
 export type Role = typeof roles.$inferSelect;
 export type InsertRole = z.infer<typeof insertRoleSchema>;
