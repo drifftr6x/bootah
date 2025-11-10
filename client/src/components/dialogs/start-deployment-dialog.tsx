@@ -24,11 +24,19 @@ interface StartDeploymentDialogProps {
 }
 
 const extendedDeploymentSchema = insertDeploymentSchema
-  .extend({
-    deviceId: insertDeploymentSchema.shape.deviceId.min(1, "Please select a device"),
-    imageId: insertDeploymentSchema.shape.imageId.min(1, "Please select an image"),
+  .refine((data: InsertDeployment) => {
+    return data.deviceId && data.deviceId.length > 0;
+  }, {
+    message: "Please select a device",
+    path: ["deviceId"],
   })
-  .refine((data) => {
+  .refine((data: InsertDeployment) => {
+    return data.imageId && data.imageId.length > 0;
+  }, {
+    message: "Please select an image",
+    path: ["imageId"],
+  })
+  .refine((data: InsertDeployment) => {
     if (data.scheduleType === "delayed" || data.scheduleType === "recurring") {
       return !!data.scheduledFor;
     }
@@ -37,7 +45,7 @@ const extendedDeploymentSchema = insertDeploymentSchema
     message: "Scheduled date/time is required for delayed and recurring deployments",
     path: ["scheduledFor"],
   })
-  .refine((data) => {
+  .refine((data: InsertDeployment) => {
     if (data.scheduleType === "recurring") {
       return !!data.recurringPattern;
     }
