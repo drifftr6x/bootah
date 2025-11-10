@@ -2047,10 +2047,26 @@ export class DatabaseStorage implements IStorage {
   async createAlertRule(rule: InsertAlertRule): Promise<AlertRule> { throw new Error("Not implemented"); }
   async updateAlertRule(id: string, rule: Partial<InsertAlertRule>): Promise<AlertRule | undefined> { return undefined; }
   async deleteAlertRule(id: string): Promise<boolean> { return false; }
-  async getUsers(): Promise<UserWithRoles[]> { return []; }
-  async getUser(id: string): Promise<UserWithRoles | undefined> { return undefined; }
-  async getUserByUsername(username: string): Promise<User | undefined> { return undefined; }
-  async getUserByEmail(email: string): Promise<User | undefined> { return undefined; }
+  async getUsers(): Promise<UserWithRoles[]> {
+    const allUsers = await db.select().from(users);
+    return allUsers.map(user => ({ ...user, roles: [] }));
+  }
+  
+  async getUser(id: string): Promise<UserWithRoles | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.id, id)).limit(1);
+    if (!user) return undefined;
+    return { ...user, roles: [] };
+  }
+  
+  async getUserByUsername(username: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.username, username)).limit(1);
+    return user;
+  }
+  
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.email, email)).limit(1);
+    return user;
+  }
   async createUser(user: InsertUser): Promise<User> { throw new Error("Not implemented"); }
   async updateUser(id: string, user: Partial<InsertUser>): Promise<User | undefined> { return undefined; }
   async deleteUser(id: string): Promise<boolean> { return false; }
