@@ -919,6 +919,110 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Network Topology Endpoints
+  
+  app.get("/api/topology", isAuthenticated, requirePermission("devices", "read"), async (req, res) => {
+    try {
+      const topology = await storage.getTopology();
+      res.json(topology);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch network topology" });
+    }
+  });
+
+  app.get("/api/topology/segments", isAuthenticated, requirePermission("devices", "read"), async (req, res) => {
+    try {
+      const segments = await storage.getNetworkSegments();
+      res.json(segments);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch network segments" });
+    }
+  });
+
+  app.post("/api/topology/segments", isAuthenticated, requirePermission("devices", "manage"), async (req, res) => {
+    try {
+      const { insertNetworkSegmentSchema } = await import("@shared/schema");
+      const segmentData = insertNetworkSegmentSchema.parse(req.body);
+      const segment = await storage.createNetworkSegment(segmentData);
+      res.status(201).json(segment);
+    } catch (error) {
+      res.status(400).json({ message: "Failed to create network segment" });
+    }
+  });
+
+  app.get("/api/topology/connections", isAuthenticated, requirePermission("devices", "read"), async (req, res) => {
+    try {
+      const connections = await storage.getDeviceConnections();
+      res.json(connections);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch device connections" });
+    }
+  });
+
+  app.post("/api/topology/connections", isAuthenticated, requirePermission("devices", "manage"), async (req, res) => {
+    try {
+      const { insertDeviceConnectionSchema } = await import("@shared/schema");
+      const connectionData = insertDeviceConnectionSchema.parse(req.body);
+      const connection = await storage.createDeviceConnection(connectionData);
+      res.status(201).json(connection);
+    } catch (error) {
+      res.status(400).json({ message: "Failed to create device connection" });
+    }
+  });
+
+  app.delete("/api/topology/connections/:id", isAuthenticated, requirePermission("devices", "manage"), async (req, res) => {
+    try {
+      const deleted = await storage.deleteDeviceConnection(req.params.id);
+      if (!deleted) {
+        return res.status(404).json({ message: "Connection not found" });
+      }
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ message: "Failed to delete connection" });
+    }
+  });
+
+  app.get("/api/topology/snapshots", isAuthenticated, requirePermission("devices", "read"), async (req, res) => {
+    try {
+      const snapshots = await storage.getTopologySnapshots();
+      res.json(snapshots);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch topology snapshots" });
+    }
+  });
+
+  app.post("/api/topology/snapshots", isAuthenticated, requirePermission("devices", "manage"), async (req, res) => {
+    try {
+      const { insertTopologySnapshotSchema } = await import("@shared/schema");
+      const topologyData = await storage.getTopology();
+      
+      const snapshotData = insertTopologySnapshotSchema.parse({
+        ...req.body,
+        snapshotData: topologyData,
+        deviceCount: topologyData.nodes.length,
+        connectionCount: topologyData.edges.length,
+        createdBy: req.user?.id
+      });
+      
+      const snapshot = await storage.createTopologySnapshot(snapshotData);
+      res.status(201).json(snapshot);
+    } catch (error) {
+      res.status(400).json({ message: "Failed to create topology snapshot" });
+    }
+  });
+
+  app.delete("/api/topology/snapshots/:id", isAuthenticated, requirePermission("devices", "manage"), async (req, res) => {
+    try {
+      const deleted = await storage.deleteTopologySnapshot(req.params.id);
+      if (!deleted) {
+        return res.status(404).json({ message: "Snapshot not found" });
+      }
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ message: "Failed to delete snapshot" });
+    }
+  });
+
   // Clonezilla Integration Endpoints
   
   // Update deployment status from Clonezilla scripts
