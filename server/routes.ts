@@ -6,6 +6,7 @@ import { TFTPServer, PXEHTTPServer, DHCPProxy } from "./pxe-server";
 import { imagingEngine } from "./imaging-engine";
 import { setupAuth, isAuthenticated } from "./replitAuth";
 import { initializeRbacDefaults } from "./rbacSeed";
+import { requireRole, requirePermission, requireAnyPermission } from "./authMiddleware";
 import { 
   insertDeviceSchema, 
   insertImageSchema, 
@@ -80,7 +81,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     console.error("Failed to start deployment scheduler:", error);
   }
   // Devices endpoints
-  app.get("/api/devices", async (req, res) => {
+  // GET is read-only, requires devices:read permission
+  app.get("/api/devices", isAuthenticated, requirePermission("devices", "read"), async (req, res) => {
     try {
       const devices = await storage.getDevices();
       res.json(devices);
@@ -89,7 +91,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/devices/:id", async (req, res) => {
+  app.get("/api/devices/:id", isAuthenticated, requirePermission("devices", "read"), async (req, res) => {
     try {
       const device = await storage.getDevice(req.params.id);
       if (!device) {
@@ -101,7 +103,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/devices", async (req, res) => {
+  app.post("/api/devices", isAuthenticated, requirePermission("devices", "create"), async (req, res) => {
     try {
       const deviceData = insertDeviceSchema.parse(req.body);
       const device = await storage.createDevice(deviceData);
@@ -120,7 +122,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/devices/:id", async (req, res) => {
+  app.put("/api/devices/:id", isAuthenticated, requirePermission("devices", "update"), async (req, res) => {
     try {
       const deviceData = insertDeviceSchema.partial().parse(req.body);
       const device = await storage.updateDevice(req.params.id, deviceData);
@@ -133,7 +135,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/devices/:id", async (req, res) => {
+  app.delete("/api/devices/:id", isAuthenticated, requirePermission("devices", "delete"), async (req, res) => {
     try {
       const deleted = await storage.deleteDevice(req.params.id);
       if (!deleted) {
@@ -145,8 +147,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Images endpoints
-  app.get("/api/images", async (req, res) => {
+  // Images endpoints  
+  app.get("/api/images", isAuthenticated, requirePermission("images", "read"), async (req, res) => {
     try {
       const images = await storage.getImages();
       res.json(images);
@@ -156,7 +158,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Real image capture endpoint
-  app.post("/api/images/capture", async (req, res) => {
+  app.post("/api/images/capture", isAuthenticated, requirePermission("images", "create"), async (req, res) => {
     try {
       const { deviceId, sourceDevice, imageName, description, compression, excludeSwap, excludeTmp } = req.body;
       
@@ -197,7 +199,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Real deployment execution endpoint  
-  app.post("/api/deployments/execute", async (req, res) => {
+  app.post("/api/deployments/execute", isAuthenticated, requirePermission("deployments", "deploy"), async (req, res) => {
     try {
       const { deploymentId, imageId, targetDevice, targetMacAddress, verifyAfterDeploy } = req.body;
       
@@ -236,7 +238,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get system information for imaging
-  app.get("/api/system/info", async (req, res) => {
+  app.get("/api/system/info", isAuthenticated, requirePermission("configuration", "read"), async (req, res) => {
     try {
       const systemInfo = await imagingEngine.getSystemInfo();
       res.json({ systemInfo });
@@ -247,7 +249,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get active imaging operations
-  app.get("/api/imaging/operations", async (req, res) => {
+  app.get("/api/imaging/operations", isAuthenticated, requirePermission("deployments", "read"), async (req, res) => {
     try {
       const operations = imagingEngine.getActiveOperations();
       res.json({ operations });
@@ -257,7 +259,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Cancel imaging operation
-  app.delete("/api/imaging/operations/:operationId", async (req, res) => {
+  app.delete("/api/imaging/operations/:operationId", isAuthenticated, requirePermission("deployments", "delete"), async (req, res) => {
     try {
       const { operationId } = req.params;
       const cancelled = imagingEngine.cancelOperation(operationId);
@@ -273,7 +275,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Capture job management endpoints
-  app.post("/api/capture/schedule", async (req, res) => {
+  app.post("/api/capture/schedule", isAuthenticated, requirePermission("images", "create"), async (req, res) => {
     try {
       const { name, description, deviceId, sourceDevice, compression, excludeSwap, excludeTmp } = req.body;
       
@@ -315,7 +317,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/capture/jobs", async (req, res) => {
+  app.get("/api/capture/jobs", isAuthenticated, requirePermission("images", "read"), async (req, res) => {
     try {
       // Mock capture jobs for demonstration
       const captureJobs = [
@@ -431,7 +433,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/images/:id", async (req, res) => {
+  app.get("/api/images/:id", isAuthenticated, requirePermission("images", "read"), async (req, res) => {
     try {
       const image = await storage.getImage(req.params.id);
       if (!image) {
@@ -443,7 +445,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/images", async (req, res) => {
+  app.post("/api/images", isAuthenticated, requirePermission("images", "create"), async (req, res) => {
     try {
       const imageData = insertImageSchema.parse(req.body);
       const image = await storage.createImage(imageData);
@@ -462,7 +464,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/images/:id", async (req, res) => {
+  app.put("/api/images/:id", isAuthenticated, requirePermission("images", "update"), async (req, res) => {
     try {
       const imageData = insertImageSchema.partial().parse(req.body);
       const image = await storage.updateImage(req.params.id, imageData);
@@ -475,7 +477,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/images/:id", async (req, res) => {
+  app.delete("/api/images/:id", isAuthenticated, requirePermission("images", "delete"), async (req, res) => {
     try {
       const deleted = await storage.deleteImage(req.params.id);
       if (!deleted) {
@@ -488,7 +490,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Deployments endpoints
-  app.get("/api/deployments", async (req, res) => {
+  app.get("/api/deployments", isAuthenticated, requirePermission("deployments", "read"), async (req, res) => {
     try {
       const deployments = await storage.getDeployments();
       res.json(deployments);
@@ -497,7 +499,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/deployments/active", async (req, res) => {
+  app.get("/api/deployments/active", isAuthenticated, requirePermission("deployments", "read"), async (req, res) => {
     try {
       const deployments = await storage.getActiveDeployments();
       res.json(deployments);
@@ -506,7 +508,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/deployments/:id", async (req, res) => {
+  app.get("/api/deployments/:id", isAuthenticated, requirePermission("deployments", "read"), async (req, res) => {
     try {
       const deployment = await storage.getDeployment(req.params.id);
       if (!deployment) {
@@ -518,7 +520,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/deployments", async (req, res) => {
+  app.post("/api/deployments", isAuthenticated, requirePermission("deployments", "create"), async (req, res) => {
     try {
       const deploymentData = insertDeploymentSchema.parse(req.body);
       
@@ -581,7 +583,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/deployments/:id", async (req, res) => {
+  app.put("/api/deployments/:id", isAuthenticated, requirePermission("deployments", "update"), async (req, res) => {
     try {
       const deploymentData = insertDeploymentSchema.partial().parse(req.body);
       const deployment = await storage.updateDeployment(req.params.id, deploymentData);
@@ -625,7 +627,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/deployments/:id", async (req, res) => {
+  app.delete("/api/deployments/:id", isAuthenticated, requirePermission("deployments", "delete"), async (req, res) => {
     try {
       const deployment = await storage.getDeployment(req.params.id);
       if (!deployment) {
@@ -700,7 +702,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Multicast Sessions Endpoints
-  app.get("/api/multicast/sessions", async (req, res) => {
+  app.get("/api/multicast/sessions", isAuthenticated, requirePermission("multicast", "read"), async (req, res) => {
     try {
       const sessions = await storage.getMulticastSessions();
       res.json(sessions);
@@ -709,7 +711,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/multicast/sessions/:id", async (req, res) => {
+  app.get("/api/multicast/sessions/:id", isAuthenticated, requirePermission("multicast", "read"), async (req, res) => {
     try {
       const session = await storage.getMulticastSession(req.params.id);
       if (!session) {
@@ -725,7 +727,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/multicast/sessions", async (req, res) => {
+  app.post("/api/multicast/sessions", isAuthenticated, requirePermission("multicast", "create"), async (req, res) => {
     try {
       const sessionData = insertMulticastSessionSchema.parse(req.body);
       
@@ -817,7 +819,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/multicast/sessions/:id", async (req, res) => {
+  app.delete("/api/multicast/sessions/:id", isAuthenticated, requirePermission("multicast", "delete"), async (req, res) => {
     try {
       const session = await storage.getMulticastSession(req.params.id);
       if (!session) {
@@ -848,7 +850,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Multicast Participants Endpoints
-  app.post("/api/multicast/sessions/:id/participants", async (req, res) => {
+  app.post("/api/multicast/sessions/:id/participants", isAuthenticated, requirePermission("multicast", "manage"), async (req, res) => {
     try {
       const sessionId = req.params.id;
       const participantData = insertMulticastParticipantSchema.parse({
@@ -892,7 +894,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/multicast/sessions/:id/participants/:participantId", async (req, res) => {
+  app.delete("/api/multicast/sessions/:id/participants/:participantId", isAuthenticated, requirePermission("multicast", "manage"), async (req, res) => {
     try {
       const { id: sessionId, participantId } = req.params;
 
@@ -1091,7 +1093,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Activity logs endpoint
-  app.get("/api/activity", async (req, res) => {
+  app.get("/api/activity", isAuthenticated, requirePermission("logs", "read"), async (req, res) => {
     try {
       const limit = req.query.limit ? parseInt(req.query.limit as string) : undefined;
       const logs = await storage.getActivityLogs(limit);
@@ -1102,7 +1104,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Server status endpoints
-  app.get("/api/server-status", async (req, res) => {
+  app.get("/api/server-status", isAuthenticated, requirePermission("configuration", "read"), async (req, res) => {
     try {
       const status = await storage.getServerStatus();
       res.json(status);
@@ -1111,7 +1113,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/server-status", async (req, res) => {
+  app.put("/api/server-status", isAuthenticated, requirePermission("configuration", "update"), async (req, res) => {
     try {
       const statusData = updateServerStatusSchema.parse(req.body);
       const status = await storage.updateServerStatus(statusData);
@@ -1122,7 +1124,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Dashboard stats endpoint
-  app.get("/api/dashboard/stats", async (req, res) => {
+  app.get("/api/dashboard/stats", isAuthenticated, requirePermission("monitoring", "read"), async (req, res) => {
     try {
       const stats = await storage.getDashboardStats();
       res.json(stats);
@@ -1132,7 +1134,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // System Metrics endpoints
-  app.get("/api/system-metrics", async (req, res) => {
+  app.get("/api/system-metrics", isAuthenticated, requirePermission("monitoring", "read"), async (req, res) => {
     try {
       const limit = req.query.limit ? parseInt(req.query.limit as string) : undefined;
       const metrics = await storage.getSystemMetrics(limit);
@@ -1152,7 +1154,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/system-metrics/latest", async (req, res) => {
+  app.get("/api/system-metrics/latest", isAuthenticated, requirePermission("monitoring", "read"), async (req, res) => {
     try {
       const metrics = await storage.getLatestSystemMetrics();
       if (!metrics) {
@@ -1165,7 +1167,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Alerts endpoints
-  app.get("/api/alerts", async (req, res) => {
+  app.get("/api/alerts", isAuthenticated, requirePermission("monitoring", "read"), async (req, res) => {
     try {
       const alerts = await storage.getAlerts();
       res.json(alerts);
@@ -1174,7 +1176,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/alerts/unread", async (req, res) => {
+  app.get("/api/alerts/unread", isAuthenticated, requirePermission("monitoring", "read"), async (req, res) => {
     try {
       const alerts = await storage.getUnreadAlerts();
       res.json(alerts);
@@ -1183,7 +1185,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/alerts", async (req, res) => {
+  app.post("/api/alerts", isAuthenticated, requirePermission("monitoring", "read"), async (req, res) => {
     try {
       const alertData = insertAlertSchema.parse(req.body);
       const alert = await storage.createAlert(alertData);
@@ -1193,7 +1195,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/alerts/:id/read", async (req, res) => {
+  app.put("/api/alerts/:id/read", isAuthenticated, requirePermission("monitoring", "read"), async (req, res) => {
     try {
       const alert = await storage.markAlertAsRead(req.params.id);
       if (!alert) {
@@ -1205,7 +1207,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/alerts/:id/resolve", async (req, res) => {
+  app.put("/api/alerts/:id/resolve", isAuthenticated, requirePermission("monitoring", "read"), async (req, res) => {
     try {
       const alert = await storage.resolveAlert(req.params.id);
       if (!alert) {
@@ -1297,7 +1299,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // User Management endpoints
-  app.get("/api/users", async (req, res) => {
+  app.get("/api/users", isAuthenticated, requirePermission("users", "read"), async (req, res) => {
     try {
       const users = await storage.getUsers();
       res.json(users);
@@ -1306,7 +1308,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/users/:id", async (req, res) => {
+  app.get("/api/users/:id", isAuthenticated, requirePermission("users", "read"), async (req, res) => {
     try {
       const user = await storage.getUser(req.params.id);
       if (!user) {
@@ -1318,7 +1320,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/users", async (req, res) => {
+  app.post("/api/users", isAuthenticated, requirePermission("users", "create"), async (req, res) => {
     try {
       const userData = insertUserSchema.parse(req.body);
       const user = await storage.createUser(userData);
@@ -1338,7 +1340,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/users/:id", async (req, res) => {
+  app.put("/api/users/:id", isAuthenticated, requirePermission("users", "update"), async (req, res) => {
     try {
       const userData = insertUserSchema.partial().parse(req.body);
       const user = await storage.updateUser(req.params.id, userData);
@@ -1361,7 +1363,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/users/:id", async (req, res) => {
+  app.delete("/api/users/:id", isAuthenticated, requirePermission("users", "delete"), async (req, res) => {
     try {
       const user = await storage.getUser(req.params.id);
       if (!user) {
@@ -1411,7 +1413,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Role Management endpoints
-  app.get("/api/roles", async (req, res) => {
+  app.get("/api/roles", isAuthenticated, requirePermission("users", "read"), async (req, res) => {
     try {
       const roles = await storage.getRoles();
       res.json(roles);
@@ -1420,7 +1422,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/roles/:id", async (req, res) => {
+  app.get("/api/roles/:id", isAuthenticated, requirePermission("users", "read"), async (req, res) => {
     try {
       const role = await storage.getRole(req.params.id);
       if (!role) {
@@ -1432,7 +1434,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/roles", async (req, res) => {
+  app.post("/api/roles", isAuthenticated, requireRole("admin"), async (req, res) => {
     try {
       const roleData = insertRoleSchema.parse(req.body);
       const role = await storage.createRole(roleData);
@@ -1452,7 +1454,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/roles/:id", async (req, res) => {
+  app.put("/api/roles/:id", isAuthenticated, requireRole("admin"), async (req, res) => {
     try {
       const roleData = insertRoleSchema.partial().parse(req.body);
       const role = await storage.updateRole(req.params.id, roleData);
@@ -1475,7 +1477,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/roles/:id", async (req, res) => {
+  app.delete("/api/roles/:id", isAuthenticated, requireRole("admin"), async (req, res) => {
     try {
       const role = await storage.getRole(req.params.id);
       if (!role) {
@@ -1503,7 +1505,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Permission Management endpoints
-  app.get("/api/permissions", async (req, res) => {
+  app.get("/api/permissions", isAuthenticated, requirePermission("users", "read"), async (req, res) => {
     try {
       const permissions = await storage.getPermissions();
       res.json(permissions);
@@ -1523,7 +1525,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // User-Role Assignment endpoints
-  app.post("/api/users/:userId/roles", async (req, res) => {
+  app.post("/api/users/:userId/roles", isAuthenticated, requirePermission("users", "manage-roles"), async (req, res) => {
     try {
       const { roleId } = req.body;
       const userRole = await storage.assignUserRole({
@@ -1546,7 +1548,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/users/:userId/roles/:roleId", async (req, res) => {
+  app.delete("/api/users/:userId/roles/:roleId", isAuthenticated, requirePermission("users", "manage-roles"), async (req, res) => {
     try {
       const removed = await storage.removeUserRole(req.params.userId, req.params.roleId);
       if (!removed) {
@@ -1595,7 +1597,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Deployment Template endpoints
-  app.get("/api/templates", async (req, res) => {
+  app.get("/api/templates", isAuthenticated, requirePermission("templates", "read"), async (req, res) => {
     try {
       const templates = await storage.getTemplates();
       res.json(templates);
@@ -1604,7 +1606,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/templates/:id", async (req, res) => {
+  app.get("/api/templates/:id", isAuthenticated, requirePermission("templates", "read"), async (req, res) => {
     try {
       const template = await storage.getTemplate(req.params.id);
       if (!template) {
@@ -1616,7 +1618,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/templates", async (req, res) => {
+  app.post("/api/templates", isAuthenticated, requirePermission("templates", "create"), async (req, res) => {
     try {
       const templateData = insertDeploymentTemplateSchema.parse(req.body);
       const template = await storage.createTemplate(templateData);
@@ -1636,7 +1638,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/templates/:id", async (req, res) => {
+  app.put("/api/templates/:id", isAuthenticated, requirePermission("templates", "update"), async (req, res) => {
     try {
       const templateData = insertDeploymentTemplateSchema.partial().parse(req.body);
       const template = await storage.updateTemplate(req.params.id, templateData);
@@ -1659,7 +1661,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/templates/:id", async (req, res) => {
+  app.delete("/api/templates/:id", isAuthenticated, requirePermission("templates", "delete"), async (req, res) => {
     try {
       const template = await storage.getTemplate(req.params.id);
       if (!template) {
@@ -1686,7 +1688,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/templates/:id/duplicate", async (req, res) => {
+  app.post("/api/templates/:id/duplicate", isAuthenticated, requirePermission("templates", "create"), async (req, res) => {
     try {
       const { name } = req.body;
       if (!name) {
