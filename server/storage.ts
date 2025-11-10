@@ -59,6 +59,7 @@ import { randomUUID } from "crypto";
 import { db } from "./db";
 import { devices, images, deployments, activityLogs, serverStatus, users, passwordResetTokens, passwordHistory } from "@shared/schema";
 import { eq, desc, and, or, count } from "drizzle-orm";
+import { DeploymentScheduler } from "./scheduler";
 
 export interface IStorage {
   // Devices
@@ -2395,3 +2396,6 @@ export class DatabaseStorage implements IStorage {
 }
 
 export const storage = new DatabaseStorage();
+
+// Initialize and export the scheduler
+export const scheduler = new DeploymentScheduler(storage);

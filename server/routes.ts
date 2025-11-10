@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
-import { storage } from "./storage";
+import { storage, scheduler } from "./storage";
 import { TFTPServer, PXEHTTPServer, DHCPProxy } from "./pxe-server";
 import { imagingEngine } from "./imaging-engine";
 import { setupAuth, isAuthenticated } from "./replitAuth";
@@ -60,6 +60,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     console.log("PXE servers started successfully");
   } catch (error) {
     console.error("Failed to start PXE servers:", error);
+  }
+
+  // Start deployment scheduler
+  try {
+    scheduler.start();
+    console.log("Deployment scheduler started successfully");
+  } catch (error) {
+    console.error("Failed to start deployment scheduler:", error);
   }
   // Devices endpoints
   app.get("/api/devices", async (req, res) => {
