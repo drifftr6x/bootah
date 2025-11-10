@@ -657,7 +657,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Scheduled deployments endpoints
-  app.get("/api/deployments/scheduled", async (req, res) => {
+  app.get("/api/deployments/scheduled", isAuthenticated, requirePermission("deployments", "read"), async (req, res) => {
     try {
       const deployments = await storage.getScheduledDeployments();
       res.json(deployments);
@@ -922,6 +922,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Clonezilla Integration Endpoints
   
   // Update deployment status from Clonezilla scripts
+  // TODO: Add machine authentication (API key or signed token) to prevent spoofing
+  // Note: This endpoint is intentionally public for headless Clonezilla automation.
+  // Security consideration: Running on isolated network, but should implement API key auth in future.
   app.post("/api/deployments/status", async (req, res) => {
     try {
       const { deviceMac, status, progress } = req.body;
@@ -970,6 +973,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Activity logging endpoint for Clonezilla scripts
+  // TODO: Add machine authentication (API key or signed token) to prevent log injection
+  // Note: This endpoint is intentionally public for headless automation logging.
+  // Security consideration: Running on isolated network, but should implement API key auth in future.
   app.post("/api/activity", async (req, res) => {
     try {
       const { action, details, deviceMac, level } = req.body;
@@ -1026,7 +1032,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Network scan endpoint  
-  app.post("/api/network/scan", async (req, res) => {
+  app.post("/api/network/scan", isAuthenticated, requirePermission("devices", "create"), async (req, res) => {
     try {
       // Simulate network discovery with realistic delay
       await new Promise(resolve => setTimeout(resolve, 2000));
@@ -1144,6 +1150,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // TODO: Add machine authentication (API key or signed token) to prevent metrics flooding
+  // Note: This endpoint is intentionally public for headless system monitoring scripts.
+  // Security consideration: Running on isolated network, but should implement API key auth in future.
   app.post("/api/system-metrics", async (req, res) => {
     try {
       const metricsData = insertSystemMetricsSchema.parse(req.body);
@@ -1220,7 +1229,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Alert Rules endpoints
-  app.get("/api/alert-rules", async (req, res) => {
+  app.get("/api/alert-rules", isAuthenticated, requirePermission("configuration", "read"), async (req, res) => {
     try {
       const rules = await storage.getAlertRules();
       res.json(rules);
@@ -1229,7 +1238,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/alert-rules", async (req, res) => {
+  app.post("/api/alert-rules", isAuthenticated, requirePermission("configuration", "update"), async (req, res) => {
     try {
       const ruleData = insertAlertRuleSchema.parse(req.body);
       const rule = await storage.createAlertRule(ruleData);
@@ -1239,7 +1248,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/alert-rules/:id", async (req, res) => {
+  app.put("/api/alert-rules/:id", isAuthenticated, requirePermission("configuration", "update"), async (req, res) => {
     try {
       const ruleData = insertAlertRuleSchema.partial().parse(req.body);
       const rule = await storage.updateAlertRule(req.params.id, ruleData);
@@ -1252,7 +1261,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/alert-rules/:id", async (req, res) => {
+  app.delete("/api/alert-rules/:id", isAuthenticated, requirePermission("configuration", "update"), async (req, res) => {
     try {
       const deleted = await storage.deleteAlertRule(req.params.id);
       if (!deleted) {
@@ -1265,7 +1274,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Advanced Image Management endpoints
-  app.put("/api/images/:id/validate", async (req, res) => {
+  app.put("/api/images/:id/validate", isAuthenticated, requirePermission("images", "update"), async (req, res) => {
     try {
       const image = await storage.validateImage(req.params.id);
       if (!image) {
@@ -1286,7 +1295,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/images/:id/download", async (req, res) => {
+  app.put("/api/images/:id/download", isAuthenticated, requirePermission("images", "read"), async (req, res) => {
     try {
       const image = await storage.incrementImageDownloadCount(req.params.id);
       if (!image) {
@@ -1390,7 +1399,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/users/:id/toggle-active", async (req, res) => {
+  app.put("/api/users/:id/toggle-active", isAuthenticated, requirePermission("users", "update"), async (req, res) => {
     try {
       const user = await storage.toggleUserActive(req.params.id);
       if (!user) {
@@ -1514,7 +1523,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/permissions", async (req, res) => {
+  app.post("/api/permissions", isAuthenticated, requireRole("admin"), async (req, res) => {
     try {
       const permissionData = insertPermissionSchema.parse(req.body);
       const permission = await storage.createPermission(permissionData);
@@ -1571,7 +1580,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Role-Permission Assignment endpoints
-  app.post("/api/roles/:roleId/permissions", async (req, res) => {
+  app.post("/api/roles/:roleId/permissions", isAuthenticated, requireRole("admin"), async (req, res) => {
     try {
       const { permissionId } = req.body;
       const rolePermission = await storage.assignRolePermission({
@@ -1584,7 +1593,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/roles/:roleId/permissions/:permissionId", async (req, res) => {
+  app.delete("/api/roles/:roleId/permissions/:permissionId", isAuthenticated, requireRole("admin"), async (req, res) => {
     try {
       const removed = await storage.removeRolePermission(req.params.roleId, req.params.permissionId);
       if (!removed) {
@@ -1716,7 +1725,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Template Steps endpoints
-  app.get("/api/templates/:templateId/steps", async (req, res) => {
+  app.get("/api/templates/:templateId/steps", isAuthenticated, requirePermission("templates", "read"), async (req, res) => {
     try {
       const steps = await storage.getTemplateSteps(req.params.templateId);
       res.json(steps);
@@ -1725,7 +1734,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/templates/:templateId/steps", async (req, res) => {
+  app.post("/api/templates/:templateId/steps", isAuthenticated, requirePermission("templates", "create"), async (req, res) => {
     try {
       const stepData = insertTemplateStepSchema.parse({
         ...req.body,
@@ -1738,7 +1747,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/template-steps/:id", async (req, res) => {
+  app.put("/api/template-steps/:id", isAuthenticated, requirePermission("templates", "update"), async (req, res) => {
     try {
       const stepData = insertTemplateStepSchema.partial().parse(req.body);
       const step = await storage.updateTemplateStep(req.params.id, stepData);
@@ -1751,7 +1760,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/template-steps/:id", async (req, res) => {
+  app.delete("/api/template-steps/:id", isAuthenticated, requirePermission("templates", "delete"), async (req, res) => {
     try {
       const deleted = await storage.deleteTemplateStep(req.params.id);
       if (!deleted) {
@@ -1764,7 +1773,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Template Variables endpoints
-  app.get("/api/templates/:templateId/variables", async (req, res) => {
+  app.get("/api/templates/:templateId/variables", isAuthenticated, requirePermission("templates", "read"), async (req, res) => {
     try {
       const variables = await storage.getTemplateVariables(req.params.templateId);
       res.json(variables);
@@ -1773,7 +1782,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/templates/:templateId/variables", async (req, res) => {
+  app.post("/api/templates/:templateId/variables", isAuthenticated, requirePermission("templates", "create"), async (req, res) => {
     try {
       const variableData = insertTemplateVariableSchema.parse({
         ...req.body,
@@ -1786,7 +1795,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/template-variables/:id", async (req, res) => {
+  app.put("/api/template-variables/:id", isAuthenticated, requirePermission("templates", "update"), async (req, res) => {
     try {
       const variableData = insertTemplateVariableSchema.partial().parse(req.body);
       const variable = await storage.updateTemplateVariable(req.params.id, variableData);
@@ -1799,7 +1808,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/template-variables/:id", async (req, res) => {
+  app.delete("/api/template-variables/:id", isAuthenticated, requirePermission("templates", "delete"), async (req, res) => {
     try {
       const deleted = await storage.deleteTemplateVariable(req.params.id);
       if (!deleted) {
@@ -1812,7 +1821,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Template Deployment endpoints
-  app.get("/api/template-deployments", async (req, res) => {
+  app.get("/api/template-deployments", isAuthenticated, requirePermission("deployments", "read"), async (req, res) => {
     try {
       const templateDeployments = await storage.getTemplateDeployments();
       res.json(templateDeployments);
@@ -1821,7 +1830,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/template-deployments", async (req, res) => {
+  app.post("/api/template-deployments", isAuthenticated, requirePermission("deployments", "create"), async (req, res) => {
     try {
       const deploymentData = insertTemplateDeploymentSchema.parse(req.body);
       const deployment = await storage.createTemplateDeployment(deploymentData);
@@ -1832,7 +1841,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Audit Logs endpoints
-  app.get("/api/audit-logs", async (req, res) => {
+  app.get("/api/audit-logs", isAuthenticated, requirePermission("security", "read"), async (req, res) => {
     try {
       const limit = req.query.limit ? parseInt(req.query.limit as string) : 50;
       const userId = req.query.userId as string | undefined;
@@ -1863,7 +1872,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get presigned upload URL for OS image
-  app.post("/api/images/upload", async (req, res) => {
+  app.post("/api/images/upload", isAuthenticated, requirePermission("images", "create"), async (req, res) => {
     try {
       const { filename } = req.body;
       if (!filename) {
@@ -1880,7 +1889,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Update image record after upload to cloud storage
-  app.put("/api/images/:id/cloud-upload", async (req, res) => {
+  app.put("/api/images/:id/cloud-upload", isAuthenticated, requirePermission("images", "create"), async (req, res) => {
     try {
       const { cloudUrl } = req.body;
       if (!cloudUrl) {
