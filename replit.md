@@ -4,6 +4,17 @@
 
 Bootah is a modern, lightweight PXE server and OS imaging platform designed for IT administrators, MSPs, and system builders. The application provides a web-based interface for managing network device discovery, OS image deployment, and monitoring deployment progress in real-time. It's built as a full-stack TypeScript application with a React frontend and Express.js backend, targeting environments that need efficient OS deployment across multiple machines.
 
+## Recent Changes
+
+### Multicast Deployment Feature (November 10, 2025)
+- **Multicast Sessions Management**: Created comprehensive multicast deployment infrastructure for simultaneously deploying OS images to multiple devices
+- **Database Schema**: Added `multicast_sessions` and `multicast_participants` tables with performance indexes, unique constraints, and metrics tracking (bytesTransmitted, throughput)
+- **Storage Layer**: Implemented storage methods with row-level locking (FOR UPDATE), duplicate prevention, maxClients enforcement, and atomic count updates
+- **API Endpoints**: Built 7 REST endpoints for session/participant management with collision-free multicast address allocation (239.255.0.1-254 pool)
+- **UI Components**: Created session creation dialog and management page with real-time monitoring, progress tracking, and lifecycle controls
+- **Navigation**: Added "Multicast Sessions" link to sidebar (accessible at /multicast route)
+- **Status**: MVP complete and tested. Phased approach: simulated multicast now, full UDP/chunking protocol in Phase 2
+
 ## User Preferences
 
 Preferred communication style: Simple, everyday language.
@@ -35,6 +46,8 @@ Preferred communication style: Simple, everyday language.
 - **Devices**: Network devices discovered for PXE booting (MAC address, IP, status)
 - **Images**: OS images available for deployment (Windows, Linux, macOS)
 - **Deployments**: Active or completed OS deployment sessions with progress tracking
+- **Multicast Sessions**: Multicast deployment sessions for simultaneous OS deployment to multiple devices
+- **Multicast Participants**: Devices registered to join multicast deployment sessions
 - **Activity Logs**: System events and deployment history
 - **Server Status**: PXE, TFTP, HTTP, and DHCP proxy service status
 
