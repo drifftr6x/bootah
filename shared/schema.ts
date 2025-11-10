@@ -39,11 +39,19 @@ export const deployments = pgTable("deployments", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   deviceId: varchar("device_id").notNull().references(() => devices.id),
   imageId: varchar("image_id").notNull().references(() => images.id),
-  status: text("status").notNull().default("pending"), // pending, deploying, completed, failed, cancelled
+  status: text("status").notNull().default("pending"), // pending, scheduled, deploying, completed, failed, cancelled
   progress: real("progress").default(0), // 0-100
-  startedAt: timestamp("started_at").defaultNow(),
+  startedAt: timestamp("started_at"), // Set by scheduler when deployment actually starts
   completedAt: timestamp("completed_at"),
   errorMessage: text("error_message"),
+  // Scheduling fields
+  scheduleType: text("schedule_type").notNull().default("instant"), // instant, delayed, recurring
+  scheduledFor: timestamp("scheduled_for"), // Required for delayed/recurring - when to start deployment
+  recurringPattern: text("recurring_pattern"), // Required for recurring - Cron-style: "0 2 * * 0" (Every Sunday at 2 AM)
+  lastRunAt: timestamp("last_run_at"), // For recurring deployments - last execution time
+  nextRunAt: timestamp("next_run_at"), // For recurring deployments - next scheduled execution
+  createdBy: varchar("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
 });
 
 export const activityLogs = pgTable("activity_logs", {
@@ -417,7 +425,27 @@ export const insertDeploymentSchema = createInsertSchema(deployments).omit({
   id: true,
   startedAt: true,
   completedAt: true,
-});
+  lastRunAt: true,
+  nextRunAt: true,
+  createdAt: true,
+}).extend({
+  scheduleType: z.enum(["instant", "delayed", "recurring"]).default("instant"),
+}).refine(
+  (data) => {
+    // For delayed or recurring, scheduledFor is required
+    if (data.scheduleType !== "instant" && !data.scheduledFor) {
+      return false;
+    }
+    // For recurring, recurringPattern is required
+    if (data.scheduleType === "recurring" && !data.recurringPattern) {
+      return false;
+    }
+    return true;
+  },
+  {
+    message: "scheduledFor is required for delayed/recurring deployments, and recurringPattern is required for recurring deployments",
+  }
+);
 
 export const insertActivityLogSchema = createInsertSchema(activityLogs).omit({
   id: true,
