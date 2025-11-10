@@ -146,7 +146,7 @@ export default function NetworkTopology() {
       source: connection.sourceDeviceId || "",
       target: connection.targetDeviceId || "",
       type: "smoothstep",
-      animated: connection.isActive,
+      animated: connection.isActive || false,
       style: { 
         stroke: connection.isActive ? "#3b82f6" : "#9ca3af",
         strokeWidth: 2
@@ -174,10 +174,14 @@ export default function NetworkTopology() {
 
   const createSnapshotMutation = useMutation({
     mutationFn: async (data: { name: string; description: string }) => {
-      return await apiRequest("/api/topology/snapshots", {
+      const response = await fetch("/api/topology/snapshots", {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify(data)
       });
+      if (!response.ok) throw new Error("Failed to create snapshot");
+      return await response.json();
     },
     onSuccess: () => {
       toast({
