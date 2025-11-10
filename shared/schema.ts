@@ -117,6 +117,42 @@ export const serverStatus = pgTable("server_status", {
   lastUpdated: timestamp("last_updated").defaultNow(),
 });
 
+// Network Topology tables for visualization
+export const networkSegments = pgTable("network_segments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(), // e.g., "VLAN 100 - Production", "Main Network"
+  subnet: text("subnet").notNull(), // CIDR notation e.g., "192.168.1.0/24"
+  vlanId: integer("vlan_id"),
+  description: text("description"),
+  color: text("color").default("#3b82f6"), // Hex color for visualization
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const deviceConnections = pgTable("device_connections", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  sourceDeviceId: varchar("source_device_id").references(() => devices.id, { onDelete: 'cascade' }),
+  targetDeviceId: varchar("target_device_id").references(() => devices.id, { onDelete: 'cascade' }),
+  connectionType: text("connection_type").notNull().default("ethernet"), // ethernet, wifi, virtual
+  bandwidth: integer("bandwidth"), // Mbps
+  latency: real("latency"), // ms
+  packetLoss: real("packet_loss"), // percentage
+  isActive: boolean("is_active").default(true),
+  lastSeen: timestamp("last_seen").defaultNow(),
+}, (table) => ({
+  sourceTargetIdx: index("device_connections_source_target_idx").on(table.sourceDeviceId, table.targetDeviceId),
+}));
+
+export const topologySnapshots = pgTable("topology_snapshots", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  description: text("description"),
+  snapshotData: jsonb("snapshot_data").notNull(), // Full topology state
+  deviceCount: integer("device_count").default(0),
+  connectionCount: integer("connection_count").default(0),
+  createdBy: varchar("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 export const systemMetrics = pgTable("system_metrics", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   timestamp: timestamp("timestamp").defaultNow(),
@@ -630,6 +666,22 @@ export const insertComplianceReportSchema = createInsertSchema(complianceReports
   createdAt: true,
 });
 
+// Network Topology Insert Schemas
+export const insertNetworkSegmentSchema = createInsertSchema(networkSegments).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertDeviceConnectionSchema = createInsertSchema(deviceConnections).omit({
+  id: true,
+  lastSeen: true,
+});
+
+export const insertTopologySnapshotSchema = createInsertSchema(topologySnapshots).omit({
+  id: true,
+  createdAt: true,
+});
+
 // Types
 export type Device = typeof devices.$inferSelect;
 export type InsertDevice = z.infer<typeof insertDeviceSchema>;
@@ -722,7 +774,25 @@ export type InsertSecurityConfiguration = z.infer<typeof insertSecurityConfigura
 export type ComplianceReport = typeof complianceReports.$inferSelect;
 export type InsertComplianceReport = z.infer<typeof insertComplianceReportSchema>;
 
+// Network Topology Types
+export type NetworkSegment = typeof networkSegments.$inferSelect;
+export type InsertNetworkSegment = z.infer<typeof insertNetworkSegmentSchema>;
+
+export type DeviceConnection = typeof deviceConnections.$inferSelect;
+export type InsertDeviceConnection = z.infer<typeof insertDeviceConnectionSchema>;
+
+export type TopologySnapshot = typeof topologySnapshots.$inferSelect;
+export type InsertTopologySnapshot = z.infer<typeof insertTopologySnapshotSchema>;
+
 // Extended types for API responses
+export type TopologyData = {
+  nodes: (Device & {
+    segment?: NetworkSegment;
+    activeDeployment?: Deployment;
+  })[];
+  edges: DeviceConnection[];
+  segments: NetworkSegment[];
+};
 export type DeploymentWithDetails = Deployment & {
   device: Device;
   image: Image;
