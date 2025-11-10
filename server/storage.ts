@@ -57,11 +57,18 @@ import {
   type MulticastSession,
   type InsertMulticastSession,
   type MulticastParticipant,
-  type InsertMulticastParticipant
+  type InsertMulticastParticipant,
+  type NetworkSegment,
+  type InsertNetworkSegment,
+  type DeviceConnection,
+  type InsertDeviceConnection,
+  type TopologySnapshot,
+  type InsertTopologySnapshot,
+  type TopologyData
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
-import { devices, images, deployments, activityLogs, serverStatus, users, passwordResetTokens, passwordHistory, multicastSessions, multicastParticipants, roles, permissions, userRoles, rolePermissions } from "@shared/schema";
+import { devices, images, deployments, activityLogs, serverStatus, users, passwordResetTokens, passwordHistory, multicastSessions, multicastParticipants, roles, permissions, userRoles, rolePermissions, networkSegments, deviceConnections, topologySnapshots } from "@shared/schema";
 import { eq, desc, and, or, count, sql } from "drizzle-orm";
 import { DeploymentScheduler } from "./scheduler";
 
@@ -198,6 +205,25 @@ export interface IStorage {
   // Audit Logs
   getAuditLogs(limit?: number, userId?: string): Promise<AuditLog[]>;
   createAuditLog(log: InsertAuditLog): Promise<AuditLog>;
+
+  // Network Topology
+  getTopology(): Promise<TopologyData>;
+  getNetworkSegments(): Promise<NetworkSegment[]>;
+  getNetworkSegment(id: string): Promise<NetworkSegment | undefined>;
+  createNetworkSegment(segment: InsertNetworkSegment): Promise<NetworkSegment>;
+  updateNetworkSegment(id: string, segment: Partial<InsertNetworkSegment>): Promise<NetworkSegment | undefined>;
+  deleteNetworkSegment(id: string): Promise<boolean>;
+  
+  getDeviceConnections(): Promise<DeviceConnection[]>;
+  getDeviceConnection(id: string): Promise<DeviceConnection | undefined>;
+  createDeviceConnection(connection: InsertDeviceConnection): Promise<DeviceConnection>;
+  updateDeviceConnection(id: string, connection: Partial<InsertDeviceConnection>): Promise<DeviceConnection | undefined>;
+  deleteDeviceConnection(id: string): Promise<boolean>;
+  
+  getTopologySnapshots(): Promise<TopologySnapshot[]>;
+  getTopologySnapshot(id: string): Promise<TopologySnapshot | undefined>;
+  createTopologySnapshot(snapshot: InsertTopologySnapshot): Promise<TopologySnapshot>;
+  deleteTopologySnapshot(id: string): Promise<boolean>;
 
   // Security & Compliance
   getSecurityIncidents(): Promise<SecurityIncident[]>;
@@ -2716,6 +2742,106 @@ export class DatabaseStorage implements IStorage {
       .where(and(eq(rolePermissions.roleId, roleId), eq(rolePermissions.permissionId, permissionId)));
     return result.rowCount ? result.rowCount > 0 : false;
   }
+
+  // Network Topology - Database Implementation
+  async getTopology(): Promise<TopologyData> {
+    const [devicesList, connectionsList, segmentsList, activeDeploymentsList] = await Promise.all([
+      db.select().from(devices),
+      db.select().from(deviceConnections).where(eq(deviceConnections.isActive, true)),
+      db.select().from(networkSegments),
+      db.select().from(deployments).where(eq(deployments.status, "deploying"))
+    ]);
+
+    const nodes = devicesList.map(device => {
+      const activeDeployment = activeDeploymentsList.find(d => d.deviceId === device.id);
+      return {
+        ...device,
+        activeDeployment
+      };
+    });
+
+    return {
+      nodes,
+      edges: connectionsList,
+      segments: segmentsList
+    };
+  }
+
+  async getNetworkSegments(): Promise<NetworkSegment[]> {
+    return await db.select().from(networkSegments);
+  }
+
+  async getNetworkSegment(id: string): Promise<NetworkSegment | undefined> {
+    const [segment] = await db.select().from(networkSegments).where(eq(networkSegments.id, id));
+    return segment;
+  }
+
+  async createNetworkSegment(insertSegment: InsertNetworkSegment): Promise<NetworkSegment> {
+    const [segment] = await db.insert(networkSegments).values(insertSegment).returning();
+    return segment;
+  }
+
+  async updateNetworkSegment(id: string, updateData: Partial<InsertNetworkSegment>): Promise<NetworkSegment | undefined> {
+    const [segment] = await db
+      .update(networkSegments)
+      .set(updateData)
+      .where(eq(networkSegments.id, id))
+      .returning();
+    return segment;
+  }
+
+  async deleteNetworkSegment(id: string): Promise<boolean> {
+    const result = await db.delete(networkSegments).where(eq(networkSegments.id, id));
+    return result.rowCount ? result.rowCount > 0 : false;
+  }
+
+  async getDeviceConnections(): Promise<DeviceConnection[]> {
+    return await db.select().from(deviceConnections);
+  }
+
+  async getDeviceConnection(id: string): Promise<DeviceConnection | undefined> {
+    const [connection] = await db.select().from(deviceConnections).where(eq(deviceConnections.id, id));
+    return connection;
+  }
+
+  async createDeviceConnection(insertConnection: InsertDeviceConnection): Promise<DeviceConnection> {
+    const [connection] = await db.insert(deviceConnections).values(insertConnection).returning();
+    return connection;
+  }
+
+  async updateDeviceConnection(id: string, updateData: Partial<InsertDeviceConnection>): Promise<DeviceConnection | undefined> {
+    const [connection] = await db
+      .update(deviceConnections)
+      .set(updateData)
+      .where(eq(deviceConnections.id, id))
+      .returning();
+    return connection;
+  }
+
+  async deleteDeviceConnection(id: string): Promise<boolean> {
+    const result = await db.delete(deviceConnections).where(eq(deviceConnections.id, id));
+    return result.rowCount ? result.rowCount > 0 : false;
+  }
+
+  async getTopologySnapshots(): Promise<TopologySnapshot[]> {
+    return await db.select().from(topologySnapshots).orderBy(sql`${topologySnapshots.createdAt} DESC`);
+  }
+
+  async getTopologySnapshot(id: string): Promise<TopologySnapshot | undefined> {
+    const [snapshot] = await db.select().from(topologySnapshots).where(eq(topologySnapshots.id, id));
+    return snapshot;
+  }
+
+  async createTopologySnapshot(insertSnapshot: InsertTopologySnapshot): Promise<TopologySnapshot> {
+    const [snapshot] = await db.insert(topologySnapshots).values(insertSnapshot).returning();
+    return snapshot;
+  }
+
+  async deleteTopologySnapshot(id: string): Promise<boolean> {
+    const result = await db.delete(topologySnapshots).where(eq(topologySnapshots.id, id));
+    return result.rowCount ? result.rowCount > 0 : false;
+  }
+
   async getTemplates(): Promise<DeploymentTemplateWithDetails[]> { return []; }
   async getTemplate(id: string): Promise<DeploymentTemplateWithDetails | undefined> { return undefined; }
   async createTemplate(template: InsertDeploymentTemplate): Promise<DeploymentTemplate> { throw new Error("Not implemented"); }
