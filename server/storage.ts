@@ -53,12 +53,16 @@ import {
   type InsertSecurityConfiguration,
   type ComplianceReport,
   type InsertComplianceReport,
-  type PasswordResetToken
+  type PasswordResetToken,
+  type MulticastSession,
+  type InsertMulticastSession,
+  type MulticastParticipant,
+  type InsertMulticastParticipant
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
-import { devices, images, deployments, activityLogs, serverStatus, users, passwordResetTokens, passwordHistory } from "@shared/schema";
-import { eq, desc, and, or, count } from "drizzle-orm";
+import { devices, images, deployments, activityLogs, serverStatus, users, passwordResetTokens, passwordHistory, multicastSessions, multicastParticipants } from "@shared/schema";
+import { eq, desc, and, or, count, sql } from "drizzle-orm";
 import { DeploymentScheduler } from "./scheduler";
 
 export interface IStorage {
@@ -87,6 +91,19 @@ export interface IStorage {
   createDeployment(deployment: InsertDeployment): Promise<Deployment>;
   updateDeployment(id: string, deployment: Partial<InsertDeployment>): Promise<Deployment | undefined>;
   deleteDeployment(id: string): Promise<boolean>;
+
+  // Multicast Sessions
+  getMulticastSessions(): Promise<MulticastSession[]>;
+  getMulticastSession(id: string): Promise<MulticastSession | undefined>;
+  createMulticastSession(session: InsertMulticastSession): Promise<MulticastSession>;
+  updateMulticastSession(id: string, session: Partial<InsertMulticastSession>): Promise<MulticastSession | undefined>;
+  deleteMulticastSession(id: string): Promise<boolean>;
+  
+  // Multicast Participants
+  getMulticastParticipants(sessionId: string): Promise<MulticastParticipant[]>;
+  addMulticastParticipant(participant: InsertMulticastParticipant): Promise<MulticastParticipant>;
+  updateMulticastParticipant(id: string, participant: Partial<InsertMulticastParticipant>): Promise<MulticastParticipant | undefined>;
+  removeMulticastParticipant(id: string): Promise<boolean>;
 
   // Activity Logs
   getActivityLogs(limit?: number): Promise<ActivityLog[]>;
@@ -231,6 +248,10 @@ export class MemStorage implements IStorage {
   private alerts: Map<string, Alert> = new Map();
   private alertRules: Map<string, AlertRule> = new Map();
   private serverStatus: ServerStatus;
+  
+  // Multicast
+  private multicastSessions: Map<string, MulticastSession> = new Map();
+  private multicastParticipants: Map<string, MulticastParticipant> = new Map();
   
   // User Management & RBAC
   private users: Map<string, User> = new Map();
@@ -652,6 +673,124 @@ export class MemStorage implements IStorage {
 
   async deleteDeployment(id: string): Promise<boolean> {
     return this.deployments.delete(id);
+  }
+
+  // Multicast Sessions
+  async getMulticastSessions(): Promise<MulticastSession[]> {
+    return Array.from(this.multicastSessions.values());
+  }
+
+  async getMulticastSession(id: string): Promise<MulticastSession | undefined> {
+    return this.multicastSessions.get(id);
+  }
+
+  async createMulticastSession(insertSession: InsertMulticastSession): Promise<MulticastSession> {
+    const id = randomUUID();
+    const session: MulticastSession = {
+      ...insertSession,
+      id,
+      status: "waiting",
+      clientCount: 0,
+      totalBytes: 0,
+      bytesSent: 0,
+      throughput: 0,
+      startedAt: null,
+      completedAt: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    this.multicastSessions.set(id, session);
+    return session;
+  }
+
+  async updateMulticastSession(id: string, updateData: Partial<InsertMulticastSession>): Promise<MulticastSession | undefined> {
+    const session = this.multicastSessions.get(id);
+    if (!session) return undefined;
+
+    const updatedSession = { 
+      ...session, 
+      ...updateData,
+      updatedAt: new Date(),
+    };
+    this.multicastSessions.set(id, updatedSession);
+    return updatedSession;
+  }
+
+  async deleteMulticastSession(id: string): Promise<boolean> {
+    // Delete all participants first (cascade)
+    const participants = Array.from(this.multicastParticipants.values())
+      .filter(p => p.sessionId === id);
+    participants.forEach(p => this.multicastParticipants.delete(p.id));
+    
+    return this.multicastSessions.delete(id);
+  }
+
+  // Multicast Participants
+  async getMulticastParticipants(sessionId: string): Promise<MulticastParticipant[]> {
+    return Array.from(this.multicastParticipants.values())
+      .filter(p => p.sessionId === sessionId);
+  }
+
+  async addMulticastParticipant(insertParticipant: InsertMulticastParticipant): Promise<MulticastParticipant> {
+    // Get session to check capacity
+    const session = this.multicastSessions.get(insertParticipant.sessionId);
+    if (!session) {
+      throw new Error("Session not found");
+    }
+
+    // Check for duplicate participant
+    const existingParticipant = Array.from(this.multicastParticipants.values())
+      .find(p => p.sessionId === insertParticipant.sessionId && p.deviceId === insertParticipant.deviceId);
+    if (existingParticipant) {
+      throw new Error("Device already added to this session");
+    }
+
+    // Check maxClients limit
+    if (session.maxClients !== null && session.clientCount >= session.maxClients) {
+      throw new Error(`Session is at capacity (${session.maxClients} devices)`);
+    }
+
+    const id = randomUUID();
+    const participant: MulticastParticipant = {
+      ...insertParticipant,
+      id,
+      status: "waiting",
+      progress: 0,
+      bytesReceived: 0,
+      errorMessage: null,
+      joinedAt: new Date(),
+      completedAt: null,
+    };
+    this.multicastParticipants.set(id, participant);
+    
+    // Update session client count
+    session.clientCount = (session.clientCount || 0) + 1;
+    this.multicastSessions.set(session.id, session);
+    
+    return participant;
+  }
+
+  async updateMulticastParticipant(id: string, updateData: Partial<InsertMulticastParticipant>): Promise<MulticastParticipant | undefined> {
+    const participant = this.multicastParticipants.get(id);
+    if (!participant) return undefined;
+
+    const updatedParticipant = { ...participant, ...updateData };
+    this.multicastParticipants.set(id, updatedParticipant);
+    return updatedParticipant;
+  }
+
+  async removeMulticastParticipant(id: string): Promise<boolean> {
+    const participant = this.multicastParticipants.get(id);
+    if (!participant) return false;
+    
+    // Update session client count
+    const session = this.multicastSessions.get(participant.sessionId);
+    if (session && session.clientCount > 0) {
+      session.clientCount -= 1;
+      this.multicastSessions.set(session.id, session);
+    }
+    
+    return this.multicastParticipants.delete(id);
   }
 
   // Activity Logs
@@ -1986,6 +2125,138 @@ export class DatabaseStorage implements IStorage {
   async deleteDeployment(id: string): Promise<boolean> {
     const result = await db.delete(deployments).where(eq(deployments.id, id));
     return result.rowCount ? result.rowCount > 0 : false;
+  }
+
+  // Multicast Sessions - Database Implementation
+  async getMulticastSessions(): Promise<MulticastSession[]> {
+    return await db
+      .select()
+      .from(multicastSessions)
+      .orderBy(desc(multicastSessions.createdAt));
+  }
+
+  async getMulticastSession(id: string): Promise<MulticastSession | undefined> {
+    const [session] = await db
+      .select()
+      .from(multicastSessions)
+      .where(eq(multicastSessions.id, id));
+    return session;
+  }
+
+  async createMulticastSession(insertSession: InsertMulticastSession): Promise<MulticastSession> {
+    const [session] = await db.insert(multicastSessions).values(insertSession).returning();
+    return session;
+  }
+
+  async updateMulticastSession(id: string, updateData: Partial<InsertMulticastSession>): Promise<MulticastSession | undefined> {
+    const [session] = await db
+      .update(multicastSessions)
+      .set({ ...updateData, updatedAt: new Date() })
+      .where(eq(multicastSessions.id, id))
+      .returning();
+    return session;
+  }
+
+  async deleteMulticastSession(id: string): Promise<boolean> {
+    const result = await db.delete(multicastSessions).where(eq(multicastSessions.id, id));
+    return result.rowCount ? result.rowCount > 0 : false;
+  }
+
+  // Multicast Participants - Database Implementation
+  async getMulticastParticipants(sessionId: string): Promise<MulticastParticipant[]> {
+    return await db
+      .select()
+      .from(multicastParticipants)
+      .where(eq(multicastParticipants.sessionId, sessionId));
+  }
+
+  async addMulticastParticipant(insertParticipant: InsertMulticastParticipant): Promise<MulticastParticipant> {
+    return await db.transaction(async (tx) => {
+      // Lock and get session to check capacity atomically
+      const [session] = await tx
+        .select()
+        .from(multicastSessions)
+        .where(eq(multicastSessions.id, insertParticipant.sessionId))
+        .for('update');
+
+      if (!session) {
+        throw new Error("Session not found");
+      }
+
+      // Check for duplicate participant
+      const [existing] = await tx
+        .select()
+        .from(multicastParticipants)
+        .where(
+          and(
+            eq(multicastParticipants.sessionId, insertParticipant.sessionId),
+            eq(multicastParticipants.deviceId, insertParticipant.deviceId)
+          )
+        );
+
+      if (existing) {
+        throw new Error("Device already added to this session");
+      }
+
+      // Check maxClients limit (after lock, prevents race condition)
+      if (session.maxClients !== null && session.clientCount >= session.maxClients) {
+        throw new Error(`Session is at capacity (${session.maxClients} devices)`);
+      }
+
+      // Insert participant
+      const [participant] = await tx
+        .insert(multicastParticipants)
+        .values(insertParticipant)
+        .returning();
+
+      // Atomically increment session client count
+      await tx
+        .update(multicastSessions)
+        .set({ clientCount: sql`${multicastSessions.clientCount} + 1` })
+        .where(eq(multicastSessions.id, insertParticipant.sessionId));
+
+      return participant;
+    });
+  }
+
+  async updateMulticastParticipant(id: string, updateData: Partial<InsertMulticastParticipant>): Promise<MulticastParticipant | undefined> {
+    const [participant] = await db
+      .update(multicastParticipants)
+      .set(updateData)
+      .where(eq(multicastParticipants.id, id))
+      .returning();
+    return participant;
+  }
+
+  async removeMulticastParticipant(id: string): Promise<boolean> {
+    return await db.transaction(async (tx) => {
+      const [participant] = await tx
+        .select()
+        .from(multicastParticipants)
+        .where(eq(multicastParticipants.id, id));
+      
+      if (!participant) return false;
+      
+      // Lock the session row to prevent concurrent count modifications
+      await tx
+        .select()
+        .from(multicastSessions)
+        .where(eq(multicastSessions.id, participant.sessionId))
+        .for('update');
+      
+      // Delete participant
+      const result = await tx
+        .delete(multicastParticipants)
+        .where(eq(multicastParticipants.id, id));
+      
+      // Atomically decrement session client count
+      await tx
+        .update(multicastSessions)
+        .set({ clientCount: sql`GREATEST(${multicastSessions.clientCount} - 1, 0)` })
+        .where(eq(multicastSessions.id, participant.sessionId));
+      
+      return result.rowCount ? result.rowCount > 0 : false;
+    });
   }
 
   // Activity Logs - Database Implementation

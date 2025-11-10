@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, integer, timestamp, real, boolean, bigint, jsonb, index, foreignKey } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, integer, timestamp, real, boolean, bigint, jsonb, index, foreignKey, unique } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -88,6 +88,7 @@ export const multicastParticipants = pgTable("multicast_participants", {
   completedAt: timestamp("completed_at"),
 }, (table) => ({
   sessionDeviceIdx: index("multicast_participants_session_device_idx").on(table.sessionId, table.deviceId),
+  sessionDeviceUnique: unique("multicast_participants_session_device_unique").on(table.sessionId, table.deviceId),
 }));
 
 export const activityLogs = pgTable("activity_logs", {
