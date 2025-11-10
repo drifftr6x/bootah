@@ -12,7 +12,8 @@ import ReactFlow, {
   addEdge,
   Connection,
   MarkerType,
-  BackgroundVariant
+  BackgroundVariant,
+  ReactFlowProvider
 } from "reactflow";
 import "reactflow/dist/style.css";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -109,7 +110,7 @@ const nodeTypes = {
   device: DeviceNode
 };
 
-export default function NetworkTopology() {
+function NetworkTopologyInner() {
   const { toast } = useToast();
   const [selectedNode, setSelectedNode] = useState<Node | null>(null);
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
@@ -411,5 +412,13 @@ export default function NetworkTopology() {
         </ReactFlow>
       </div>
     </div>
+  );
+}
+
+export default function NetworkTopology() {
+  return (
+    <ReactFlowProvider>
+      <NetworkTopologyInner />
+    </ReactFlowProvider>
   );
 }
