@@ -23,6 +23,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Radio,
+  Network,
 } from "lucide-react";
 
 const navigation = [
@@ -33,6 +34,7 @@ const navigation = [
   { name: "Deployments", href: "/deployments", icon: Zap },
   { name: "Scheduled", href: "/scheduled", icon: Calendar },
   { name: "Multicast Sessions", href: "/multicast", icon: Radio },
+  { name: "Network Topology", href: "/topology", icon: Network },
   { name: "Templates", href: "/templates", icon: Workflow },
   { name: "Network Discovery", href: "/network", icon: Wifi },
   { name: "Workstations", href: "/workstations", icon: Laptop },

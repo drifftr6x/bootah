@@ -14,6 +14,7 @@ import Capture from "@/pages/capture";
 import Deployments from "@/pages/deployments";
 import ScheduledDeployments from "@/pages/scheduled-deployments";
 import MulticastSessions from "@/pages/multicast-sessions";
+import NetworkTopology from "@/pages/network-topology";
 import Templates from "@/pages/templates";
 import Network from "@/pages/network";
 import Workstations from "@/pages/workstations";
@@ -67,6 +68,7 @@ function AuthenticatedApp() {
           <Route path="/deployments" component={Deployments} />
           <Route path="/scheduled" component={ScheduledDeployments} />
           <Route path="/multicast" component={MulticastSessions} />
+          <Route path="/topology" component={NetworkTopology} />
           <Route path="/templates" component={Templates} />
           <Route path="/network" component={Network} />
           <Route path="/workstations" component={Workstations} />
