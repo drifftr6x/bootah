@@ -2057,9 +2057,19 @@ export class DatabaseStorage implements IStorage {
   async toggleUserActive(id: string): Promise<User | undefined> { return undefined; }
   
   async upsertUser(userData: UpsertUser): Promise<User> {
+    // Auto-generate username from email if not provided
+    const username = userData.username || (userData.email ? userData.email.split('@')[0] : undefined);
+    const fullName = userData.fullName || (userData.firstName && userData.lastName 
+      ? `${userData.firstName} ${userData.lastName}` 
+      : undefined);
+    
     const [user] = await db
       .insert(users)
-      .values(userData)
+      .values({
+        ...userData,
+        username,
+        fullName,
+      })
       .onConflictDoUpdate({
         target: users.id,
         set: {
@@ -2068,6 +2078,8 @@ export class DatabaseStorage implements IStorage {
           ...(userData.firstName !== undefined && { firstName: userData.firstName }),
           ...(userData.lastName !== undefined && { lastName: userData.lastName }),
           ...(userData.profileImageUrl !== undefined && { profileImageUrl: userData.profileImageUrl }),
+          ...(username !== undefined && { username }),
+          ...(fullName !== undefined && { fullName }),
           lastLogin: new Date(),
           updatedAt: new Date(),
         },
