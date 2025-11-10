@@ -54,6 +54,42 @@ export const deployments = pgTable("deployments", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+export const multicastSessions = pgTable("multicast_sessions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  description: text("description"),
+  imageId: varchar("image_id").notNull().references(() => images.id),
+  status: text("status").notNull().default("waiting"), // waiting, active, completed, failed, cancelled
+  multicastAddress: text("multicast_address").notNull(), // e.g., "239.255.0.1"
+  port: integer("port").notNull().default(9000),
+  maxClients: integer("max_clients"), // Optional limit on participants
+  clientCount: integer("client_count").default(0), // Current number of participants
+  totalBytes: bigint("total_bytes", { mode: "number" }).default(0), // Total bytes to transfer
+  bytesSent: bigint("bytes_sent", { mode: "number" }).default(0), // Bytes sent so far
+  throughput: real("throughput").default(0), // MB/s
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+  createdBy: varchar("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  statusIdx: index("multicast_sessions_status_idx").on(table.status),
+}));
+
+export const multicastParticipants = pgTable("multicast_participants", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  sessionId: varchar("session_id").notNull().references(() => multicastSessions.id, { onDelete: 'cascade' }),
+  deviceId: varchar("device_id").notNull().references(() => devices.id),
+  status: text("status").notNull().default("waiting"), // waiting, downloading, completed, failed
+  progress: real("progress").default(0), // 0-100
+  bytesReceived: bigint("bytes_received", { mode: "number" }).default(0), // Bytes received by this participant
+  errorMessage: text("error_message"),
+  joinedAt: timestamp("joined_at").defaultNow(),
+  completedAt: timestamp("completed_at"),
+}, (table) => ({
+  sessionDeviceIdx: index("multicast_participants_session_device_idx").on(table.sessionId, table.deviceId),
+}));
+
 export const activityLogs = pgTable("activity_logs", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   type: text("type").notNull(), // deployment, discovery, error, info
@@ -447,6 +483,26 @@ export const insertDeploymentSchema = createInsertSchema(deployments).omit({
   }
 );
 
+export const insertMulticastSessionSchema = createInsertSchema(multicastSessions).omit({
+  id: true,
+  clientCount: true,
+  totalBytes: true,
+  bytesSent: true,
+  throughput: true,
+  startedAt: true,
+  completedAt: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertMulticastParticipantSchema = createInsertSchema(multicastParticipants).omit({
+  id: true,
+  progress: true,
+  bytesReceived: true,
+  joinedAt: true,
+  completedAt: true,
+});
+
 export const insertActivityLogSchema = createInsertSchema(activityLogs).omit({
   id: true,
   timestamp: true,
@@ -582,6 +638,12 @@ export type InsertImage = z.infer<typeof insertImageSchema>;
 
 export type Deployment = typeof deployments.$inferSelect;
 export type InsertDeployment = z.infer<typeof insertDeploymentSchema>;
+
+export type MulticastSession = typeof multicastSessions.$inferSelect;
+export type InsertMulticastSession = z.infer<typeof insertMulticastSessionSchema>;
+
+export type MulticastParticipant = typeof multicastParticipants.$inferSelect;
+export type InsertMulticastParticipant = z.infer<typeof insertMulticastParticipantSchema>;
 
 export type ActivityLog = typeof activityLogs.$inferSelect;
 export type InsertActivityLog = z.infer<typeof insertActivityLogSchema>;
