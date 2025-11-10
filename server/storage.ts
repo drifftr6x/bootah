@@ -52,11 +52,12 @@ import {
   type SecurityConfiguration,
   type InsertSecurityConfiguration,
   type ComplianceReport,
-  type InsertComplianceReport
+  type InsertComplianceReport,
+  type PasswordResetToken
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
-import { devices, images, deployments, activityLogs, serverStatus, users } from "@shared/schema";
+import { devices, images, deployments, activityLogs, serverStatus, users, passwordResetTokens, passwordHistory } from "@shared/schema";
 import { eq, desc, and, or, count } from "drizzle-orm";
 
 export interface IStorage {
@@ -2067,10 +2068,195 @@ export class DatabaseStorage implements IStorage {
     const [user] = await db.select().from(users).where(eq(users.email, email)).limit(1);
     return user;
   }
-  async createUser(user: InsertUser): Promise<User> { throw new Error("Not implemented"); }
-  async updateUser(id: string, user: Partial<InsertUser>): Promise<User | undefined> { return undefined; }
-  async deleteUser(id: string): Promise<boolean> { return false; }
-  async toggleUserActive(id: string): Promise<User | undefined> { return undefined; }
+  async createUser(insertUser: InsertUser): Promise<User> {
+    const bcrypt = await import('bcrypt');
+    const crypto = await import('crypto');
+    
+    // Check if user already exists
+    const existingUser = await this.getUserByUsername(insertUser.username || '');
+    if (existingUser) {
+      throw new Error(`User with username '${insertUser.username}' already exists`);
+    }
+    
+    if (insertUser.email) {
+      const existingEmail = await this.getUserByEmail(insertUser.email);
+      if (existingEmail) {
+        throw new Error(`User with email '${insertUser.email}' already exists`);
+      }
+    }
+    
+    // Hash password if provided
+    let passwordHash: string | null = null;
+    if (insertUser.passwordHash) {
+      passwordHash = await bcrypt.hash(insertUser.passwordHash, 12);
+    }
+    
+    const [user] = await db
+      .insert(users)
+      .values({
+        ...insertUser,
+        passwordHash,
+        isActive: insertUser.isActive !== undefined ? insertUser.isActive : true,
+        accountStatus: insertUser.accountStatus || 'active',
+        failedLoginAttempts: 0,
+        passwordLastChanged: passwordHash ? new Date() : null,
+        passwordExpiresAt: passwordHash ? new Date(Date.now() + 90 * 24 * 60 * 60 * 1000) : null, // 90 days
+      })
+      .returning();
+    
+    return user;
+  }
+  
+  async updateUser(id: string, updateData: Partial<InsertUser>): Promise<User | undefined> {
+    const user = await this.getUser(id);
+    if (!user) return undefined;
+    
+    const bcrypt = await import('bcrypt');
+    
+    // Hash password if being updated
+    let passwordHash: string | null | undefined = undefined;
+    if (updateData.passwordHash) {
+      passwordHash = await bcrypt.hash(updateData.passwordHash, 12);
+    }
+    
+    const [updatedUser] = await db
+      .update(users)
+      .set({
+        ...updateData,
+        ...(passwordHash !== undefined && { passwordHash }),
+        ...(passwordHash && {
+          passwordLastChanged: new Date(),
+          passwordExpiresAt: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000),
+        }),
+        updatedAt: new Date(),
+      })
+      .where(eq(users.id, id))
+      .returning();
+    
+    return updatedUser;
+  }
+  
+  async deleteUser(id: string): Promise<boolean> {
+    const deleted = await db.delete(users).where(eq(users.id, id)).returning();
+    return deleted.length > 0;
+  }
+  
+  async toggleUserActive(id: string): Promise<User | undefined> {
+    const user = await this.getUser(id);
+    if (!user) return undefined;
+    
+    const [updatedUser] = await db
+      .update(users)
+      .set({
+        isActive: !user.isActive,
+        accountStatus: !user.isActive ? 'active' : 'disabled',
+        updatedAt: new Date(),
+      })
+      .where(eq(users.id, id))
+      .returning();
+    
+    return updatedUser;
+  }
+  
+  // Password Reset Methods
+  async createPasswordResetToken(userId: string): Promise<PasswordResetToken> {
+    const crypto = await import('crypto');
+    
+    // Generate random token and one-time code
+    const token = crypto.randomBytes(32).toString('hex');
+    const oneTimeCode = Math.floor(100000 + Math.random() * 900000).toString(); // 6-digit code
+    
+    // Hash token and code for storage
+    const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
+    const hashedCode = crypto.createHash('sha256').update(oneTimeCode).digest('hex');
+    
+    // Expire in 1 hour
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
+    
+    const [resetToken] = await db
+      .insert(passwordResetTokens)
+      .values({
+        userId,
+        token: hashedToken,
+        oneTimeCode: hashedCode,
+        expiresAt,
+      })
+      .returning();
+    
+    // Return with unhashed token and code for transmission
+    return {
+      ...resetToken,
+      token, // Unhashed for sending to user
+      oneTimeCode, // Unhashed for sending to user
+    };
+  }
+  
+  async getPasswordResetToken(token: string): Promise<PasswordResetToken | undefined> {
+    const crypto = await import('crypto');
+    const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
+    
+    const [resetToken] = await db
+      .select()
+      .from(passwordResetTokens)
+      .where(eq(passwordResetTokens.token, hashedToken))
+      .limit(1);
+    
+    return resetToken;
+  }
+  
+  async resetPassword(userId: string, newPassword: string, token: string): Promise<void> {
+    const bcrypt = await import('bcrypt');
+    const crypto = await import('crypto');
+    
+    // Check password history to prevent reuse
+    const history = await db
+      .select()
+      .from(passwordHistory)
+      .where(eq(passwordHistory.userId, userId))
+      .orderBy(desc(passwordHistory.createdAt))
+      .limit(5);
+    
+    for (const old of history) {
+      const matches = await bcrypt.compare(newPassword, old.passwordHash);
+      if (matches) {
+        throw new Error("Password has been recently used. Please choose a different password.");
+      }
+    }
+    
+    // Hash new password
+    const passwordHash = await bcrypt.hash(newPassword, 12);
+    
+    // Update user password
+    await db
+      .update(users)
+      .set({
+        passwordHash,
+        passwordLastChanged: new Date(),
+        passwordExpiresAt: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000),
+        forcePasswordChange: false,
+        failedLoginAttempts: 0,
+        isLocked: false,
+        lockedUntil: null,
+        updatedAt: new Date(),
+      })
+      .where(eq(users.id, userId));
+    
+    // Add to password history
+    await db.insert(passwordHistory).values({
+      userId,
+      passwordHash,
+    });
+    
+    // Mark token as used
+    const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
+    await db
+      .update(passwordResetTokens)
+      .set({
+        isUsed: true,
+        usedAt: new Date(),
+      })
+      .where(eq(passwordResetTokens.token, hashedToken));
+  }
   
   async upsertUser(userData: UpsertUser): Promise<User> {
     // Auto-generate username from email if not provided

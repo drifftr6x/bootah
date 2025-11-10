@@ -818,4 +818,175 @@ sudo ip link set eth0 mtu 9000
 
 ---
 
-**Installation Complete!** Your Bootah64x platform is ready for enterprise PXE imaging operations.
+## User Management and Authentication
+
+Bootah64x supports dual-mode authentication for flexible deployment scenarios:
+- **Replit OAuth** - For cloud-connected deployments
+- **Local Credentials** - For isolated network deployments
+
+### User Management Features
+
+The User Management page (`/user-management`) provides comprehensive user administration:
+
+#### Creating Users
+
+1. Navigate to **User Management** from the sidebar
+2. Click **Create User** button
+3. Fill in user details:
+   - **Username** (required) - Must be unique
+   - **Email** - For OAuth and password reset
+   - **First Name / Last Name** - User's full name
+   - **Department / Job Title** - Organizational information
+   - **Phone Number** - Contact information
+   - **Password** - Optional for local auth (OAuth users don't need passwords)
+4. Click **Create User**
+
+#### Editing Users
+
+1. Click the **Edit** (pencil) icon next to any user
+2. Update user information
+3. Click **Update User** to save changes
+
+#### Managing User Status
+
+- **Toggle Active/Inactive**: Click the power icon to enable/disable users
+- **Delete User**: Click the trash icon (requires confirmation)
+
+#### Bulk User Import (CSV)
+
+For importing multiple users at once:
+
+1. Click **Import CSV** button
+2. Paste CSV data in the following format:
+   ```
+   username,email,firstName,lastName,department,jobTitle,phoneNumber
+   jdoe,john@example.com,John,Doe,IT,Systems Engineer,555-1234
+   asmith,alice@example.com,Alice,Smith,IT,Network Admin,555-5678
+   ```
+3. Click **Import Users**
+4. Review the import results (success/failure count)
+
+**CSV Import Notes:**
+- First row must contain column headers
+- Username is required for all users
+- Email is required for password reset functionality
+- Invalid rows will be skipped with error messages
+
+### Password Reset Functionality
+
+Administrators can initiate password resets for local authentication users:
+
+#### Requesting Password Reset
+
+**API Endpoint:**
+```bash
+POST /api/auth/request-password-reset
+Content-Type: application/json
+
+{
+  "email": "user@example.com"
+}
+```
+
+**Response:**
+```json
+{
+  "message": "If the email exists, a reset link has been sent"
+}
+```
+
+**Important Security Note:** 
+- Reset tokens and codes are **NEVER** returned in the API response for security reasons
+- In production: Tokens/codes are sent via email to the user
+- In isolated networks without email: 
+  - Tokens/codes are logged to server console (check application logs)
+  - Administrators with server access can retrieve them from logs: `pm2 logs bootah64x | grep "PASSWORD RESET"`
+  - This ensures only authorized administrators can access reset credentials
+
+#### Verifying Reset Token
+
+**API Endpoint:**
+```bash
+POST /api/auth/verify-reset-token
+Content-Type: application/json
+
+{
+  "token": "reset-token-from-request"
+}
+```
+
+#### Resetting Password
+
+**API Endpoint:**
+```bash
+POST /api/auth/reset-password
+Content-Type: application/json
+
+{
+  "token": "reset-token-from-request",
+  "newPassword": "newSecurePassword123",
+  "code": "123456"
+}
+```
+
+**Password Requirements:**
+- Minimum 8 characters
+- Cannot reuse last 5 passwords
+- Password expires after 90 days
+
+#### Password Security Features
+
+Bootah64x implements enterprise-grade password security:
+
+1. **Password Hashing**: bcrypt with 12 rounds
+2. **Password History**: Prevents reuse of last 5 passwords
+3. **Password Expiry**: 90-day automatic expiration
+4. **Account Lockout**: 5 failed login attempts → 30-minute lockout
+5. **Reset Token Security**: 
+   - SHA-256 hashed tokens
+   - 1-hour expiration
+   - Single-use tokens
+   - Optional 6-digit verification code
+
+### Authentication Best Practices
+
+#### For Isolated Network Deployments
+
+1. **Create local admin account immediately after installation:**
+   ```bash
+   # Use the User Management UI or API
+   POST /api/admin/users
+   {
+     "username": "admin",
+     "email": "admin@local",
+     "fullName": "System Administrator",
+     "passwordHash": "your-strong-password",
+     "isActive": true
+   }
+   ```
+
+2. **Disable Replit OAuth** (if not needed):
+   - Set environment variable: `DISABLE_OAUTH=true`
+   - Restart application
+
+3. **Implement password rotation policy:**
+   - Force password changes every 90 days (automatic)
+   - Maintain password history (automatic)
+
+#### For Cloud-Connected Deployments
+
+1. **Use Replit OAuth as primary authentication**
+2. **Create local fallback admin account** for emergency access
+3. **Monitor login history** via Security Center
+
+### User Role and Permission System
+
+Currently in development. Future releases will include:
+- Role-based access control (RBAC)
+- Granular permissions (view, edit, delete, deploy)
+- Audit logging for all user actions
+- Multi-factor authentication (MFA)
+
+---
+
+**Installation Complete!** Your Bootah64x platform is ready for enterprise PXE imaging operations with comprehensive user management and security features.

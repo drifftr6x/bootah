@@ -18,6 +18,7 @@ import Workstations from "@/pages/workstations";
 import Monitoring from "@/pages/monitoring";
 import Security from "@/pages/security";
 import Users from "@/pages/users";
+import UserManagement from "@/pages/user-management";
 import Configuration from "@/pages/configuration";
 import Logs from "@/pages/logs";
 import Help from "@/pages/help";
@@ -68,6 +69,7 @@ function AuthenticatedApp() {
           <Route path="/monitoring" component={Monitoring} />
           <Route path="/security" component={Security} />
           <Route path="/users" component={Users} />
+          <Route path="/user-management" component={UserManagement} />
           <Route path="/configuration" component={Configuration} />
           <Route path="/logs" component={Logs} />
           <Route path="/help" component={Help} />

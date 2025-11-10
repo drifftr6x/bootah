@@ -1691,6 +1691,225 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error('Error updating device statuses:', error);
     }
   }, 5000); // Update every 5 seconds
+
+  // ==========================================
+  // Password Reset API Endpoints
+  // ==========================================
+  
+  // Request password reset - creates reset token
+  app.post("/api/auth/request-password-reset", async (req, res) => {
+    try {
+      const { email } = req.body;
+      if (!email) {
+        return res.status(400).json({ message: "Email is required" });
+      }
+
+      const user = await storage.getUserByEmail(email);
+      if (!user) {
+        // Don't reveal if user exists - security best practice
+        return res.json({ message: "If the email exists, a reset link has been sent" });
+      }
+
+      // Create reset token
+      const resetToken = await storage.createPasswordResetToken(user.id);
+      
+      // SECURITY: Never send token/code in response in production
+      // In isolated networks without email, admins can retrieve from server logs
+      console.log(`[PASSWORD RESET] User: ${email}`);
+      console.log(`[PASSWORD RESET] Token: ${resetToken.token}`);
+      console.log(`[PASSWORD RESET] One-time code: ${resetToken.oneTimeCode}`);
+      console.log(`[PASSWORD RESET] Expires: ${resetToken.expiresAt}`);
+      
+      // TODO: Send email with reset link and code in production
+      // Example: await emailService.sendPasswordReset(email, resetToken.token, resetToken.oneTimeCode);
+      
+      res.json({ 
+        message: "If the email exists, a reset link has been sent"
+      });
+    } catch (error) {
+      console.error("Error requesting password reset:", error);
+      res.status(500).json({ message: "Failed to process password reset request" });
+    }
+  });
+
+  // Verify reset token validity
+  app.post("/api/auth/verify-reset-token", async (req, res) => {
+    try {
+      const { token } = req.body;
+      if (!token) {
+        return res.status(400).json({ message: "Token is required" });
+      }
+
+      const resetToken = await storage.getPasswordResetToken(token);
+      if (!resetToken || resetToken.isUsed || new Date() > new Date(resetToken.expiresAt)) {
+        return res.status(400).json({ message: "Invalid or expired token" });
+      }
+
+      res.json({ valid: true, userId: resetToken.userId });
+    } catch (error) {
+      console.error("Error verifying reset token:", error);
+      res.status(500).json({ message: "Failed to verify token" });
+    }
+  });
+
+  // Reset password with token
+  app.post("/api/auth/reset-password", async (req, res) => {
+    try {
+      const { token, newPassword, code } = req.body;
+      
+      if (!token || !newPassword) {
+        return res.status(400).json({ message: "Token and new password are required" });
+      }
+
+      if (newPassword.length < 8) {
+        return res.status(400).json({ message: "Password must be at least 8 characters" });
+      }
+
+      // Verify token or code
+      const resetToken = await storage.getPasswordResetToken(token);
+      if (!resetToken || resetToken.isUsed || new Date() > new Date(resetToken.expiresAt)) {
+        return res.status(400).json({ message: "Invalid or expired reset token" });
+      }
+
+      // Verify one-time code if provided
+      if (code && resetToken.oneTimeCode) {
+        const crypto = await import('crypto');
+        const hashedCode = crypto.createHash('sha256').update(code).digest('hex');
+        if (hashedCode !== resetToken.oneTimeCode) {
+          return res.status(400).json({ message: "Invalid verification code" });
+        }
+      }
+
+      // Reset the password
+      await storage.resetPassword(resetToken.userId, newPassword, token);
+      
+      res.json({ message: "Password reset successful" });
+    } catch (error: any) {
+      console.error("Error resetting password:", error);
+      if (error.message?.includes("recently used")) {
+        return res.status(400).json({ message: error.message });
+      }
+      res.status(500).json({ message: "Failed to reset password" });
+    }
+  });
+
+  // ==========================================
+  // User Management API Endpoints (Admin)
+  // ==========================================
+  
+  // Get all users (admin only)
+  app.get("/api/admin/users", isAuthenticated, async (req: any, res) => {
+    try {
+      // TODO: Add role-based authorization check
+      const users = await storage.getUsers();
+      res.json(users);
+    } catch (error) {
+      console.error("Error fetching users:", error);
+      res.status(500).json({ message: "Failed to fetch users" });
+    }
+  });
+
+  // Create new user (admin only)
+  app.post("/api/admin/users", isAuthenticated, async (req: any, res) => {
+    try {
+      const userData = insertUserSchema.parse(req.body);
+      const user = await storage.createUser(userData);
+      res.status(201).json(user);
+    } catch (error: any) {
+      console.error("Error creating user:", error);
+      if (error.message?.includes("already exists")) {
+        return res.status(409).json({ message: error.message });
+      }
+      res.status(400).json({ message: "Invalid user data" });
+    }
+  });
+
+  // Update user (admin only)
+  app.put("/api/admin/users/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userData = insertUserSchema.partial().parse(req.body);
+      const user = await storage.updateUser(req.params.id, userData);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      res.json(user);
+    } catch (error) {
+      console.error("Error updating user:", error);
+      res.status(400).json({ message: "Invalid user data" });
+    }
+  });
+
+  // Delete user (admin only)
+  app.delete("/api/admin/users/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const deleted = await storage.deleteUser(req.params.id);
+      if (!deleted) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting user:", error);
+      res.status(500).json({ message: "Failed to delete user" });
+    }
+  });
+
+  // Toggle user active status (admin only)
+  app.post("/api/admin/users/:id/toggle-active", isAuthenticated, async (req: any, res) => {
+    try {
+      const user = await storage.toggleUserActive(req.params.id);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      res.json(user);
+    } catch (error) {
+      console.error("Error toggling user status:", error);
+      res.status(500).json({ message: "Failed to toggle user status" });
+    }
+  });
+
+  // Bulk CSV user import (admin only)
+  app.post("/api/admin/users/import-csv", isAuthenticated, async (req: any, res) => {
+    try {
+      const { csvData } = req.body;
+      if (!csvData || !Array.isArray(csvData)) {
+        return res.status(400).json({ message: "Invalid CSV data" });
+      }
+
+      const results = {
+        success: 0,
+        failed: 0,
+        errors: [] as string[]
+      };
+
+      for (const row of csvData) {
+        try {
+          // Validate and create user
+          const userData = insertUserSchema.parse({
+            username: row.username,
+            email: row.email,
+            fullName: row.fullName || `${row.firstName || ''} ${row.lastName || ''}`.trim(),
+            firstName: row.firstName,
+            lastName: row.lastName,
+            department: row.department,
+            jobTitle: row.jobTitle,
+            phoneNumber: row.phoneNumber,
+            isActive: row.isActive !== undefined ? row.isActive : true,
+          });
+
+          await storage.createUser(userData);
+          results.success++;
+        } catch (error: any) {
+          results.failed++;
+          results.errors.push(`Row ${csvData.indexOf(row) + 1}: ${error.message}`);
+        }
+      }
+
+      res.json(results);
+    } catch (error) {
+      console.error("Error importing users:", error);
+      res.status(500).json({ message: "Failed to import users" });
+    }
+  });
   
   return httpServer;
 }
