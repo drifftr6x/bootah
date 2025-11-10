@@ -5,6 +5,7 @@ import { storage, scheduler } from "./storage";
 import { TFTPServer, PXEHTTPServer, DHCPProxy } from "./pxe-server";
 import { imagingEngine } from "./imaging-engine";
 import { setupAuth, isAuthenticated } from "./replitAuth";
+import { initializeRbacDefaults } from "./rbacSeed";
 import { 
   insertDeviceSchema, 
   insertImageSchema, 
@@ -31,6 +32,13 @@ import {
 export async function registerRoutes(app: Express): Promise<Server> {
   // Setup Authentication - must be before other routes
   await setupAuth(app);
+  
+  // Initialize RBAC defaults (roles, permissions, and first user assignment)
+  try {
+    await initializeRbacDefaults();
+  } catch (error) {
+    console.error("Failed to initialize RBAC defaults:", error);
+  }
 
   // Auth endpoint for user info
   app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
