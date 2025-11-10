@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -9,9 +10,11 @@ import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { insertDeploymentSchema, type InsertDeployment, type Device, type Image } from "@shared/schema";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
-import { Loader2, Monitor, HardDrive, PlayCircle, AlertCircle } from "lucide-react";
+import { Loader2, Monitor, HardDrive, PlayCircle, AlertCircle, Calendar, Clock, Repeat } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Label } from "@/components/ui/label";
 
 interface StartDeploymentDialogProps {
   open: boolean;
@@ -20,10 +23,29 @@ interface StartDeploymentDialogProps {
   preselectedImageId?: string;
 }
 
-const extendedDeploymentSchema = insertDeploymentSchema.extend({
-  deviceId: insertDeploymentSchema.shape.deviceId.min(1, "Please select a device"),
-  imageId: insertDeploymentSchema.shape.imageId.min(1, "Please select an image"),
-});
+const extendedDeploymentSchema = insertDeploymentSchema
+  .extend({
+    deviceId: insertDeploymentSchema.shape.deviceId.min(1, "Please select a device"),
+    imageId: insertDeploymentSchema.shape.imageId.min(1, "Please select an image"),
+  })
+  .refine((data) => {
+    if (data.scheduleType === "delayed" || data.scheduleType === "recurring") {
+      return !!data.scheduledFor;
+    }
+    return true;
+  }, {
+    message: "Scheduled date/time is required for delayed and recurring deployments",
+    path: ["scheduledFor"],
+  })
+  .refine((data) => {
+    if (data.scheduleType === "recurring") {
+      return !!data.recurringPattern;
+    }
+    return true;
+  }, {
+    message: "Cron pattern is required for recurring deployments",
+    path: ["recurringPattern"],
+  });
 
 function getDeviceStatusColor(status: string) {
   switch (status) {
@@ -75,8 +97,13 @@ export default function StartDeploymentDialog({
       status: "pending",
       progress: 0,
       errorMessage: null,
+      scheduleType: "instant",
+      scheduledFor: null,
+      recurringPattern: null,
     },
   });
+
+  const scheduleType = form.watch("scheduleType");
 
   // Fetch devices and images
   const { data: devices, isLoading: devicesLoading } = useQuery<Device[]>({
@@ -104,11 +131,16 @@ export default function StartDeploymentDialog({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/deployments"] });
       queryClient.invalidateQueries({ queryKey: ["/api/deployments/active"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/deployments/scheduled"] });
       queryClient.invalidateQueries({ queryKey: ["/api/devices"] });
       queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
+      
+      const isScheduled = scheduleType !== "instant";
       toast({
-        title: "Deployment Started",
-        description: `PXE deployment of ${selectedImage?.name} to ${selectedDevice?.name} has been initiated.`,
+        title: isScheduled ? "Deployment Scheduled" : "Deployment Started",
+        description: isScheduled 
+          ? `Deployment of ${selectedImage?.name} to ${selectedDevice?.name} has been scheduled.`
+          : `PXE deployment of ${selectedImage?.name} to ${selectedDevice?.name} has been initiated.`,
       });
       form.reset();
       onOpenChange(false);
@@ -308,6 +340,135 @@ export default function StartDeploymentDialog({
               </div>
             )}
 
+            {/* Schedule Type Selection */}
+            <FormField
+              control={form.control}
+              name="scheduleType"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel data-testid="label-schedule-type">Deployment Schedule</FormLabel>
+                  <FormControl>
+                    <RadioGroup
+                      onValueChange={field.onChange}
+                      value={field.value}
+                      className="grid grid-cols-3 gap-4"
+                      data-testid="radio-group-schedule-type"
+                    >
+                      <div>
+                        <RadioGroupItem value="instant" id="instant" className="peer sr-only" />
+                        <Label
+                          htmlFor="instant"
+                          className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer"
+                          data-testid="radio-instant"
+                        >
+                          <PlayCircle className="mb-3 h-6 w-6" />
+                          <div className="text-sm font-medium">Instant</div>
+                          <div className="text-xs text-muted-foreground text-center mt-1">
+                            Start immediately
+                          </div>
+                        </Label>
+                      </div>
+                      <div>
+                        <RadioGroupItem value="delayed" id="delayed" className="peer sr-only" />
+                        <Label
+                          htmlFor="delayed"
+                          className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer"
+                          data-testid="radio-delayed"
+                        >
+                          <Clock className="mb-3 h-6 w-6" />
+                          <div className="text-sm font-medium">Delayed</div>
+                          <div className="text-xs text-muted-foreground text-center mt-1">
+                            Schedule once
+                          </div>
+                        </Label>
+                      </div>
+                      <div>
+                        <RadioGroupItem value="recurring" id="recurring" className="peer sr-only" />
+                        <Label
+                          htmlFor="recurring"
+                          className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer"
+                          data-testid="radio-recurring"
+                        >
+                          <Repeat className="mb-3 h-6 w-6" />
+                          <div className="text-sm font-medium">Recurring</div>
+                          <div className="text-xs text-muted-foreground text-center mt-1">
+                            Repeat automatically
+                          </div>
+                        </Label>
+                      </div>
+                    </RadioGroup>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {/* Scheduled Date/Time - Show for delayed and recurring */}
+            {(scheduleType === "delayed" || scheduleType === "recurring") && (
+              <FormField
+                control={form.control}
+                name="scheduledFor"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel data-testid="label-scheduled-for">
+                      <Calendar className="w-4 h-4 inline mr-2" />
+                      {scheduleType === "recurring" ? "First Run Date & Time" : "Scheduled Date & Time"}
+                    </FormLabel>
+                    <FormControl>
+                      <Input
+                        type="datetime-local"
+                        {...field}
+                        value={field.value ? new Date(field.value).toISOString().slice(0, 16) : ""}
+                        onChange={(e) => {
+                          const value = e.target.value ? new Date(e.target.value) : null;
+                          field.onChange(value);
+                        }}
+                        data-testid="input-scheduled-for"
+                        className="w-full"
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {scheduleType === "recurring" 
+                        ? "Set when the first deployment should run"
+                        : "Set when the deployment should start"}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
+
+            {/* Cron Pattern - Show for recurring only */}
+            {scheduleType === "recurring" && (
+              <FormField
+                control={form.control}
+                name="recurringPattern"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel data-testid="label-recurring-pattern">
+                      <Repeat className="w-4 h-4 inline mr-2" />
+                      Recurrence Pattern (Cron)
+                    </FormLabel>
+                    <FormControl>
+                      <Input
+                        {...field}
+                        value={field.value || ""}
+                        placeholder="0 2 * * 0 (Every Sunday at 2 AM)"
+                        data-testid="input-recurring-pattern"
+                        className="font-mono"
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      Use cron format: minute hour day month weekday
+                      <br />
+                      Examples: "0 2 * * *" (daily at 2 AM), "0 0 * * 0" (weekly on Sunday)
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
+
             {/* Deployment Warning */}
             {selectedDevice && selectedImage && (
               <div className="p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800">
@@ -340,8 +501,22 @@ export default function StartDeploymentDialog({
                 {startDeploymentMutation.isPending && (
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                 )}
-                <PlayCircle className="w-4 h-4 mr-2" />
-                Start Deployment
+                {scheduleType === "instant" ? (
+                  <>
+                    <PlayCircle className="w-4 h-4 mr-2" />
+                    Start Deployment
+                  </>
+                ) : scheduleType === "delayed" ? (
+                  <>
+                    <Clock className="w-4 h-4 mr-2" />
+                    Schedule Deployment
+                  </>
+                ) : (
+                  <>
+                    <Repeat className="w-4 h-4 mr-2" />
+                    Schedule Recurring
+                  </>
+                )}
               </Button>
             </DialogFooter>
           </form>
