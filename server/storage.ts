@@ -61,7 +61,7 @@ import {
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
-import { devices, images, deployments, activityLogs, serverStatus, users, passwordResetTokens, passwordHistory, multicastSessions, multicastParticipants } from "@shared/schema";
+import { devices, images, deployments, activityLogs, serverStatus, users, passwordResetTokens, passwordHistory, multicastSessions, multicastParticipants, roles, permissions, userRoles, rolePermissions } from "@shared/schema";
 import { eq, desc, and, or, count, sql } from "drizzle-orm";
 import { DeploymentScheduler } from "./scheduler";
 
@@ -2597,21 +2597,125 @@ export class DatabaseStorage implements IStorage {
     return user;
   }
   
-  async getRoles(): Promise<RoleWithPermissions[]> { return []; }
-  async getRole(id: string): Promise<RoleWithPermissions | undefined> { return undefined; }
-  async createRole(role: InsertRole): Promise<Role> { throw new Error("Not implemented"); }
-  async updateRole(id: string, role: Partial<InsertRole>): Promise<Role | undefined> { return undefined; }
-  async deleteRole(id: string): Promise<boolean> { return false; }
-  async getPermissions(): Promise<Permission[]> { return []; }
-  async getPermission(id: string): Promise<Permission | undefined> { return undefined; }
-  async createPermission(permission: InsertPermission): Promise<Permission> { throw new Error("Not implemented"); }
-  async deletePermission(id: string): Promise<boolean> { return false; }
-  async getUserRoles(userId: string): Promise<UserRole[]> { return []; }
-  async assignUserRole(userRole: InsertUserRole): Promise<UserRole> { throw new Error("Not implemented"); }
-  async removeUserRole(userId: string, roleId: string): Promise<boolean> { return false; }
-  async getRolePermissions(roleId: string): Promise<RolePermission[]> { return []; }
-  async assignRolePermission(rolePermission: InsertRolePermission): Promise<RolePermission> { throw new Error("Not implemented"); }
-  async removeRolePermission(roleId: string, permissionId: string): Promise<boolean> { return false; }
+  // RBAC - Roles
+  async getRoles(): Promise<RoleWithPermissions[]> {
+    const allRoles = await db.select().from(roles);
+    const rolesWithPermissions: RoleWithPermissions[] = [];
+
+    for (const role of allRoles) {
+      const rolePerms = await db
+        .select({
+          id: permissions.id,
+          resource: permissions.resource,
+          action: permissions.action,
+          description: permissions.description,
+        })
+        .from(rolePermissions)
+        .innerJoin(permissions, eq(rolePermissions.permissionId, permissions.id))
+        .where(eq(rolePermissions.roleId, role.id));
+
+      rolesWithPermissions.push({
+        ...role,
+        permissions: rolePerms,
+      });
+    }
+
+    return rolesWithPermissions;
+  }
+
+  async getRole(id: string): Promise<RoleWithPermissions | undefined> {
+    const [role] = await db.select().from(roles).where(eq(roles.id, id)).limit(1);
+    if (!role) return undefined;
+
+    const rolePerms = await db
+      .select({
+        id: permissions.id,
+        resource: permissions.resource,
+        action: permissions.action,
+        description: permissions.description,
+      })
+      .from(rolePermissions)
+      .innerJoin(permissions, eq(rolePermissions.permissionId, permissions.id))
+      .where(eq(rolePermissions.roleId, id));
+
+    return {
+      ...role,
+      permissions: rolePerms,
+    };
+  }
+
+  async createRole(insertRole: InsertRole): Promise<Role> {
+    const [role] = await db.insert(roles).values(insertRole).returning();
+    return role;
+  }
+
+  async updateRole(id: string, updateData: Partial<InsertRole>): Promise<Role | undefined> {
+    const [role] = await db
+      .update(roles)
+      .set(updateData)
+      .where(eq(roles.id, id))
+      .returning();
+    return role;
+  }
+
+  async deleteRole(id: string): Promise<boolean> {
+    const result = await db.delete(roles).where(eq(roles.id, id));
+    return result.rowCount ? result.rowCount > 0 : false;
+  }
+
+  // RBAC - Permissions
+  async getPermissions(): Promise<Permission[]> {
+    return await db.select().from(permissions);
+  }
+
+  async getPermission(id: string): Promise<Permission | undefined> {
+    const [permission] = await db.select().from(permissions).where(eq(permissions.id, id)).limit(1);
+    return permission;
+  }
+
+  async createPermission(insertPermission: InsertPermission): Promise<Permission> {
+    const [permission] = await db.insert(permissions).values(insertPermission).returning();
+    return permission;
+  }
+
+  async deletePermission(id: string): Promise<boolean> {
+    const result = await db.delete(permissions).where(eq(permissions.id, id));
+    return result.rowCount ? result.rowCount > 0 : false;
+  }
+
+  // RBAC - User-Role Assignments
+  async getUserRoles(userId: string): Promise<UserRole[]> {
+    return await db.select().from(userRoles).where(eq(userRoles.userId, userId));
+  }
+
+  async assignUserRole(insertUserRole: InsertUserRole): Promise<UserRole> {
+    const [userRole] = await db.insert(userRoles).values(insertUserRole).returning();
+    return userRole;
+  }
+
+  async removeUserRole(userId: string, roleId: string): Promise<boolean> {
+    const result = await db
+      .delete(userRoles)
+      .where(and(eq(userRoles.userId, userId), eq(userRoles.roleId, roleId)));
+    return result.rowCount ? result.rowCount > 0 : false;
+  }
+
+  // RBAC - Role-Permission Assignments
+  async getRolePermissions(roleId: string): Promise<RolePermission[]> {
+    return await db.select().from(rolePermissions).where(eq(rolePermissions.roleId, roleId));
+  }
+
+  async assignRolePermission(insertRolePermission: InsertRolePermission): Promise<RolePermission> {
+    const [rolePermission] = await db.insert(rolePermissions).values(insertRolePermission).returning();
+    return rolePermission;
+  }
+
+  async removeRolePermission(roleId: string, permissionId: string): Promise<boolean> {
+    const result = await db
+      .delete(rolePermissions)
+      .where(and(eq(rolePermissions.roleId, roleId), eq(rolePermissions.permissionId, permissionId)));
+    return result.rowCount ? result.rowCount > 0 : false;
+  }
   async getTemplates(): Promise<DeploymentTemplateWithDetails[]> { return []; }
   async getTemplate(id: string): Promise<DeploymentTemplateWithDetails | undefined> { return undefined; }
   async createTemplate(template: InsertDeploymentTemplate): Promise<DeploymentTemplate> { throw new Error("Not implemented"); }
