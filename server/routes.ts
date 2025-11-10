@@ -1534,6 +1534,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // User-Role Assignment endpoints
+  app.get("/api/users/:userId/roles", isAuthenticated, requirePermission("users", "read"), async (req, res) => {
+    try {
+      const userRoles = await storage.getUserRoles(req.params.userId);
+      res.json(userRoles);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch user roles" });
+    }
+  });
+
   app.post("/api/users/:userId/roles", isAuthenticated, requirePermission("users", "manage-roles"), async (req, res) => {
     try {
       const { roleId } = req.body;
