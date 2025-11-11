@@ -2593,10 +2593,25 @@ export class DatabaseStorage implements IStorage {
   
   async upsertUser(userData: UpsertUser): Promise<User> {
     // Auto-generate username from email if not provided
-    const username = userData.username || (userData.email ? userData.email.split('@')[0] : undefined);
+    let username = userData.username || (userData.email ? userData.email.split('@')[0] : undefined);
     const fullName = userData.fullName || (userData.firstName && userData.lastName 
       ? `${userData.firstName} ${userData.lastName}` 
       : undefined);
+    
+    // Check if username already exists for a different user
+    if (username) {
+      const existingUsers = await db
+        .select()
+        .from(users)
+        .where(eq(users.username, username));
+      
+      // If username exists and belongs to a different user, make it unique
+      if (existingUsers.length > 0 && existingUsers[0].id !== userData.id) {
+        // Append suffix based on user ID to ensure uniqueness
+        const suffix = userData.id.substring(0, 6);
+        username = `${username}-${suffix}`;
+      }
+    }
     
     const [user] = await db
       .insert(users)
