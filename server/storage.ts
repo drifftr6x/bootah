@@ -89,7 +89,7 @@ import {
 import { randomUUID } from "crypto";
 import { db } from "./db";
 import { devices, images, deployments, activityLogs, serverStatus, users, passwordResetTokens, passwordHistory, multicastSessions, multicastParticipants, roles, permissions, userRoles, rolePermissions, networkSegments, deviceConnections, topologySnapshots, postDeploymentProfiles, snapinPackages, hostnamePatterns, domainJoinConfigs, productKeys, customScripts, postDeploymentTasks, taskRuns, profileDeploymentBindings } from "@shared/schema";
-import { eq, desc, and, or, count, sql } from "drizzle-orm";
+import { eq, desc, and, or, count, sql, inArray } from "drizzle-orm";
 import { DeploymentScheduler } from "./scheduler";
 import { encrypt, decrypt } from "./encryption";
 
@@ -2156,6 +2156,37 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteDevice(id: string): Promise<boolean> {
+    // Delete all related records to avoid foreign key constraint violations
+    // Order matters: delete child records before parents
+    
+    // 1. Delete multicast participants (references devices)
+    await db.delete(multicastParticipants).where(eq(multicastParticipants.deviceId, id));
+    
+    // 2. Delete ALL activity logs related to this device first (by deviceId AND by deploymentId)
+    //    This must happen before deleting deployments because activity_logs.deploymentId references deployments.id
+    const deviceDeployments = await db.select({ id: deployments.id }).from(deployments).where(eq(deployments.deviceId, id));
+    const deploymentIds = deviceDeployments.map(d => d.id);
+    
+    // Delete activity logs by deviceId
+    await db.delete(activityLogs).where(eq(activityLogs.deviceId, id));
+    
+    // Delete activity logs by deploymentId for all deployments of this device
+    if (deploymentIds.length > 0) {
+      await db.delete(activityLogs).where(inArray(activityLogs.deploymentId, deploymentIds));
+    }
+    
+    // 3. Now safe to delete deployments (which will cascade delete profile_deployment_bindings and task_runs)
+    await db.delete(deployments).where(eq(deployments.deviceId, id));
+    
+    // 4. Delete device connections where this device is source or target
+    await db.delete(deviceConnections).where(
+      or(
+        eq(deviceConnections.sourceDeviceId, id),
+        eq(deviceConnections.targetDeviceId, id)
+      )
+    );
+    
+    // 5. Finally delete the device
     const result = await db.delete(devices).where(eq(devices.id, id));
     return result.rowCount ? result.rowCount > 0 : false;
   }
@@ -2185,6 +2216,33 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteImage(id: string): Promise<boolean> {
+    // Delete all related records to avoid foreign key constraint violations
+    // Order matters: delete child records before parents
+    
+    // 1. Get all deployments and multicast participants that reference this image
+    const imageDeployments = await db.select({ id: deployments.id }).from(deployments).where(eq(deployments.imageId, id));
+    const deploymentIds = imageDeployments.map(d => d.id);
+    
+    // 2. Delete activity logs for these deployments
+    if (deploymentIds.length > 0) {
+      await db.delete(activityLogs).where(inArray(activityLogs.deploymentId, deploymentIds));
+    }
+    
+    // 3. Delete all deployments that reference this image
+    await db.delete(deployments).where(eq(deployments.imageId, id));
+    
+    // 4. Delete multicast participants for sessions using this image
+    const imageSessions = await db.select({ id: multicastSessions.id }).from(multicastSessions).where(eq(multicastSessions.imageId, id));
+    const sessionIds = imageSessions.map(s => s.id);
+    
+    if (sessionIds.length > 0) {
+      await db.delete(multicastParticipants).where(inArray(multicastParticipants.sessionId, sessionIds));
+    }
+    
+    // 5. Delete multicast sessions that reference this image
+    await db.delete(multicastSessions).where(eq(multicastSessions.imageId, id));
+    
+    // 6. Finally delete the image
     const result = await db.delete(images).where(eq(images.id, id));
     return result.rowCount ? result.rowCount > 0 : false;
   }

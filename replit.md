@@ -6,6 +6,18 @@ Bootah is a modern, lightweight PXE server and OS imaging platform designed for 
 
 ## Recent Changes
 
+### Data Integrity and UX Improvements (November 11, 2025)
+- **Confirmation Dialogs**: Added reusable ConfirmDialog component for all destructive actions (delete devices, images, deployments, profiles)
+- **Graceful Shutdown**: Implemented SIGTERM/SIGINT handlers with proper cleanup of database connections, WebSocket, PXE servers, and simulators
+- **Deployment Simulator**: Enhanced to honor stage.delayMs timing with realistic 14-second progression using per-deployment state tracking
+- **RBAC Configuration**: Implemented configurable DEFAULT_USER_ROLE environment variable with validation and fallback to "viewer" for production security
+- **Foreign Key Cascading Deletes**: 
+  - Device deletion: Properly cascades through multicast_participants → activity_logs (by deviceId and deploymentId) → deployments → device_connections → device
+  - Image deletion: Properly cascades through activity_logs (by deploymentId) → deployments → multicast_participants → multicast_sessions → image
+  - Uses Drizzle's `inArray` and `or` helpers for safe SQL parameter handling
+- **API Request Fix**: Corrected apiRequest signature in Images page from fetch API style to proper `apiRequest(method, url, data)` format
+- **Status**: All improvements tested end-to-end with Playwright. Device and image deletions working correctly with no FK constraint violations
+
 ### Multicast Deployment Feature (November 10, 2025)
 - **Multicast Sessions Management**: Created comprehensive multicast deployment infrastructure for simultaneously deploying OS images to multiple devices
 - **Database Schema**: Added `multicast_sessions` and `multicast_participants` tables with performance indexes, unique constraints, and metrics tracking (bytesTransmitted, throughput)

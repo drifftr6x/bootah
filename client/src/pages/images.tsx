@@ -105,10 +105,7 @@ export default function ImagesPage() {
   // Mutations
   const createImageMutation = useMutation({
     mutationFn: async (data: ImageFormData) => {
-      return await apiRequest('/api/images', {
-        method: 'POST',
-        body: data
-      });
+      return await apiRequest('POST', '/api/images', data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/images"] });
@@ -118,9 +115,7 @@ export default function ImagesPage() {
 
   const deleteImageMutation = useMutation({
     mutationFn: async (id: string) => {
-      return await apiRequest(`/api/images/${id}`, {
-        method: 'DELETE'
-      });
+      return await apiRequest('DELETE', `/api/images/${id}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/images"] });
@@ -199,10 +194,7 @@ export default function ImagesPage() {
   // Cloud storage mutation for uploading OS images
   const cloudUploadMutation = useMutation({
     mutationFn: async ({ imageId, cloudUrl }: { imageId: string; cloudUrl: string }) => {
-      return await apiRequest(`/api/images/${imageId}/cloud-upload`, {
-        method: 'PUT',
-        body: { cloudUrl }
-      });
+      return await apiRequest('PUT', `/api/images/${imageId}/cloud-upload`, { cloudUrl });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/images"] });

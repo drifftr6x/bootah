@@ -30,6 +30,10 @@ export function ConfirmDialog({
   cancelText = "Cancel",
   variant = "destructive",
 }: ConfirmDialogProps) {
+  const handleConfirm = () => {
+    onConfirm();
+  };
+
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent data-testid="confirm-dialog">
@@ -43,7 +47,7 @@ export function ConfirmDialog({
           <AlertDialogCancel data-testid="button-cancel-confirm">{cancelText}</AlertDialogCancel>
           <AlertDialogAction
             data-testid="button-confirm-action"
-            onClick={onConfirm}
+            onClick={handleConfirm}
             className={variant === "destructive" ? "bg-destructive hover:bg-destructive/90" : ""}
           >
             {confirmText}
