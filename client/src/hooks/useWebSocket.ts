@@ -67,8 +67,29 @@ export function useWebSocket() {
         queryClient.setQueryData(["/api/devices"], message.data);
         queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
         break;
+      case 'deployment_progress':
+        // Deployment progress update - invalidate deployment queries
+        queryClient.invalidateQueries({ queryKey: ["/api/deployments"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/deployments/active"] });
+        break;
+      case 'capture_progress':
+        // Image capture progress update
+        queryClient.invalidateQueries({ queryKey: ["/api/images"] });
+        break;
+      case 'activity':
+        // Activity log update
+        queryClient.invalidateQueries({ queryKey: ["/api/activity"] });
+        break;
+      case 'post_deployment_update':
+      case 'post_deployment_task_update':
+      case 'post_deployment_binding_update':
+        // Post-deployment automation updates
+        queryClient.invalidateQueries({ queryKey: ["/api/post-deployment"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/deployments"] });
+        break;
       default:
-        console.log('Unknown WebSocket message type:', message.type);
+        // Silently ignore unknown message types (they may be for other components)
+        break;
     }
   };
 

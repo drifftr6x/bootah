@@ -131,23 +131,23 @@ export default function Sidebar() {
           const Icon = item.icon;
           
           return (
-            <Link key={item.name} href={item.href}>
-              <a
-                data-testid={`nav-${item.name.toLowerCase().replace(/\s+/g, "-")}`}
-                className={cn(
-                  "flex items-center rounded-md text-sm font-medium transition-colors",
-                  isCollapsed 
-                    ? "justify-center p-2 h-10 w-10 mx-auto" 
-                    : "space-x-3 px-3 py-2",
-                  isActive
-                    ? "bg-sidebar-primary text-sidebar-primary-foreground"
-                    : "text-muted-foreground hover:text-sidebar-foreground hover:bg-sidebar-accent"
-                )}
-                title={isCollapsed ? item.name : undefined}
-              >
-                <Icon className={cn("w-5 h-5", isCollapsed ? "flex-shrink-0" : "")} />
-                {!isCollapsed && <span>{item.name}</span>}
-              </a>
+            <Link 
+              key={item.name} 
+              href={item.href}
+              data-testid={`nav-${item.name.toLowerCase().replace(/\s+/g, "-")}`}
+              className={cn(
+                "flex items-center rounded-md text-sm font-medium transition-colors",
+                isCollapsed 
+                  ? "justify-center p-2 h-10 w-10 mx-auto" 
+                  : "space-x-3 px-3 py-2",
+                isActive
+                  ? "bg-sidebar-primary text-sidebar-primary-foreground"
+                  : "text-muted-foreground hover:text-sidebar-foreground hover:bg-sidebar-accent"
+              )}
+              title={isCollapsed ? item.name : undefined}
+            >
+              <Icon className={cn("w-5 h-5", isCollapsed ? "flex-shrink-0" : "")} />
+              {!isCollapsed && <span>{item.name}</span>}
             </Link>
           );
         })}
