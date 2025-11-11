@@ -2239,9 +2239,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ==========================================
   
   // Get all users (admin only)
-  app.get("/api/admin/users", isAuthenticated, async (req: any, res) => {
+  app.get("/api/admin/users", isAuthenticated, requirePermission("users", "read"), async (req: any, res) => {
     try {
-      // TODO: Add role-based authorization check
       const users = await storage.getUsers();
       res.json(users);
     } catch (error) {
@@ -2251,7 +2250,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Create new user (admin only)
-  app.post("/api/admin/users", isAuthenticated, async (req: any, res) => {
+  app.post("/api/admin/users", isAuthenticated, requirePermission("users", "create"), async (req: any, res) => {
     try {
       const userData = insertUserSchema.parse(req.body);
       const user = await storage.createUser(userData);
@@ -2266,7 +2265,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Update user (admin only)
-  app.put("/api/admin/users/:id", isAuthenticated, async (req: any, res) => {
+  app.put("/api/admin/users/:id", isAuthenticated, requirePermission("users", "update"), async (req: any, res) => {
     try {
       const userData = insertUserSchema.partial().parse(req.body);
       const user = await storage.updateUser(req.params.id, userData);
@@ -2281,7 +2280,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Delete user (admin only)
-  app.delete("/api/admin/users/:id", isAuthenticated, async (req: any, res) => {
+  app.delete("/api/admin/users/:id", isAuthenticated, requirePermission("users", "delete"), async (req: any, res) => {
     try {
       const deleted = await storage.deleteUser(req.params.id);
       if (!deleted) {
@@ -2295,7 +2294,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Toggle user active status (admin only)
-  app.post("/api/admin/users/:id/toggle-active", isAuthenticated, async (req: any, res) => {
+  app.post("/api/admin/users/:id/toggle-active", isAuthenticated, requirePermission("users", "update"), async (req: any, res) => {
     try {
       const user = await storage.toggleUserActive(req.params.id);
       if (!user) {
@@ -2309,7 +2308,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Bulk CSV user import (admin only)
-  app.post("/api/admin/users/import-csv", isAuthenticated, async (req: any, res) => {
+  app.post("/api/admin/users/import-csv", isAuthenticated, requirePermission("users", "create"), async (req: any, res) => {
     try {
       const { csvData } = req.body;
       if (!csvData || !Array.isArray(csvData)) {
