@@ -1759,6 +1759,59 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Test-only bootstrap endpoint for E2E testing
+  app.post("/api/test/promote-to-admin", isAuthenticated, async (req, res) => {
+    if (process.env.NODE_ENV !== 'development') {
+      return res.status(403).json({ message: "Test endpoints are only available in development mode" });
+    }
+
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({ message: "User not authenticated or user ID not available" });
+    }
+
+    const userId = req.user.id;
+    
+    if (!userId.startsWith('test-')) {
+      return res.status(403).json({ message: "Only test users can be promoted via this endpoint" });
+    }
+
+    try {
+      const roles = await storage.getRoles();
+      const adminRole = roles.find(r => r.name === 'admin');
+      
+      if (!adminRole) {
+        return res.status(500).json({ message: "Admin role not found" });
+      }
+
+      const existingRoles = await storage.getUserRoles(userId);
+      const hasAdminRole = existingRoles.some(r => r.id === adminRole.id);
+      
+      if (hasAdminRole) {
+        return res.json({ message: "User already has admin role" });
+      }
+
+      await storage.assignUserRole({
+        userId,
+        roleId: adminRole.id,
+        assignedBy: null,
+      });
+
+      await storage.createAuditLog({
+        action: "test_promote_to_admin",
+        resource: "user_role",
+        resourceId: userId,
+        userId: "test-system",
+        details: JSON.stringify({ userId, environment: process.env.NODE_ENV }),
+      });
+
+      console.log(`[Test] Promoted test user ${userId} to admin role`);
+      res.json({ message: "Successfully promoted to admin role" });
+    } catch (error) {
+      console.error("[Test] Error promoting user to admin:", error);
+      res.status(500).json({ message: "Failed to promote user to admin" });
+    }
+  });
+
   // Role-Permission Assignment endpoints
   app.post("/api/roles/:roleId/permissions", isAuthenticated, requireRole("admin"), async (req, res) => {
     try {

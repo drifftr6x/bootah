@@ -2746,6 +2746,22 @@ export class DatabaseStorage implements IStorage {
   }
   
   async upsertUser(userData: UpsertUser): Promise<User> {
+    // Check if a user with this email already exists (for OIDC integration)
+    if (userData.email) {
+      const existingUserWithEmail = await db
+        .select()
+        .from(users)
+        .where(eq(users.email, userData.email))
+        .limit(1);
+      
+      // If email exists for a different user, update that user's ID to match OIDC sub
+      if (existingUserWithEmail.length > 0 && existingUserWithEmail[0].id !== userData.id) {
+        const existingUser = existingUserWithEmail[0];
+        // Delete the existing user and let the insert below create the new one
+        await db.delete(users).where(eq(users.id, existingUser.id));
+      }
+    }
+    
     // Auto-generate username from email if not provided
     let username = userData.username || (userData.email ? userData.email.split('@')[0] : undefined);
     const fullName = userData.fullName || (userData.firstName && userData.lastName 
