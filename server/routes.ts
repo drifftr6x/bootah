@@ -7,6 +7,7 @@ import { imagingEngine } from "./imaging-engine";
 import { setupAuth, isAuthenticated } from "./replitAuth";
 import { initializeRbacDefaults } from "./rbacSeed";
 import { requireRole, requirePermission, requireAnyPermission } from "./authMiddleware";
+import { maskSecret } from "./encryption";
 import { 
   insertDeviceSchema, 
   insertImageSchema, 
@@ -27,7 +28,16 @@ import {
   insertTemplateDeploymentSchema,
   insertAuditLogSchema,
   insertMulticastSessionSchema,
-  insertMulticastParticipantSchema
+  insertMulticastParticipantSchema,
+  insertPostDeploymentProfileSchema,
+  insertSnapinPackageSchema,
+  insertHostnamePatternSchema,
+  insertDomainJoinConfigSchema,
+  insertProductKeySchema,
+  insertCustomScriptSchema,
+  insertPostDeploymentTaskSchema,
+  insertTaskRunSchema,
+  insertProfileDeploymentBindingSchema
 } from "@shared/schema";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -551,7 +561,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         status,
         nextRunAt,
         startedAt,
-        createdBy: req.user?.id,
+        createdBy: (req as any).user?.claims.sub,
       });
       
       // Only update device status and start immediately for instant deployments
@@ -594,7 +604,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.put("/api/deployments/:id", isAuthenticated, requirePermission("deployments", "update"), async (req, res) => {
     try {
-      const deploymentData = insertDeploymentSchema.partial().parse(req.body);
+      const deploymentData = req.body;
       const deployment = await storage.updateDeployment(req.params.id, deploymentData);
       if (!deployment) {
         return res.status(404).json({ message: "Deployment not found" });
@@ -752,7 +762,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const session = await storage.createMulticastSession({
         ...sessionData,
         multicastAddress,
-        createdBy: req.user?.id,
+        createdBy: (req as any).user?.claims.sub,
       });
       
       // Log session creation
@@ -1001,7 +1011,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         snapshotData: topologyData,
         deviceCount: topologyData.nodes.length,
         connectionCount: topologyData.edges.length,
-        createdBy: req.user?.id
+        createdBy: (req as any).user?.claims.sub
       });
       
       const snapshot = await storage.createTopologySnapshot(snapshotData);
@@ -1441,8 +1451,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Log user creation
       await storage.createAuditLog({
         action: "create_user",
-        entity: "user",
-        entityId: user.id,
+        resource: "user",
+        resourceId: user.id,
         userId: user.id, // In real implementation, this would be the current authenticated user
         details: JSON.stringify({ username: user.username, email: user.email }),
       });
@@ -1464,8 +1474,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Log user update
       await storage.createAuditLog({
         action: "update_user",
-        entity: "user",
-        entityId: user.id,
+        resource: "user",
+        resourceId: user.id,
         userId: user.id, // In real implementation, this would be the current authenticated user
         details: JSON.stringify(userData),
       });
@@ -1491,8 +1501,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Log user deletion
       await storage.createAuditLog({
         action: "delete_user",
-        entity: "user",
-        entityId: req.params.id,
+        resource: "user",
+        resourceId: req.params.id,
         userId: req.params.id, // In real implementation, this would be the current authenticated user
         details: JSON.stringify({ username: user.username }),
       });
@@ -1513,8 +1523,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Log user status change
       await storage.createAuditLog({
         action: user.isActive ? "activate_user" : "deactivate_user",
-        entity: "user",
-        entityId: user.id,
+        resource: "user",
+        resourceId: user.id,
         userId: user.id, // In real implementation, this would be the current authenticated user
         details: JSON.stringify({ isActive: user.isActive }),
       });
@@ -1555,8 +1565,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Log role creation
       await storage.createAuditLog({
         action: "create_role",
-        entity: "role",
-        entityId: role.id,
+        resource: "role",
+        resourceId: role.id,
         userId: "system", // In real implementation, this would be the current authenticated user
         details: JSON.stringify({ name: role.name, description: role.description }),
       });
@@ -1578,8 +1588,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Log role update
       await storage.createAuditLog({
         action: "update_role",
-        entity: "role",
-        entityId: role.id,
+        resource: "role",
+        resourceId: role.id,
         userId: "system", // In real implementation, this would be the current authenticated user
         details: JSON.stringify(roleData),
       });
@@ -1605,8 +1615,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Log role deletion
       await storage.createAuditLog({
         action: "delete_role",
-        entity: "role",
-        entityId: req.params.id,
+        resource: "role",
+        resourceId: req.params.id,
         userId: "system", // In real implementation, this would be the current authenticated user
         details: JSON.stringify({ name: role.name }),
       });
@@ -1658,8 +1668,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Log role assignment
       await storage.createAuditLog({
         action: "assign_user_role",
-        entity: "user_role",
-        entityId: userRole.id,
+        resource: "user_role",
+        resourceId: userRole.id,
         userId: "system", // In real implementation, this would be the current authenticated user
         details: JSON.stringify({ userId: req.params.userId, roleId }),
       });
@@ -1680,8 +1690,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Log role removal
       await storage.createAuditLog({
         action: "remove_user_role",
-        entity: "user_role",
-        entityId: `${req.params.userId}-${req.params.roleId}`,
+        resource: "user_role",
+        resourceId: `${req.params.userId}-${req.params.roleId}`,
         userId: "system", // In real implementation, this would be the current authenticated user
         details: JSON.stringify({ userId: req.params.userId, roleId: req.params.roleId }),
       });
@@ -1748,8 +1758,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Log template creation
       await storage.createAuditLog({
         action: "create_template",
-        entity: "template",
-        entityId: template.id,
+        resource: "template",
+        resourceId: template.id,
         userId: template.createdBy,
         details: JSON.stringify({ name: template.name }),
       });
@@ -1771,8 +1781,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Log template update
       await storage.createAuditLog({
         action: "update_template",
-        entity: "template",
-        entityId: template.id,
+        resource: "template",
+        resourceId: template.id,
         userId: template.createdBy,
         details: JSON.stringify(templateData),
       });
@@ -1798,8 +1808,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Log template deletion
       await storage.createAuditLog({
         action: "delete_template",
-        entity: "template",
-        entityId: req.params.id,
+        resource: "template",
+        resourceId: req.params.id,
         userId: template.createdBy,
         details: JSON.stringify({ name: template.name }),
       });
@@ -1825,8 +1835,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Log template duplication
       await storage.createAuditLog({
         action: "duplicate_template",
-        entity: "template",
-        entityId: duplicatedTemplate.id,
+        resource: "template",
+        resourceId: duplicatedTemplate.id,
         userId: duplicatedTemplate.createdBy,
         details: JSON.stringify({ originalId: req.params.id, newName: name }),
       });
@@ -2022,7 +2032,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Update the image record with cloud storage URL
       const image = await storage.updateImage(req.params.id, { 
-        path: objectPath,
         cloudUrl: cloudUrl
       });
       
@@ -2348,6 +2357,598 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error importing users:", error);
       res.status(500).json({ message: "Failed to import users" });
+    }
+  });
+
+  // ==========================================
+  // Post-Deployment Automation Routes
+  // ==========================================
+
+  // 1. Post-Deployment Profiles (5 routes)
+  
+  app.get("/api/post-deployment/profiles", isAuthenticated, requirePermission("configuration", "read"), async (req, res) => {
+    try {
+      const profiles = await storage.getPostDeploymentProfiles();
+      res.json(profiles);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch profiles", error: String(error) });
+    }
+  });
+
+  app.get("/api/post-deployment/profiles/:id", isAuthenticated, requirePermission("configuration", "read"), async (req, res) => {
+    try {
+      const profile = await storage.getPostDeploymentProfile(req.params.id);
+      if (!profile) {
+        return res.status(404).json({ message: "Profile not found" });
+      }
+      res.json(profile);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch profile", error: String(error) });
+    }
+  });
+
+  app.post("/api/post-deployment/profiles", isAuthenticated, requirePermission("configuration", "update"), async (req, res) => {
+    try {
+      const profileData = insertPostDeploymentProfileSchema.parse(req.body);
+      const profile = await storage.createPostDeploymentProfile({
+        ...profileData,
+        createdBy: (req as any).user?.claims.sub,
+      });
+      res.status(201).json(profile);
+    } catch (error) {
+      res.status(400).json({ message: "Invalid profile data", error: String(error) });
+    }
+  });
+
+  app.patch("/api/post-deployment/profiles/:id", isAuthenticated, requirePermission("configuration", "update"), async (req, res) => {
+    try {
+      const profileData = insertPostDeploymentProfileSchema.partial().parse(req.body);
+      const profile = await storage.updatePostDeploymentProfile(req.params.id, profileData);
+      if (!profile) {
+        return res.status(404).json({ message: "Profile not found" });
+      }
+      res.json(profile);
+    } catch (error) {
+      res.status(400).json({ message: "Invalid profile data", error: String(error) });
+    }
+  });
+
+  app.delete("/api/post-deployment/profiles/:id", isAuthenticated, requirePermission("configuration", "update"), async (req, res) => {
+    try {
+      const deleted = await storage.deletePostDeploymentProfile(req.params.id);
+      if (!deleted) {
+        return res.status(404).json({ message: "Profile not found" });
+      }
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ message: "Failed to delete profile", error: String(error) });
+    }
+  });
+
+  // 2. Snapin Packages (6 routes)
+
+  app.get("/api/post-deployment/snapins", isAuthenticated, requirePermission("configuration", "read"), async (req, res) => {
+    try {
+      const snapins = await storage.getSnapinPackages();
+      res.json(snapins);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch snapins", error: String(error) });
+    }
+  });
+
+  app.get("/api/post-deployment/snapins/active", isAuthenticated, requirePermission("configuration", "read"), async (req, res) => {
+    try {
+      const snapins = await storage.getActiveSnapinPackages();
+      res.json(snapins);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch active snapins", error: String(error) });
+    }
+  });
+
+  app.get("/api/post-deployment/snapins/:id", isAuthenticated, requirePermission("configuration", "read"), async (req, res) => {
+    try {
+      const snapin = await storage.getSnapinPackage(req.params.id);
+      if (!snapin) {
+        return res.status(404).json({ message: "Snapin not found" });
+      }
+      res.json(snapin);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch snapin", error: String(error) });
+    }
+  });
+
+  app.post("/api/post-deployment/snapins", isAuthenticated, requirePermission("configuration", "update"), async (req, res) => {
+    try {
+      const snapinData = insertSnapinPackageSchema.parse(req.body);
+      const snapin = await storage.createSnapinPackage({
+        ...snapinData,
+        createdBy: (req as any).user?.claims.sub,
+      });
+      res.status(201).json(snapin);
+    } catch (error) {
+      res.status(400).json({ message: "Invalid snapin data", error: String(error) });
+    }
+  });
+
+  app.patch("/api/post-deployment/snapins/:id", isAuthenticated, requirePermission("configuration", "update"), async (req, res) => {
+    try {
+      const snapinData = insertSnapinPackageSchema.partial().parse(req.body);
+      const snapin = await storage.updateSnapinPackage(req.params.id, snapinData);
+      if (!snapin) {
+        return res.status(404).json({ message: "Snapin not found" });
+      }
+      res.json(snapin);
+    } catch (error) {
+      res.status(400).json({ message: "Invalid snapin data", error: String(error) });
+    }
+  });
+
+  app.delete("/api/post-deployment/snapins/:id", isAuthenticated, requirePermission("configuration", "update"), async (req, res) => {
+    try {
+      const deleted = await storage.deleteSnapinPackage(req.params.id);
+      if (!deleted) {
+        return res.status(404).json({ message: "Snapin not found" });
+      }
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ message: "Failed to delete snapin", error: String(error) });
+    }
+  });
+
+  // 3. Hostname Patterns (6 routes)
+
+  app.get("/api/post-deployment/hostname-patterns", isAuthenticated, requirePermission("configuration", "read"), async (req, res) => {
+    try {
+      const patterns = await storage.getHostnamePatterns();
+      res.json(patterns);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch hostname patterns", error: String(error) });
+    }
+  });
+
+  app.get("/api/post-deployment/hostname-patterns/active", isAuthenticated, requirePermission("configuration", "read"), async (req, res) => {
+    try {
+      const patterns = await storage.getActiveHostnamePatterns();
+      res.json(patterns);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch active hostname patterns", error: String(error) });
+    }
+  });
+
+  app.get("/api/post-deployment/hostname-patterns/:id", isAuthenticated, requirePermission("configuration", "read"), async (req, res) => {
+    try {
+      const pattern = await storage.getHostnamePattern(req.params.id);
+      if (!pattern) {
+        return res.status(404).json({ message: "Hostname pattern not found" });
+      }
+      res.json(pattern);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch hostname pattern", error: String(error) });
+    }
+  });
+
+  app.post("/api/post-deployment/hostname-patterns", isAuthenticated, requirePermission("configuration", "update"), async (req, res) => {
+    try {
+      const patternData = insertHostnamePatternSchema.parse(req.body);
+      const pattern = await storage.createHostnamePattern({
+        ...patternData,
+        createdBy: (req as any).user?.claims.sub,
+      });
+      res.status(201).json(pattern);
+    } catch (error) {
+      res.status(400).json({ message: "Invalid hostname pattern data", error: String(error) });
+    }
+  });
+
+  app.patch("/api/post-deployment/hostname-patterns/:id", isAuthenticated, requirePermission("configuration", "update"), async (req, res) => {
+    try {
+      const patternData = insertHostnamePatternSchema.partial().parse(req.body);
+      const pattern = await storage.updateHostnamePattern(req.params.id, patternData);
+      if (!pattern) {
+        return res.status(404).json({ message: "Hostname pattern not found" });
+      }
+      res.json(pattern);
+    } catch (error) {
+      res.status(400).json({ message: "Invalid hostname pattern data", error: String(error) });
+    }
+  });
+
+  app.delete("/api/post-deployment/hostname-patterns/:id", isAuthenticated, requirePermission("configuration", "update"), async (req, res) => {
+    try {
+      const deleted = await storage.deleteHostnamePattern(req.params.id);
+      if (!deleted) {
+        return res.status(404).json({ message: "Hostname pattern not found" });
+      }
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ message: "Failed to delete hostname pattern", error: String(error) });
+    }
+  });
+
+  // 4. Domain Join Configs (6 routes)
+
+  app.get("/api/post-deployment/domain-configs", isAuthenticated, requirePermission("configuration", "read"), async (req, res) => {
+    try {
+      const configs = await storage.getDomainJoinConfigs();
+      const masked = configs.map(c => ({
+        ...c,
+        passwordEncrypted: c.passwordEncrypted ? maskSecret(c.passwordEncrypted) : null,
+        usernameEncrypted: c.usernameEncrypted ? maskSecret(c.usernameEncrypted) : null
+      }));
+      res.json(masked);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch domain configs", error: String(error) });
+    }
+  });
+
+  app.get("/api/post-deployment/domain-configs/active", isAuthenticated, requirePermission("configuration", "read"), async (req, res) => {
+    try {
+      const configs = await storage.getActiveDomainJoinConfigs();
+      const masked = configs.map(c => ({
+        ...c,
+        passwordEncrypted: c.passwordEncrypted ? maskSecret(c.passwordEncrypted) : null,
+        usernameEncrypted: c.usernameEncrypted ? maskSecret(c.usernameEncrypted) : null
+      }));
+      res.json(masked);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch active domain configs", error: String(error) });
+    }
+  });
+
+  app.get("/api/post-deployment/domain-configs/:id", isAuthenticated, requirePermission("configuration", "read"), async (req, res) => {
+    try {
+      const config = await storage.getDomainJoinConfig(req.params.id);
+      if (!config) {
+        return res.status(404).json({ message: "Domain config not found" });
+      }
+      const masked = {
+        ...config,
+        passwordEncrypted: config.passwordEncrypted ? maskSecret(config.passwordEncrypted) : null,
+        usernameEncrypted: config.usernameEncrypted ? maskSecret(config.usernameEncrypted) : null
+      };
+      res.json(masked);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch domain config", error: String(error) });
+    }
+  });
+
+  app.post("/api/post-deployment/domain-configs", isAuthenticated, requirePermission("configuration", "update"), async (req, res) => {
+    try {
+      const configData = insertDomainJoinConfigSchema.parse(req.body);
+      const config = await storage.createDomainJoinConfig({
+        ...configData,
+        createdBy: (req as any).user?.claims.sub,
+      });
+      res.status(201).json(config);
+    } catch (error) {
+      res.status(400).json({ message: "Invalid domain config data", error: String(error) });
+    }
+  });
+
+  app.patch("/api/post-deployment/domain-configs/:id", isAuthenticated, requirePermission("configuration", "update"), async (req, res) => {
+    try {
+      const configData = insertDomainJoinConfigSchema.partial().parse(req.body);
+      const config = await storage.updateDomainJoinConfig(req.params.id, configData);
+      if (!config) {
+        return res.status(404).json({ message: "Domain config not found" });
+      }
+      res.json(config);
+    } catch (error) {
+      res.status(400).json({ message: "Invalid domain config data", error: String(error) });
+    }
+  });
+
+  app.delete("/api/post-deployment/domain-configs/:id", isAuthenticated, requirePermission("configuration", "update"), async (req, res) => {
+    try {
+      const deleted = await storage.deleteDomainJoinConfig(req.params.id);
+      if (!deleted) {
+        return res.status(404).json({ message: "Domain config not found" });
+      }
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ message: "Failed to delete domain config", error: String(error) });
+    }
+  });
+
+  app.get("/api/post-deployment/domain-configs/:id/reveal", isAuthenticated, requirePermission("users", "manage-roles"), async (req, res) => {
+    try {
+      const { id } = req.params;
+      const config = await storage.getDomainJoinConfig(id);
+      if (!config) {
+        return res.status(404).json({ message: "Domain config not found" });
+      }
+      res.json({ 
+        passwordEncrypted: config.passwordEncrypted,
+        usernameEncrypted: config.usernameEncrypted
+      });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to reveal domain credentials", error: String(error) });
+    }
+  });
+
+  // 5. Product Keys (6 routes)
+
+  app.get("/api/post-deployment/product-keys", isAuthenticated, requirePermission("configuration", "read"), async (req, res) => {
+    try {
+      const keys = await storage.getProductKeys();
+      const masked = keys.map(k => ({
+        ...k,
+        keyEncrypted: maskSecret(k.keyEncrypted)
+      }));
+      res.json(masked);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch product keys", error: String(error) });
+    }
+  });
+
+  app.get("/api/post-deployment/product-keys/active", isAuthenticated, requirePermission("configuration", "read"), async (req, res) => {
+    try {
+      const keys = await storage.getActiveProductKeys();
+      const masked = keys.map(k => ({
+        ...k,
+        keyEncrypted: maskSecret(k.keyEncrypted)
+      }));
+      res.json(masked);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch active product keys", error: String(error) });
+    }
+  });
+
+  app.get("/api/post-deployment/product-keys/:id", isAuthenticated, requirePermission("configuration", "read"), async (req, res) => {
+    try {
+      const key = await storage.getProductKey(req.params.id);
+      if (!key) {
+        return res.status(404).json({ message: "Product key not found" });
+      }
+      const masked = {
+        ...key,
+        keyEncrypted: maskSecret(key.keyEncrypted)
+      };
+      res.json(masked);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch product key", error: String(error) });
+    }
+  });
+
+  app.post("/api/post-deployment/product-keys", isAuthenticated, requirePermission("configuration", "update"), async (req, res) => {
+    try {
+      const keyData = insertProductKeySchema.parse(req.body);
+      const key = await storage.createProductKey({
+        ...keyData,
+        createdBy: (req as any).user?.claims.sub,
+      });
+      res.status(201).json(key);
+    } catch (error) {
+      res.status(400).json({ message: "Invalid product key data", error: String(error) });
+    }
+  });
+
+  app.patch("/api/post-deployment/product-keys/:id", isAuthenticated, requirePermission("configuration", "update"), async (req, res) => {
+    try {
+      const keyData = insertProductKeySchema.partial().parse(req.body);
+      const key = await storage.updateProductKey(req.params.id, keyData);
+      if (!key) {
+        return res.status(404).json({ message: "Product key not found" });
+      }
+      res.json(key);
+    } catch (error) {
+      res.status(400).json({ message: "Invalid product key data", error: String(error) });
+    }
+  });
+
+  app.delete("/api/post-deployment/product-keys/:id", isAuthenticated, requirePermission("configuration", "update"), async (req, res) => {
+    try {
+      const deleted = await storage.deleteProductKey(req.params.id);
+      if (!deleted) {
+        return res.status(404).json({ message: "Product key not found" });
+      }
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ message: "Failed to delete product key", error: String(error) });
+    }
+  });
+
+  app.get("/api/post-deployment/product-keys/:id/reveal", isAuthenticated, requirePermission("users", "manage-roles"), async (req, res) => {
+    try {
+      const { id } = req.params;
+      const key = await storage.getProductKey(id);
+      if (!key) {
+        return res.status(404).json({ message: "Product key not found" });
+      }
+      res.json({ keyEncrypted: key.keyEncrypted });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to reveal product key", error: String(error) });
+    }
+  });
+
+  // 6. Custom Scripts (6 routes)
+
+  app.get("/api/post-deployment/scripts", isAuthenticated, requirePermission("configuration", "read"), async (req, res) => {
+    try {
+      const scripts = await storage.getCustomScripts();
+      res.json(scripts);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch scripts", error: String(error) });
+    }
+  });
+
+  app.get("/api/post-deployment/scripts/active", isAuthenticated, requirePermission("configuration", "read"), async (req, res) => {
+    try {
+      const scripts = await storage.getActiveCustomScripts();
+      res.json(scripts);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch active scripts", error: String(error) });
+    }
+  });
+
+  app.get("/api/post-deployment/scripts/:id", isAuthenticated, requirePermission("configuration", "read"), async (req, res) => {
+    try {
+      const script = await storage.getCustomScript(req.params.id);
+      if (!script) {
+        return res.status(404).json({ message: "Script not found" });
+      }
+      res.json(script);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch script", error: String(error) });
+    }
+  });
+
+  app.post("/api/post-deployment/scripts", isAuthenticated, requirePermission("configuration", "update"), async (req, res) => {
+    try {
+      const scriptData = insertCustomScriptSchema.parse(req.body);
+      const script = await storage.createCustomScript({
+        ...scriptData,
+        createdBy: (req as any).user?.claims.sub,
+      });
+      res.status(201).json(script);
+    } catch (error) {
+      res.status(400).json({ message: "Invalid script data", error: String(error) });
+    }
+  });
+
+  app.patch("/api/post-deployment/scripts/:id", isAuthenticated, requirePermission("configuration", "update"), async (req, res) => {
+    try {
+      const scriptData = insertCustomScriptSchema.partial().parse(req.body);
+      const script = await storage.updateCustomScript(req.params.id, scriptData);
+      if (!script) {
+        return res.status(404).json({ message: "Script not found" });
+      }
+      res.json(script);
+    } catch (error) {
+      res.status(400).json({ message: "Invalid script data", error: String(error) });
+    }
+  });
+
+  app.delete("/api/post-deployment/scripts/:id", isAuthenticated, requirePermission("configuration", "update"), async (req, res) => {
+    try {
+      const deleted = await storage.deleteCustomScript(req.params.id);
+      if (!deleted) {
+        return res.status(404).json({ message: "Script not found" });
+      }
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ message: "Failed to delete script", error: String(error) });
+    }
+  });
+
+  // 7. Post-Deployment Tasks (5 routes)
+
+  app.get("/api/post-deployment/profiles/:profileId/tasks", isAuthenticated, requirePermission("configuration", "read"), async (req, res) => {
+    try {
+      const tasks = await storage.getPostDeploymentTasks(req.params.profileId);
+      res.json(tasks);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch tasks", error: String(error) });
+    }
+  });
+
+  app.get("/api/post-deployment/tasks/:id", isAuthenticated, requirePermission("configuration", "read"), async (req, res) => {
+    try {
+      const task = await storage.getPostDeploymentTask(req.params.id);
+      if (!task) {
+        return res.status(404).json({ message: "Task not found" });
+      }
+      res.json(task);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch task", error: String(error) });
+    }
+  });
+
+  app.post("/api/post-deployment/profiles/:profileId/tasks", isAuthenticated, requirePermission("configuration", "update"), async (req, res) => {
+    try {
+      const taskData = insertPostDeploymentTaskSchema.parse({
+        ...req.body,
+        profileId: req.params.profileId,
+      });
+      const task = await storage.createPostDeploymentTask(taskData);
+      res.status(201).json(task);
+    } catch (error) {
+      res.status(400).json({ message: "Invalid task data", error: String(error) });
+    }
+  });
+
+  app.patch("/api/post-deployment/tasks/:id", isAuthenticated, requirePermission("configuration", "update"), async (req, res) => {
+    try {
+      const taskData = insertPostDeploymentTaskSchema.partial().parse(req.body);
+      const task = await storage.updatePostDeploymentTask(req.params.id, taskData);
+      if (!task) {
+        return res.status(404).json({ message: "Task not found" });
+      }
+      res.json(task);
+    } catch (error) {
+      res.status(400).json({ message: "Invalid task data", error: String(error) });
+    }
+  });
+
+  app.delete("/api/post-deployment/tasks/:id", isAuthenticated, requirePermission("configuration", "update"), async (req, res) => {
+    try {
+      const deleted = await storage.deletePostDeploymentTask(req.params.id);
+      if (!deleted) {
+        return res.status(404).json({ message: "Task not found" });
+      }
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ message: "Failed to delete task", error: String(error) });
+    }
+  });
+
+  // 8. Task Runs (2 routes)
+
+  app.get("/api/deployments/:deploymentId/task-runs", isAuthenticated, requirePermission("deployments", "read"), async (req, res) => {
+    try {
+      const taskRuns = await storage.getTaskRuns(req.params.deploymentId);
+      res.json(taskRuns);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch task runs", error: String(error) });
+    }
+  });
+
+  app.get("/api/task-runs/:id", isAuthenticated, requirePermission("deployments", "read"), async (req, res) => {
+    try {
+      const taskRun = await storage.getTaskRun(req.params.id);
+      if (!taskRun) {
+        return res.status(404).json({ message: "Task run not found" });
+      }
+      res.json(taskRun);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch task run", error: String(error) });
+    }
+  });
+
+  // 9. Profile-Deployment Bindings (3 routes)
+
+  app.get("/api/deployments/:deploymentId/profiles", isAuthenticated, requirePermission("deployments", "read"), async (req, res) => {
+    try {
+      const bindings = await storage.getProfileDeploymentBindings(req.params.deploymentId);
+      res.json(bindings);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch profile bindings", error: String(error) });
+    }
+  });
+
+  app.post("/api/deployments/:deploymentId/profiles", isAuthenticated, requirePermission("deployments", "update"), async (req, res) => {
+    try {
+      const bindingData = insertProfileDeploymentBindingSchema.parse({
+        ...req.body,
+        deploymentId: req.params.deploymentId,
+      });
+      const binding = await storage.createProfileDeploymentBinding(bindingData);
+      res.status(201).json(binding);
+    } catch (error) {
+      res.status(400).json({ message: "Invalid binding data", error: String(error) });
+    }
+  });
+
+  app.patch("/api/profile-deployment-bindings/:id", isAuthenticated, requirePermission("deployments", "update"), async (req, res) => {
+    try {
+      const bindingData = insertProfileDeploymentBindingSchema.partial().parse(req.body);
+      const binding = await storage.updateProfileDeploymentBinding(req.params.id, bindingData);
+      if (!binding) {
+        return res.status(404).json({ message: "Binding not found" });
+      }
+      res.json(binding);
+    } catch (error) {
+      res.status(400).json({ message: "Invalid binding data", error: String(error) });
     }
   });
   

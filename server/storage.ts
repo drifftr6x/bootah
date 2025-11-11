@@ -91,6 +91,7 @@ import { db } from "./db";
 import { devices, images, deployments, activityLogs, serverStatus, users, passwordResetTokens, passwordHistory, multicastSessions, multicastParticipants, roles, permissions, userRoles, rolePermissions, networkSegments, deviceConnections, topologySnapshots, postDeploymentProfiles, snapinPackages, hostnamePatterns, domainJoinConfigs, productKeys, customScripts, postDeploymentTasks, taskRuns, profileDeploymentBindings } from "@shared/schema";
 import { eq, desc, and, or, count, sql } from "drizzle-orm";
 import { DeploymentScheduler } from "./scheduler";
+import { encrypt, decrypt } from "./encryption";
 
 export interface IStorage {
   // Devices
@@ -3128,30 +3129,64 @@ export class DatabaseStorage implements IStorage {
 
   // Domain Join Configs
   async getDomainJoinConfigs(): Promise<DomainJoinConfig[]> {
-    return await db.select().from(domainJoinConfigs);
+    const configs = await db.select().from(domainJoinConfigs);
+    return configs.map(config => ({
+      ...config,
+      passwordEncrypted: config.passwordEncrypted ? decrypt(config.passwordEncrypted) : null,
+      usernameEncrypted: config.usernameEncrypted ? decrypt(config.usernameEncrypted) : null
+    }));
   }
 
   async getDomainJoinConfig(id: string): Promise<DomainJoinConfig | undefined> {
     const [config] = await db.select().from(domainJoinConfigs).where(eq(domainJoinConfigs.id, id));
-    return config;
+    if (!config) return undefined;
+    return {
+      ...config,
+      passwordEncrypted: config.passwordEncrypted ? decrypt(config.passwordEncrypted) : null,
+      usernameEncrypted: config.usernameEncrypted ? decrypt(config.usernameEncrypted) : null
+    };
   }
 
   async getActiveDomainJoinConfigs(): Promise<DomainJoinConfig[]> {
-    return await db.select().from(domainJoinConfigs).where(eq(domainJoinConfigs.isActive, true));
+    const configs = await db.select().from(domainJoinConfigs).where(eq(domainJoinConfigs.isActive, true));
+    return configs.map(config => ({
+      ...config,
+      passwordEncrypted: config.passwordEncrypted ? decrypt(config.passwordEncrypted) : null,
+      usernameEncrypted: config.usernameEncrypted ? decrypt(config.usernameEncrypted) : null
+    }));
   }
 
   async createDomainJoinConfig(insertConfig: InsertDomainJoinConfig): Promise<DomainJoinConfig> {
-    const [config] = await db.insert(domainJoinConfigs).values(insertConfig).returning();
-    return config;
+    const encryptedConfig = {
+      ...insertConfig,
+      passwordEncrypted: insertConfig.passwordEncrypted ? encrypt(insertConfig.passwordEncrypted) : null,
+      usernameEncrypted: insertConfig.usernameEncrypted ? encrypt(insertConfig.usernameEncrypted) : null
+    };
+    const [config] = await db.insert(domainJoinConfigs).values(encryptedConfig).returning();
+    return {
+      ...config,
+      passwordEncrypted: config.passwordEncrypted ? decrypt(config.passwordEncrypted) : null,
+      usernameEncrypted: config.usernameEncrypted ? decrypt(config.usernameEncrypted) : null
+    };
   }
 
   async updateDomainJoinConfig(id: string, updateData: Partial<InsertDomainJoinConfig>): Promise<DomainJoinConfig | undefined> {
+    const encryptedUpdateData = {
+      ...updateData,
+      ...(updateData.passwordEncrypted ? { passwordEncrypted: encrypt(updateData.passwordEncrypted) } : {}),
+      ...(updateData.usernameEncrypted ? { usernameEncrypted: encrypt(updateData.usernameEncrypted) } : {})
+    };
     const [config] = await db
       .update(domainJoinConfigs)
-      .set({ ...updateData, updatedAt: new Date() })
+      .set({ ...encryptedUpdateData, updatedAt: new Date() })
       .where(eq(domainJoinConfigs.id, id))
       .returning();
-    return config;
+    if (!config) return undefined;
+    return {
+      ...config,
+      passwordEncrypted: config.passwordEncrypted ? decrypt(config.passwordEncrypted) : null,
+      usernameEncrypted: config.usernameEncrypted ? decrypt(config.usernameEncrypted) : null
+    };
   }
 
   async deleteDomainJoinConfig(id: string): Promise<boolean> {
@@ -3161,30 +3196,56 @@ export class DatabaseStorage implements IStorage {
 
   // Product Keys
   async getProductKeys(): Promise<ProductKey[]> {
-    return await db.select().from(productKeys);
+    const keys = await db.select().from(productKeys);
+    return keys.map(key => ({
+      ...key,
+      keyEncrypted: decrypt(key.keyEncrypted)
+    }));
   }
 
   async getProductKey(id: string): Promise<ProductKey | undefined> {
     const [key] = await db.select().from(productKeys).where(eq(productKeys.id, id));
-    return key;
+    if (!key) return undefined;
+    return {
+      ...key,
+      keyEncrypted: decrypt(key.keyEncrypted)
+    };
   }
 
   async getActiveProductKeys(): Promise<ProductKey[]> {
-    return await db.select().from(productKeys).where(eq(productKeys.isActive, true));
+    const keys = await db.select().from(productKeys).where(eq(productKeys.isActive, true));
+    return keys.map(key => ({
+      ...key,
+      keyEncrypted: decrypt(key.keyEncrypted)
+    }));
   }
 
   async createProductKey(insertKey: InsertProductKey): Promise<ProductKey> {
-    const [key] = await db.insert(productKeys).values(insertKey).returning();
-    return key;
+    const encryptedKey = {
+      ...insertKey,
+      keyEncrypted: encrypt(insertKey.keyEncrypted)
+    };
+    const [key] = await db.insert(productKeys).values(encryptedKey).returning();
+    return {
+      ...key,
+      keyEncrypted: decrypt(key.keyEncrypted)
+    };
   }
 
   async updateProductKey(id: string, updateData: Partial<InsertProductKey>): Promise<ProductKey | undefined> {
+    const encryptedUpdateData = updateData.keyEncrypted
+      ? { ...updateData, keyEncrypted: encrypt(updateData.keyEncrypted) }
+      : updateData;
     const [key] = await db
       .update(productKeys)
-      .set({ ...updateData, updatedAt: new Date() })
+      .set({ ...encryptedUpdateData, updatedAt: new Date() })
       .where(eq(productKeys.id, id))
       .returning();
-    return key;
+    if (!key) return undefined;
+    return {
+      ...key,
+      keyEncrypted: decrypt(key.keyEncrypted)
+    };
   }
 
   async deleteProductKey(id: string): Promise<boolean> {
