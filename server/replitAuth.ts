@@ -53,13 +53,42 @@ function updateUserSession(
 async function upsertUser(
   claims: any,
 ) {
-  await storage.upsertUser({
+  const user = await storage.upsertUser({
     id: claims["sub"],
     email: claims["email"],
     firstName: claims["first_name"],
     lastName: claims["last_name"],
     profileImageUrl: claims["profile_image_url"],
   });
+
+  // Auto-assign default role to users without roles
+  try {
+    const userRoles = await storage.getUserRoles(user.id);
+    if (userRoles.length === 0) {
+      // Get all users to check if this is the first user
+      const allUsers = await storage.getUsers();
+      const isFirstUser = allUsers.length === 1;
+      
+      // First user gets admin, others get viewer by default
+      const defaultRoleName = isFirstUser ? "admin" : "viewer";
+      const roles = await storage.getRoles();
+      const defaultRole = roles.find(r => r.name === defaultRoleName);
+      
+      if (defaultRole) {
+        await storage.assignUserRole({
+          userId: user.id,
+          roleId: defaultRole.id,
+          assignedBy: null,
+        });
+        console.log(`[Auth] Auto-assigned ${defaultRoleName} role to new user: ${user.email || user.username}`);
+      } else {
+        console.warn(`[Auth] Could not find ${defaultRoleName} role for auto-assignment`);
+      }
+    }
+  } catch (error) {
+    console.error("[Auth] Error auto-assigning role to user:", error);
+    // Don't throw - allow login to proceed even if role assignment fails
+  }
 }
 
 export async function setupAuth(app: Express) {
