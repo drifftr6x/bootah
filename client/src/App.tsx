@@ -31,6 +31,7 @@ import HostnamePatternsPage from "@/pages/HostnamePatternsPage";
 import DomainJoinPage from "@/pages/DomainJoinPage";
 import ProductKeysPage from "@/pages/ProductKeysPage";
 import CustomScriptsPage from "@/pages/CustomScriptsPage";
+import PostDeploymentProfilesPage from "@/pages/PostDeploymentProfilesPage";
 
 function AuthenticatedApp() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -89,6 +90,7 @@ function AuthenticatedApp() {
           <Route path="/domain-join" component={DomainJoinPage} />
           <Route path="/product-keys" component={ProductKeysPage} />
           <Route path="/custom-scripts" component={CustomScriptsPage} />
+          <Route path="/post-deployment-profiles" component={PostDeploymentProfilesPage} />
           <Route component={NotFound} />
         </Switch>
       </div>

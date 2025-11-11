@@ -29,6 +29,7 @@ import {
   Server,
   Key,
   FileCode,
+  Layers,
 } from "lucide-react";
 
 const navigation = [
@@ -46,6 +47,7 @@ const navigation = [
   { name: "Domain Join", href: "/domain-join", icon: Server },
   { name: "Product Keys", href: "/product-keys", icon: Key },
   { name: "Custom Scripts", href: "/custom-scripts", icon: FileCode },
+  { name: "Deployment Profiles", href: "/post-deployment-profiles", icon: Layers },
   { name: "Network Discovery", href: "/network", icon: Wifi },
   { name: "Workstations", href: "/workstations", icon: Laptop },
   { name: "Monitoring", href: "/monitoring", icon: Activity },
