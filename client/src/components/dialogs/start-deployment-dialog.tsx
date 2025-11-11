@@ -8,9 +8,9 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { insertDeploymentSchema, type InsertDeployment, type Device, type Image } from "@shared/schema";
+import { insertDeploymentSchema, type InsertDeployment, type Device, type Image, type PostDeploymentProfile } from "@shared/schema";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
-import { Loader2, Monitor, HardDrive, PlayCircle, AlertCircle, Calendar, Clock, Repeat, CheckCircle2 } from "lucide-react";
+import { Loader2, Monitor, HardDrive, PlayCircle, AlertCircle, Calendar, Clock, Repeat, CheckCircle2, Settings } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -116,6 +116,7 @@ export default function StartDeploymentDialog({
   const queryClient = useQueryClient();
   const [cronNextRuns, setCronNextRuns] = useState<Date[]>([]);
   const [selectedPreset, setSelectedPreset] = useState<string | null>(null);
+  const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
   
   const form = useForm<InsertDeployment>({
     resolver: zodResolver(extendedDeploymentSchema),
@@ -159,6 +160,11 @@ export default function StartDeploymentDialog({
     enabled: open,
   });
 
+  const { data: profiles, isLoading: profilesLoading } = useQuery<PostDeploymentProfile[]>({
+    queryKey: ["/api/post-deployment/profiles"],
+    enabled: open,
+  });
+
   // Filter available devices (online or idle, not currently deploying)
   const availableDevices = devices?.filter(device => {
     const status = device.status?.toLowerCase();
@@ -170,9 +176,24 @@ export default function StartDeploymentDialog({
 
   const startDeploymentMutation = useMutation({
     mutationFn: async (data: InsertDeployment) => {
-      return apiRequest("POST", "/api/deployments", data);
+      const deployment: any = await apiRequest("POST", "/api/deployments", data);
+      
+      // Create profile binding if a profile was selected
+      let bindingError = null;
+      if (selectedProfileId && deployment?.id) {
+        try {
+          await apiRequest("POST", `/api/deployments/${deployment.id}/profiles`, {
+            profileId: selectedProfileId,
+          });
+        } catch (error) {
+          // Store binding error but don't fail the entire deployment
+          bindingError = error;
+        }
+      }
+      
+      return { deployment, bindingError };
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["/api/deployments"] });
       queryClient.invalidateQueries({ queryKey: ["/api/deployments/active"] });
       queryClient.invalidateQueries({ queryKey: ["/api/deployments/scheduled"] });
@@ -180,13 +201,27 @@ export default function StartDeploymentDialog({
       queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
       
       const isScheduled = scheduleType !== "instant";
+      const attachedAutomation = selectedProfileId && !result.bindingError;
+      
+      // Show success toast for deployment
       toast({
         title: isScheduled ? "Deployment Scheduled" : "Deployment Started",
         description: isScheduled 
-          ? `Deployment of ${selectedImage?.name} to ${selectedDevice?.name} has been scheduled.`
-          : `PXE deployment of ${selectedImage?.name} to ${selectedDevice?.name} has been initiated.`,
+          ? `Deployment of ${selectedImage?.name} to ${selectedDevice?.name} has been scheduled${attachedAutomation ? ' with post-deployment automation' : ''}.`
+          : `PXE deployment of ${selectedImage?.name} to ${selectedDevice?.name} has been initiated${attachedAutomation ? ' with post-deployment automation' : ''}.`,
       });
+      
+      // Show warning if binding failed
+      if (result.bindingError) {
+        toast({
+          title: "Automation Attachment Failed",
+          description: "Deployment created successfully, but post-deployment automation could not be attached at this time.",
+          variant: "destructive",
+        });
+      }
+      
       form.reset();
+      setSelectedProfileId(null);
       onOpenChange(false);
     },
     onError: () => {
@@ -381,6 +416,90 @@ export default function StartDeploymentDialog({
                     {selectedImage.osType.charAt(0).toUpperCase() + selectedImage.osType.slice(1)}
                   </Badge>
                 </div>
+              </div>
+            )}
+
+            {/* Post-Deployment Profile Selection */}
+            {selectedDevice && selectedImage && (
+              <div className="space-y-3">
+                <Label data-testid="label-profile">
+                  <Settings className="w-4 h-4 inline mr-2" />
+                  Post-Deployment Automation (Optional)
+                </Label>
+                <Select onValueChange={(value) => setSelectedProfileId(value === "none" ? null : value)} value={selectedProfileId || "none"}>
+                  <SelectTrigger data-testid="select-profile">
+                    <SelectValue placeholder="No automation" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">
+                      <div className="flex items-center space-x-2">
+                        <span>No automation</span>
+                      </div>
+                    </SelectItem>
+                    {profilesLoading ? (
+                      <SelectItem value="loading" disabled>
+                        <div className="flex items-center">
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Loading profiles...
+                        </div>
+                      </SelectItem>
+                    ) : profiles && profiles.length > 0 ? (
+                      profiles.map((profile) => (
+                        <SelectItem key={profile.id} value={profile.id}>
+                          <div className="flex items-center space-x-2">
+                            <Settings className="w-4 h-4" />
+                            <span>{profile.name}</span>
+                            {profile.description && (
+                              <span className="text-xs text-muted-foreground ml-2">
+                                ({profile.description})
+                              </span>
+                            )}
+                          </div>
+                        </SelectItem>
+                      ))
+                    ) : null}
+                  </SelectContent>
+                </Select>
+                <p className="text-sm text-muted-foreground">
+                  Automatically run scripts, install software, join domain, or configure settings after OS deployment completes
+                </p>
+                
+                {/* Selected Profile Info */}
+                {selectedProfileId && profiles && (
+                  (() => {
+                    const selectedProfile = profiles.find(p => p.id === selectedProfileId);
+                    if (selectedProfile) {
+                      return (
+                        <div className="p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg border border-purple-200 dark:border-purple-800">
+                          <div className="flex items-center space-x-3">
+                            <Settings className="w-5 h-5 text-purple-600" />
+                            <div className="flex-1">
+                              <h4 className="font-medium text-purple-700 dark:text-purple-300">
+                                {selectedProfile.name}
+                              </h4>
+                              {selectedProfile.description && (
+                                <div className="text-sm text-purple-600 dark:text-purple-400">
+                                  {selectedProfile.description}
+                                </div>
+                              )}
+                              <div className="text-xs text-purple-600 dark:text-purple-400 mt-1">
+                                Execution: {selectedProfile.executionOrder === "sequential" ? "Sequential (one after another)" : "Parallel (all at once)"}
+                                {selectedProfile.haltOnFailure && " • Stops on first error"}
+                              </div>
+                            </div>
+                            <Badge 
+                              variant="outline" 
+                              className="bg-purple-500/10 text-purple-400 border-purple-500/20"
+                            >
+                              Automated
+                            </Badge>
+                          </div>
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()
+                )}
               </div>
             )}
 
