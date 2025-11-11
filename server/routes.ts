@@ -9,6 +9,7 @@ import { initializeRbacDefaults } from "./rbacSeed";
 import { requireRole, requirePermission, requireAnyPermission } from "./authMiddleware";
 import { maskSecret } from "./encryption";
 import { PostDeploymentExecutor } from "./post-deployment-executor";
+import { DeploymentSimulator } from "./deploymentSimulator";
 import { 
   insertDeviceSchema, 
   insertImageSchema, 
@@ -2211,6 +2212,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       clients.delete(ws);
     });
   });
+  
+  // Start deployment simulator in development/test mode
+  if (process.env.NODE_ENV !== 'production') {
+    try {
+      const deploymentSimulator = new DeploymentSimulator(storage, wss, 2000);
+      deploymentSimulator.start();
+      console.log("[DeploymentSimulator] Started in development mode");
+    } catch (error) {
+      console.error("[DeploymentSimulator] Failed to start:", error);
+    }
+  }
   
   // Broadcast function for device updates
   function broadcastDeviceUpdate(devices: any[]) {
