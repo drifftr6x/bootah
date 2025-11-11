@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 import AddDeviceDialog from "@/components/dialogs/add-device-dialog";
 import StartDeploymentDialog from "@/components/dialogs/start-deployment-dialog";
 import AdvancedFilters, { type FilterOption, type ActiveFilter } from "@/components/search/advanced-filters";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 function getStatusColor(status: string) {
   switch (status) {
@@ -35,6 +36,8 @@ export default function Devices() {
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showDeployDialog, setShowDeployDialog] = useState(false);
   const [selectedDeviceId, setSelectedDeviceId] = useState<string>("");
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [deviceToDelete, setDeviceToDelete] = useState<Device | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -105,12 +108,16 @@ export default function Devices() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/devices"] });
+      setShowDeleteDialog(false);
+      setDeviceToDelete(null);
       toast({
         title: "Device Deleted",
         description: "The device has been removed successfully.",
       });
     },
     onError: () => {
+      setShowDeleteDialog(false);
+      setDeviceToDelete(null);
       toast({
         title: "Error",
         description: "Failed to delete device. Please try again.",
@@ -118,6 +125,17 @@ export default function Devices() {
       });
     },
   });
+
+  const handleDeleteClick = (device: Device) => {
+    setDeviceToDelete(device);
+    setShowDeleteDialog(true);
+  };
+
+  const handleConfirmDelete = () => {
+    if (deviceToDelete) {
+      deleteDeviceMutation.mutate(deviceToDelete.id);
+    }
+  };
 
   // Filter options for devices
   const filterOptions: FilterOption[] = [
@@ -324,7 +342,7 @@ export default function Devices() {
                     <Button 
                       variant="outline" 
                       size="sm"
-                      onClick={() => deleteDeviceMutation.mutate(device.id)}
+                      onClick={() => handleDeleteClick(device)}
                       disabled={deleteDeviceMutation.isPending}
                       data-testid={`button-delete-${device.id}`}
                       className="text-destructive hover:text-destructive"
@@ -349,6 +367,18 @@ export default function Devices() {
           open={showDeployDialog} 
           onOpenChange={setShowDeployDialog}
           preselectedDeviceId={selectedDeviceId}
+        />
+
+        {/* Delete Confirmation Dialog */}
+        <ConfirmDialog
+          open={showDeleteDialog}
+          onOpenChange={setShowDeleteDialog}
+          onConfirm={handleConfirmDelete}
+          title="Delete Device"
+          description={`Are you sure you want to delete "${deviceToDelete?.name}"? This action cannot be undone.`}
+          confirmText="Delete"
+          cancelText="Cancel"
+          variant="destructive"
         />
       </main>
     </>

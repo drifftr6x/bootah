@@ -42,7 +42,10 @@ import {
   insertProfileDeploymentBindingSchema
 } from "@shared/schema";
 
-export async function registerRoutes(app: Express): Promise<Server> {
+export async function registerRoutes(app: Express): Promise<{
+  httpServer: Server;
+  cleanup: () => Promise<void>;
+}> {
   // Setup Authentication - must be before other routes
   await setupAuth(app);
   
@@ -2215,9 +2218,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Start deployment simulator in development/test mode
+  let deploymentSimulator: DeploymentSimulator | null = null;
   if (process.env.NODE_ENV !== 'production') {
     try {
-      const deploymentSimulator = new DeploymentSimulator(storage, wss, 2000);
+      deploymentSimulator = new DeploymentSimulator(storage, wss, 2000);
       deploymentSimulator.start();
       console.log("[DeploymentSimulator] Started in development mode");
     } catch (error) {
@@ -3095,5 +3099,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  return httpServer;
+  return {
+    httpServer,
+    cleanup: async () => {
+      console.log("[Shutdown] Starting graceful shutdown...");
+      
+      // Stop deployment simulator
+      if (deploymentSimulator) {
+        console.log("[Shutdown] Stopping deployment simulator...");
+        deploymentSimulator.stop();
+      }
+      
+      // Stop deployment scheduler
+      console.log("[Shutdown] Stopping deployment scheduler...");
+      scheduler.stop();
+      
+      // Close all WebSocket connections
+      console.log("[Shutdown] Closing WebSocket connections...");
+      wss.clients.forEach((client: any) => {
+        client.close(1000, 'Server shutting down');
+      });
+      wss.close();
+      
+      // Stop PXE servers (TFTP and DHCP)
+      console.log("[Shutdown] Stopping PXE servers...");
+      tftpServer.stop();
+      dhcpProxy.stop();
+      
+      console.log("[Shutdown] Cleanup complete");
+    }
+  };
 }

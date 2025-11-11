@@ -21,18 +21,23 @@ const PROGRESS_STAGES: ProgressStage[] = [
   { progress: 100, message: "Deployment completed successfully", delayMs: 2000 },
 ];
 
+interface SimulationState {
+  stageIndex: number;
+  stageStartTime: number; // timestamp when current stage started
+}
+
 export class DeploymentSimulator {
   private storage: IStorage;
   private wss: any; // WebSocket.Server
   private intervalMs: number;
   private intervalId?: NodeJS.Timeout;
   private isRunning: boolean = false;
-  private activeSimulations: Map<string, number> = new Map(); // deploymentId -> currentStageIndex
+  private activeSimulations: Map<string, SimulationState> = new Map(); // deploymentId -> state
 
-  constructor(storage: IStorage, wss: any, intervalMs: number = 2000) {
+  constructor(storage: IStorage, wss: any, intervalMs: number = 1000) {
     this.storage = storage;
     this.wss = wss;
-    this.intervalMs = intervalMs;
+    this.intervalMs = intervalMs; // Check every second by default
   }
 
   /**
@@ -93,15 +98,27 @@ export class DeploymentSimulator {
    */
   private async simulateProgress(deploymentId: string): Promise<void> {
     try {
-      // Get current stage index (or initialize to 0)
-      const currentStageIndex = this.activeSimulations.get(deploymentId) || 0;
+      // Get current simulation state (or initialize)
+      let state = this.activeSimulations.get(deploymentId);
+      if (!state) {
+        state = { stageIndex: 0, stageStartTime: Date.now() };
+        this.activeSimulations.set(deploymentId, state);
+      }
       
-      if (currentStageIndex >= PROGRESS_STAGES.length) {
+      if (state.stageIndex >= PROGRESS_STAGES.length) {
         // Already completed this deployment
         return;
       }
 
-      const stage = PROGRESS_STAGES[currentStageIndex];
+      const stage = PROGRESS_STAGES[state.stageIndex];
+      const now = Date.now();
+      const timeInStage = now - state.stageStartTime;
+      
+      // Check if enough time has passed for this stage
+      if (timeInStage < stage.delayMs) {
+        // Not ready to advance yet
+        return;
+      }
       
       // Update deployment progress
       await this.storage.updateDeployment(deploymentId, {
@@ -128,7 +145,9 @@ export class DeploymentSimulator {
         this.activeSimulations.delete(deploymentId);
       } else {
         // Advance to next stage
-        this.activeSimulations.set(deploymentId, currentStageIndex + 1);
+        state.stageIndex++;
+        state.stageStartTime = Date.now();
+        this.activeSimulations.set(deploymentId, state);
       }
     } catch (error) {
       console.error(`[DeploymentSimulator] Error simulating progress for ${deploymentId}:`, error);

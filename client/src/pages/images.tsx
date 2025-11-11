@@ -15,6 +15,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { insertImageSchema, type Image } from "@shared/schema";
 import { z } from "zod";
 import { 
@@ -93,6 +94,8 @@ export default function ImagesPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterCategory, setFilterCategory] = useState<string>("all");
   const [filterValidated, setFilterValidated] = useState<boolean | "all">("all");
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [imageToDelete, setImageToDelete] = useState<Image | null>(null);
 
   // Queries
   const { data: images = [], isLoading } = useQuery<Image[]>({
@@ -121,9 +124,31 @@ export default function ImagesPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/images"] });
+      setShowDeleteDialog(false);
+      setImageToDelete(null);
       toast({ title: "Image deleted successfully" });
     },
+    onError: () => {
+      setShowDeleteDialog(false);
+      setImageToDelete(null);
+      toast({ 
+        title: "Error",
+        description: "Failed to delete image. Please try again.",
+        variant: "destructive" 
+      });
+    },
   });
+
+  const handleDeleteClick = (image: Image) => {
+    setImageToDelete(image);
+    setShowDeleteDialog(true);
+  };
+
+  const handleConfirmDelete = () => {
+    if (imageToDelete) {
+      deleteImageMutation.mutate(imageToDelete.id);
+    }
+  };
 
   const validateImageMutation = useMutation({
     mutationFn: async (id: string) => {
@@ -708,7 +733,8 @@ export default function ImagesPage() {
                       <Button
                         variant="destructive"
                         size="sm"
-                        onClick={() => deleteImageMutation.mutate(image.id)}
+                        onClick={() => handleDeleteClick(image)}
+                        disabled={deleteImageMutation.isPending}
                         data-testid={`button-delete-${image.id}`}
                       >
                         <Trash2 className="h-3 w-3" />
@@ -1296,6 +1322,18 @@ export default function ImagesPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <ConfirmDialog
+        open={showDeleteDialog}
+        onOpenChange={setShowDeleteDialog}
+        onConfirm={handleConfirmDelete}
+        title="Delete Image"
+        description={`Are you sure you want to delete "${imageToDelete?.name}"? This action cannot be undone and will remove the image file from storage.`}
+        confirmText="Delete"
+        cancelText="Cancel"
+        variant="destructive"
+      />
     </div>
   );
 }
