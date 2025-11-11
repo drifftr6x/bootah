@@ -508,6 +508,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/deployments/scheduled", isAuthenticated, requirePermission("deployments", "read"), async (req, res) => {
+    try {
+      const deployments = await storage.getScheduledDeployments();
+      res.json(deployments);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch scheduled deployments" });
+    }
+  });
+
   app.get("/api/deployments/:id", isAuthenticated, requirePermission("deployments", "read"), async (req, res) => {
     try {
       const deployment = await storage.getDeployment(req.params.id);
@@ -657,15 +666,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Scheduled deployments endpoints
-  app.get("/api/deployments/scheduled", isAuthenticated, requirePermission("deployments", "read"), async (req, res) => {
-    try {
-      const deployments = await storage.getScheduledDeployments();
-      res.json(deployments);
-    } catch (error) {
-      res.status(500).json({ message: "Failed to fetch scheduled deployments" });
-    }
-  });
-
   app.patch("/api/deployments/:id/cancel-schedule", async (req, res) => {
     try {
       const deployment = await storage.getDeployment(req.params.id);

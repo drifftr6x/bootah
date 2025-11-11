@@ -496,10 +496,8 @@ export const insertImageSchema = createInsertSchema(images).omit({
 
 export const insertDeploymentSchema = createInsertSchema(deployments).omit({
   id: true,
-  startedAt: true,
   completedAt: true,
   lastRunAt: true,
-  nextRunAt: true,
   createdAt: true,
 }).extend({
   scheduleType: z.enum(["instant", "delayed", "recurring"]).default("instant"),
