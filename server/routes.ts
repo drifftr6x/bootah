@@ -8,6 +8,7 @@ import { setupAuth, isAuthenticated } from "./replitAuth";
 import { initializeRbacDefaults } from "./rbacSeed";
 import { requireRole, requirePermission, requireAnyPermission } from "./authMiddleware";
 import { maskSecret } from "./encryption";
+import { PostDeploymentExecutor } from "./post-deployment-executor";
 import { 
   insertDeviceSchema, 
   insertImageSchema, 
@@ -610,20 +611,76 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Deployment not found" });
       }
       
-      // If deployment completed or failed, update device status
+      // If deployment completed, check for post-deployment profile
       if (deployment.status === "completed") {
-        await storage.updateDevice(deployment.deviceId, { status: "online" });
+        const bindings = await storage.getProfileDeploymentBindings(deployment.id);
         
-        const device = await storage.getDevice(deployment.deviceId);
-        const image = await storage.getImage(deployment.imageId);
-        
-        if (device && image) {
-          await storage.createActivityLog({
-            type: "deployment",
-            message: `${device.name} completed ${image.name} deployment`,
-            deviceId: device.id,
-            deploymentId: deployment.id,
-          });
+        if (bindings.length > 0 && bindings[0].status === "pending") {
+          // Transition to post_processing and trigger executor
+          const updatedDeployment = await storage.updateDeployment(deployment.id, { status: "post_processing" });
+          
+          console.log(`[Deployment] Starting post-deployment automation for deployment ${deployment.id}`);
+          
+          // Execute post-deployment tasks asynchronously using existing binding
+          postDeploymentExecutor.executeProfile(deployment.id, bindings[0].profileId, bindings[0].id)
+            .then(async () => {
+              // All tasks completed successfully
+              await storage.updateDeployment(deployment.id, { status: "completed" });
+              await storage.updateDevice(deployment.deviceId, { status: "online" });
+              
+              const device = await storage.getDevice(deployment.deviceId);
+              const image = await storage.getImage(deployment.imageId);
+              
+              if (device && image) {
+                await storage.createActivityLog({
+                  type: "deployment",
+                  message: `${device.name} completed ${image.name} deployment with post-deployment automation`,
+                  deviceId: device.id,
+                  deploymentId: deployment.id,
+                });
+              }
+              
+              console.log(`[Deployment] Post-deployment automation completed for deployment ${deployment.id}`);
+            })
+            .catch(async (error) => {
+              // Post-deployment tasks failed
+              console.error(`[Deployment] Post-deployment automation failed for deployment ${deployment.id}:`, error);
+              
+              await storage.updateDeployment(deployment.id, { 
+                status: "failed",
+                errorMessage: `Post-deployment automation failed: ${error.message}`
+              });
+              await storage.updateDevice(deployment.deviceId, { status: "offline" });
+              
+              const device = await storage.getDevice(deployment.deviceId);
+              
+              if (device) {
+                await storage.createActivityLog({
+                  type: "error",
+                  message: `${device.name} post-deployment automation failed: ${error.message}`,
+                  deviceId: device.id,
+                  deploymentId: deployment.id,
+                });
+              }
+            });
+          
+          // Return post_processing status immediately
+          return res.json({ ...updatedDeployment, status: "post_processing" });
+        } else {
+          // No profile binding or already processed - proceed with normal completion
+          await storage.updateDevice(deployment.deviceId, { status: "online" });
+          
+          const device = await storage.getDevice(deployment.deviceId);
+          const image = await storage.getImage(deployment.imageId);
+          
+          if (device && image) {
+            await storage.createActivityLog({
+              type: "deployment",
+              message: `${device.name} completed ${image.name} deployment`,
+              deviceId: device.id,
+              deploymentId: deployment.id,
+            });
+          }
         }
       } else if (deployment.status === "failed") {
         await storage.updateDevice(deployment.deviceId, { status: "offline" });
@@ -2118,6 +2175,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
     });
   }
+
+  // Broadcast function for post-deployment updates
+  function broadcastPostDeploymentUpdate(event: string, data: any) {
+    const message = JSON.stringify({
+      type: event,
+      data,
+      timestamp: new Date().toISOString()
+    });
+    
+    clients.forEach(client => {
+      if (client.readyState === WebSocket.OPEN) {
+        client.send(message);
+      } else {
+        clients.delete(client);
+      }
+    });
+  }
+
+  // Create PostDeploymentExecutor instance with broadcasting
+  const postDeploymentExecutor = new PostDeploymentExecutor(storage, broadcastPostDeploymentUpdate);
   
   // Simulate device status changes for demo
   setInterval(async () => {
