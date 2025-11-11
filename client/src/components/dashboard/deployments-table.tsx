@@ -10,6 +10,7 @@ import { Link } from "wouter";
 import { cn } from "@/lib/utils";
 import { Activity, Clock, Zap, Shield, AlertTriangle, Settings } from "lucide-react";
 import { useEffect, useState } from "react";
+import PostDeploymentProgress from "@/components/deployments/post-deployment-progress";
 
 function getStatusColor(status: string) {
   switch (status) {
@@ -193,11 +194,12 @@ export default function DeploymentsTable() {
               </thead>
               <tbody>
                 {deployments.map((deployment, index) => (
-                  <tr 
-                    key={deployment.id} 
-                    className={`table-row-hover ${index < deployments.length - 1 ? 'border-b border-border' : ''}`}
-                    data-testid={`row-deployment-${deployment.id}`}
-                  >
+                  <>
+                    <tr 
+                      key={deployment.id} 
+                      className="table-row-hover border-b border-border"
+                      data-testid={`row-deployment-${deployment.id}`}
+                    >
                     <td className="p-4">
                       <div>
                         <div className="font-medium text-foreground" data-testid={`text-device-name-${deployment.id}`}>
@@ -272,6 +274,18 @@ export default function DeploymentsTable() {
                       </Button>
                     </td>
                   </tr>
+                  {/* Post-Deployment Progress Row */}
+                  {(deployment.status === "post_processing" || deployment.status === "completed") && (
+                    <tr 
+                      key={`${deployment.id}-automation`}
+                      className={`${index < deployments.length - 1 ? 'border-b border-border' : ''}`}
+                    >
+                      <td colSpan={6} className="px-4 pb-4">
+                        <PostDeploymentProgress deploymentId={deployment.id} />
+                      </td>
+                    </tr>
+                  )}
+                  </>
                 ))}
               </tbody>
             </table>
