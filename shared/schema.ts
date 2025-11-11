@@ -363,6 +363,169 @@ export const templateDeployments = pgTable("template_deployments", {
   startedAt: timestamp("started_at").defaultNow(),
 });
 
+// Post-Deployment Automation Tables
+export const postDeploymentProfiles = pgTable("post_deployment_profiles", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  description: text("description"),
+  isActive: boolean("is_active").default(true),
+  executionOrder: text("execution_order").default("sequential"), // sequential, parallel
+  haltOnFailure: boolean("halt_on_failure").default(false), // Stop all tasks if one fails
+  createdBy: varchar("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const snapinPackages = pgTable("snapin_packages", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  description: text("description"),
+  version: text("version"),
+  packageType: text("package_type").notNull(), // msi, exe, deb, rpm, script, zip
+  supportedOS: text("supported_os").array().notNull(), // ['windows', 'linux', 'macos']
+  filePath: text("file_path").notNull(), // Local path or cloud storage URL
+  fileSize: bigint("file_size", { mode: "number" }), // bytes
+  checksum: text("checksum"), // SHA-256
+  installCommand: text("install_command").notNull(), // Command to execute
+  uninstallCommand: text("uninstall_command"),
+  installArgs: text("install_args"), // Additional arguments
+  requiresReboot: boolean("requires_reboot").default(false),
+  runAsAdmin: boolean("run_as_admin").default(true),
+  timeoutMinutes: integer("timeout_minutes").default(30),
+  retryCount: integer("retry_count").default(2),
+  retryDelaySeconds: integer("retry_delay_seconds").default(60),
+  category: text("category").default("Application"), // Application, Driver, Utility, Security
+  tags: text("tags").array().default(sql`'{}'`),
+  isActive: boolean("is_active").default(true),
+  createdBy: varchar("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const hostnamePatterns = pgTable("hostname_patterns", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  description: text("description"),
+  pattern: text("pattern").notNull(), // e.g., "LAB-{room}-{number}", "DESK-{dept}-{asset}"
+  variables: text("variables"), // JSON: {room: "101", dept: "IT"}
+  previewSample: text("preview_sample"), // Example: "LAB-101-001"
+  isActive: boolean("is_active").default(true),
+  createdBy: varchar("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const domainJoinConfigs = pgTable("domain_join_configs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  description: text("description"),
+  domainType: text("domain_type").notNull(), // active_directory, ldap, freeipa
+  domainName: text("domain_name").notNull(), // e.g., "corp.example.com"
+  domainController: text("domain_controller"), // Server address
+  organizationalUnit: text("organizational_unit"), // OU path for Windows
+  usernameEncrypted: text("username_encrypted").notNull(), // Encrypted service account
+  passwordEncrypted: text("password_encrypted").notNull(), // Encrypted password
+  supportedOS: text("supported_os").array().notNull(), // ['windows', 'linux']
+  windowsConfig: text("windows_config"), // JSON: netjoin options
+  linuxConfig: text("linux_config"), // JSON: SSSD/Winbind options
+  isActive: boolean("is_active").default(true),
+  createdBy: varchar("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  domainNameIdx: index("domain_join_configs_domain_name_idx").on(table.domainName),
+}));
+
+export const productKeys = pgTable("product_keys", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  description: text("description"),
+  keyType: text("key_type").notNull(), // mak, kms, oem, retail
+  productName: text("product_name").notNull(), // e.g., "Windows 11 Pro", "Office 2021"
+  keyEncrypted: text("key_encrypted").notNull(), // Encrypted product key
+  maxActivations: integer("max_activations"), // For MAK keys
+  currentActivations: integer("current_activations").default(0),
+  osType: text("os_type").notNull(), // windows, linux, macos
+  version: text("version"), // e.g., "11", "10", "2019"
+  architecture: text("architecture"), // x64, x86
+  assignmentRules: text("assignment_rules"), // JSON: conditions for auto-assignment
+  expiresAt: timestamp("expires_at"),
+  isActive: boolean("is_active").default(true),
+  createdBy: varchar("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const customScripts = pgTable("custom_scripts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  description: text("description"),
+  scriptContent: text("script_content").notNull(), // Actual script code
+  scriptType: text("script_type").notNull(), // bash, powershell, python, batch
+  executionPhase: text("execution_phase").notNull(), // pre_image, post_image, post_snapin, post_domain
+  supportedOS: text("supported_os").array().notNull(),
+  runAsAdmin: boolean("run_as_admin").default(true),
+  timeoutMinutes: integer("timeout_minutes").default(10),
+  retryCount: integer("retry_count").default(1),
+  parameters: text("parameters"), // JSON: script parameters
+  environmentVars: text("environment_vars"), // JSON: env variables
+  isActive: boolean("is_active").default(true),
+  createdBy: varchar("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const postDeploymentTasks = pgTable("post_deployment_tasks", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  description: text("description"),
+  taskType: text("task_type").notNull(), // snapin, hostname, domain_join, product_key, script
+  profileId: varchar("profile_id").notNull().references(() => postDeploymentProfiles.id, { onDelete: "cascade" }),
+  stepOrder: integer("step_order").notNull(), // Execution order within profile
+  config: text("config").notNull(), // JSON: type-specific configuration
+  condition: text("condition"), // JSON: {osType: 'windows', tags: ['lab']}
+  isRequired: boolean("is_required").default(true), // Skip on failure if false
+  timeoutMinutes: integer("timeout_minutes").default(30),
+  retryCount: integer("retry_count").default(2),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  profileStepIdx: index("post_deployment_tasks_profile_step_idx").on(table.profileId, table.stepOrder),
+}));
+
+export const taskRuns = pgTable("task_runs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  deploymentId: varchar("deployment_id").notNull().references(() => deployments.id, { onDelete: "cascade" }),
+  taskId: varchar("task_id").notNull().references(() => postDeploymentTasks.id),
+  taskType: text("task_type").notNull(), // snapin, hostname, domain_join, product_key, script
+  status: text("status").notNull().default("pending"), // pending, running, completed, failed, skipped
+  progress: real("progress").default(0), // 0-100
+  attempt: integer("attempt").default(1),
+  maxAttempts: integer("max_attempts").default(2),
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+  errorMessage: text("error_message"),
+  executionLog: text("execution_log"), // Detailed output/logs
+  exitCode: integer("exit_code"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  deploymentTaskIdx: index("task_runs_deployment_task_idx").on(table.deploymentId, table.taskId),
+  statusIdx: index("task_runs_status_idx").on(table.status),
+}));
+
+export const profileDeploymentBindings = pgTable("profile_deployment_bindings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  profileId: varchar("profile_id").notNull().references(() => postDeploymentProfiles.id, { onDelete: "cascade" }),
+  deploymentId: varchar("deployment_id").notNull().references(() => deployments.id, { onDelete: "cascade" }),
+  status: text("status").notNull().default("pending"), // pending, running, completed, failed
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  profileDeploymentUnique: unique("profile_deployment_unique").on(table.profileId, table.deploymentId),
+  deploymentIdx: index("profile_deployment_bindings_deployment_idx").on(table.deploymentId),
+}));
+
 // Audit Logs for User Actions
 export const auditLogs = pgTable("audit_logs", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -630,6 +793,58 @@ export const insertTemplateDeploymentSchema = createInsertSchema(templateDeploym
   startedAt: true,
 });
 
+// Post-Deployment Automation Insert Schemas
+export const insertPostDeploymentProfileSchema = createInsertSchema(postDeploymentProfiles).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertSnapinPackageSchema = createInsertSchema(snapinPackages).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertHostnamePatternSchema = createInsertSchema(hostnamePatterns).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertDomainJoinConfigSchema = createInsertSchema(domainJoinConfigs).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertProductKeySchema = createInsertSchema(productKeys).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertCustomScriptSchema = createInsertSchema(customScripts).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertPostDeploymentTaskSchema = createInsertSchema(postDeploymentTasks).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertTaskRunSchema = createInsertSchema(taskRuns).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertProfileDeploymentBindingSchema = createInsertSchema(profileDeploymentBindings).omit({
+  id: true,
+  createdAt: true,
+});
+
 export const insertAuditLogSchema = createInsertSchema(auditLogs).omit({
   id: true,
   timestamp: true,
@@ -750,6 +965,34 @@ export type InsertTemplateVariable = z.infer<typeof insertTemplateVariableSchema
 export type TemplateDeployment = typeof templateDeployments.$inferSelect;
 export type InsertTemplateDeployment = z.infer<typeof insertTemplateDeploymentSchema>;
 
+// Post-Deployment Automation Types
+export type PostDeploymentProfile = typeof postDeploymentProfiles.$inferSelect;
+export type InsertPostDeploymentProfile = z.infer<typeof insertPostDeploymentProfileSchema>;
+
+export type SnapinPackage = typeof snapinPackages.$inferSelect;
+export type InsertSnapinPackage = z.infer<typeof insertSnapinPackageSchema>;
+
+export type HostnamePattern = typeof hostnamePatterns.$inferSelect;
+export type InsertHostnamePattern = z.infer<typeof insertHostnamePatternSchema>;
+
+export type DomainJoinConfig = typeof domainJoinConfigs.$inferSelect;
+export type InsertDomainJoinConfig = z.infer<typeof insertDomainJoinConfigSchema>;
+
+export type ProductKey = typeof productKeys.$inferSelect;
+export type InsertProductKey = z.infer<typeof insertProductKeySchema>;
+
+export type CustomScript = typeof customScripts.$inferSelect;
+export type InsertCustomScript = z.infer<typeof insertCustomScriptSchema>;
+
+export type PostDeploymentTask = typeof postDeploymentTasks.$inferSelect;
+export type InsertPostDeploymentTask = z.infer<typeof insertPostDeploymentTaskSchema>;
+
+export type TaskRun = typeof taskRuns.$inferSelect;
+export type InsertTaskRun = z.infer<typeof insertTaskRunSchema>;
+
+export type ProfileDeploymentBinding = typeof profileDeploymentBindings.$inferSelect;
+export type InsertProfileDeploymentBinding = z.infer<typeof insertProfileDeploymentBindingSchema>;
+
 export type AuditLog = typeof auditLogs.$inferSelect;
 export type InsertAuditLog = z.infer<typeof insertAuditLogSchema>;
 
@@ -812,6 +1055,24 @@ export type DeploymentTemplateWithDetails = DeploymentTemplate & {
 
 export type TemplateStepWithConfig = TemplateStep & {
   parsedConfiguration: any; // Parsed JSON configuration
+};
+
+export type PostDeploymentProfileWithDetails = PostDeploymentProfile & {
+  tasks: PostDeploymentTask[];
+  creator?: User;
+};
+
+export type PostDeploymentTaskWithDetails = PostDeploymentTask & {
+  snapinPackage?: SnapinPackage;
+  hostnamePattern?: HostnamePattern;
+  domainJoinConfig?: DomainJoinConfig;
+  productKey?: ProductKey;
+  customScript?: CustomScript;
+};
+
+export type TaskRunWithDetails = TaskRun & {
+  task: PostDeploymentTask;
+  deployment: Deployment & { device: Device; image: Image };
 };
 
 export type DashboardStats = {

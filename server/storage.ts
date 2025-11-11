@@ -64,11 +64,31 @@ import {
   type InsertDeviceConnection,
   type TopologySnapshot,
   type InsertTopologySnapshot,
-  type TopologyData
+  type TopologyData,
+  type PostDeploymentProfile,
+  type InsertPostDeploymentProfile,
+  type PostDeploymentProfileWithDetails,
+  type SnapinPackage,
+  type InsertSnapinPackage,
+  type HostnamePattern,
+  type InsertHostnamePattern,
+  type DomainJoinConfig,
+  type InsertDomainJoinConfig,
+  type ProductKey,
+  type InsertProductKey,
+  type CustomScript,
+  type InsertCustomScript,
+  type PostDeploymentTask,
+  type InsertPostDeploymentTask,
+  type TaskRun,
+  type InsertTaskRun,
+  type TaskRunWithDetails,
+  type ProfileDeploymentBinding,
+  type InsertProfileDeploymentBinding
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
-import { devices, images, deployments, activityLogs, serverStatus, users, passwordResetTokens, passwordHistory, multicastSessions, multicastParticipants, roles, permissions, userRoles, rolePermissions, networkSegments, deviceConnections, topologySnapshots } from "@shared/schema";
+import { devices, images, deployments, activityLogs, serverStatus, users, passwordResetTokens, passwordHistory, multicastSessions, multicastParticipants, roles, permissions, userRoles, rolePermissions, networkSegments, deviceConnections, topologySnapshots, postDeploymentProfiles, snapinPackages, hostnamePatterns, domainJoinConfigs, productKeys, customScripts, postDeploymentTasks, taskRuns, profileDeploymentBindings } from "@shared/schema";
 import { eq, desc, and, or, count, sql } from "drizzle-orm";
 import { DeploymentScheduler } from "./scheduler";
 
@@ -263,6 +283,73 @@ export interface IStorage {
   updateComplianceReport(id: string, report: Partial<InsertComplianceReport>): Promise<ComplianceReport | undefined>;
   deleteComplianceReport(id: string): Promise<boolean>;
   approveComplianceReport(id: string, approvedBy: string): Promise<ComplianceReport | undefined>;
+
+  // Post-Deployment Automation
+  // Profiles
+  getPostDeploymentProfiles(): Promise<PostDeploymentProfileWithDetails[]>;
+  getPostDeploymentProfile(id: string): Promise<PostDeploymentProfileWithDetails | undefined>;
+  createPostDeploymentProfile(profile: InsertPostDeploymentProfile): Promise<PostDeploymentProfile>;
+  updatePostDeploymentProfile(id: string, profile: Partial<InsertPostDeploymentProfile>): Promise<PostDeploymentProfile | undefined>;
+  deletePostDeploymentProfile(id: string): Promise<boolean>;
+
+  // Snapin Packages
+  getSnapinPackages(): Promise<SnapinPackage[]>;
+  getSnapinPackage(id: string): Promise<SnapinPackage | undefined>;
+  getActiveSnapinPackages(): Promise<SnapinPackage[]>;
+  createSnapinPackage(snapin: InsertSnapinPackage): Promise<SnapinPackage>;
+  updateSnapinPackage(id: string, snapin: Partial<InsertSnapinPackage>): Promise<SnapinPackage | undefined>;
+  deleteSnapinPackage(id: string): Promise<boolean>;
+
+  // Hostname Patterns
+  getHostnamePatterns(): Promise<HostnamePattern[]>;
+  getHostnamePattern(id: string): Promise<HostnamePattern | undefined>;
+  getActiveHostnamePatterns(): Promise<HostnamePattern[]>;
+  createHostnamePattern(pattern: InsertHostnamePattern): Promise<HostnamePattern>;
+  updateHostnamePattern(id: string, pattern: Partial<InsertHostnamePattern>): Promise<HostnamePattern | undefined>;
+  deleteHostnamePattern(id: string): Promise<boolean>;
+
+  // Domain Join Configs
+  getDomainJoinConfigs(): Promise<DomainJoinConfig[]>;
+  getDomainJoinConfig(id: string): Promise<DomainJoinConfig | undefined>;
+  getActiveDomainJoinConfigs(): Promise<DomainJoinConfig[]>;
+  createDomainJoinConfig(config: InsertDomainJoinConfig): Promise<DomainJoinConfig>;
+  updateDomainJoinConfig(id: string, config: Partial<InsertDomainJoinConfig>): Promise<DomainJoinConfig | undefined>;
+  deleteDomainJoinConfig(id: string): Promise<boolean>;
+
+  // Product Keys
+  getProductKeys(): Promise<ProductKey[]>;
+  getProductKey(id: string): Promise<ProductKey | undefined>;
+  getActiveProductKeys(): Promise<ProductKey[]>;
+  createProductKey(key: InsertProductKey): Promise<ProductKey>;
+  updateProductKey(id: string, key: Partial<InsertProductKey>): Promise<ProductKey | undefined>;
+  deleteProductKey(id: string): Promise<boolean>;
+  incrementProductKeyActivations(id: string): Promise<ProductKey | undefined>;
+
+  // Custom Scripts
+  getCustomScripts(): Promise<CustomScript[]>;
+  getCustomScript(id: string): Promise<CustomScript | undefined>;
+  getActiveCustomScripts(): Promise<CustomScript[]>;
+  createCustomScript(script: InsertCustomScript): Promise<CustomScript>;
+  updateCustomScript(id: string, script: Partial<InsertCustomScript>): Promise<CustomScript | undefined>;
+  deleteCustomScript(id: string): Promise<boolean>;
+
+  // Post-Deployment Tasks
+  getPostDeploymentTasks(profileId: string): Promise<PostDeploymentTask[]>;
+  getPostDeploymentTask(id: string): Promise<PostDeploymentTask | undefined>;
+  createPostDeploymentTask(task: InsertPostDeploymentTask): Promise<PostDeploymentTask>;
+  updatePostDeploymentTask(id: string, task: Partial<InsertPostDeploymentTask>): Promise<PostDeploymentTask | undefined>;
+  deletePostDeploymentTask(id: string): Promise<boolean>;
+
+  // Task Runs
+  getTaskRuns(deploymentId: string): Promise<TaskRunWithDetails[]>;
+  getTaskRun(id: string): Promise<TaskRunWithDetails | undefined>;
+  createTaskRun(taskRun: InsertTaskRun): Promise<TaskRun>;
+  updateTaskRun(id: string, taskRun: Partial<InsertTaskRun>): Promise<TaskRun | undefined>;
+
+  // Profile-Deployment Bindings
+  getProfileDeploymentBindings(deploymentId: string): Promise<ProfileDeploymentBinding[]>;
+  createProfileDeploymentBinding(binding: InsertProfileDeploymentBinding): Promise<ProfileDeploymentBinding>;
+  updateProfileDeploymentBinding(id: string, binding: Partial<InsertProfileDeploymentBinding>): Promise<ProfileDeploymentBinding | undefined>;
 }
 
 export class MemStorage implements IStorage {
@@ -1969,6 +2056,72 @@ export class MemStorage implements IStorage {
     this.complianceReports.set(id, approved);
     return approved;
   }
+
+  // Post-Deployment Profiles - Stub Implementation
+  async getPostDeploymentProfiles(): Promise<PostDeploymentProfileWithDetails[]> { return []; }
+  async getPostDeploymentProfile(id: string): Promise<PostDeploymentProfileWithDetails | undefined> { return undefined; }
+  async createPostDeploymentProfile(profile: InsertPostDeploymentProfile): Promise<PostDeploymentProfile> { throw new Error("Not implemented"); }
+  async updatePostDeploymentProfile(id: string, profile: Partial<InsertPostDeploymentProfile>): Promise<PostDeploymentProfile | undefined> { return undefined; }
+  async deletePostDeploymentProfile(id: string): Promise<boolean> { return false; }
+
+  // Snapin Packages - Stub Implementation
+  async getSnapinPackages(): Promise<SnapinPackage[]> { return []; }
+  async getSnapinPackage(id: string): Promise<SnapinPackage | undefined> { return undefined; }
+  async getActiveSnapinPackages(): Promise<SnapinPackage[]> { return []; }
+  async createSnapinPackage(snapin: InsertSnapinPackage): Promise<SnapinPackage> { throw new Error("Not implemented"); }
+  async updateSnapinPackage(id: string, snapin: Partial<InsertSnapinPackage>): Promise<SnapinPackage | undefined> { return undefined; }
+  async deleteSnapinPackage(id: string): Promise<boolean> { return false; }
+
+  // Hostname Patterns - Stub Implementation
+  async getHostnamePatterns(): Promise<HostnamePattern[]> { return []; }
+  async getHostnamePattern(id: string): Promise<HostnamePattern | undefined> { return undefined; }
+  async getActiveHostnamePatterns(): Promise<HostnamePattern[]> { return []; }
+  async createHostnamePattern(pattern: InsertHostnamePattern): Promise<HostnamePattern> { throw new Error("Not implemented"); }
+  async updateHostnamePattern(id: string, pattern: Partial<InsertHostnamePattern>): Promise<HostnamePattern | undefined> { return undefined; }
+  async deleteHostnamePattern(id: string): Promise<boolean> { return false; }
+
+  // Domain Join Configs - Stub Implementation
+  async getDomainJoinConfigs(): Promise<DomainJoinConfig[]> { return []; }
+  async getDomainJoinConfig(id: string): Promise<DomainJoinConfig | undefined> { return undefined; }
+  async getActiveDomainJoinConfigs(): Promise<DomainJoinConfig[]> { return []; }
+  async createDomainJoinConfig(config: InsertDomainJoinConfig): Promise<DomainJoinConfig> { throw new Error("Not implemented"); }
+  async updateDomainJoinConfig(id: string, config: Partial<InsertDomainJoinConfig>): Promise<DomainJoinConfig | undefined> { return undefined; }
+  async deleteDomainJoinConfig(id: string): Promise<boolean> { return false; }
+
+  // Product Keys - Stub Implementation
+  async getProductKeys(): Promise<ProductKey[]> { return []; }
+  async getProductKey(id: string): Promise<ProductKey | undefined> { return undefined; }
+  async getActiveProductKeys(): Promise<ProductKey[]> { return []; }
+  async createProductKey(key: InsertProductKey): Promise<ProductKey> { throw new Error("Not implemented"); }
+  async updateProductKey(id: string, key: Partial<InsertProductKey>): Promise<ProductKey | undefined> { return undefined; }
+  async deleteProductKey(id: string): Promise<boolean> { return false; }
+  async incrementProductKeyActivations(id: string): Promise<ProductKey | undefined> { return undefined; }
+
+  // Custom Scripts - Stub Implementation
+  async getCustomScripts(): Promise<CustomScript[]> { return []; }
+  async getCustomScript(id: string): Promise<CustomScript | undefined> { return undefined; }
+  async getActiveCustomScripts(): Promise<CustomScript[]> { return []; }
+  async createCustomScript(script: InsertCustomScript): Promise<CustomScript> { throw new Error("Not implemented"); }
+  async updateCustomScript(id: string, script: Partial<InsertCustomScript>): Promise<CustomScript | undefined> { return undefined; }
+  async deleteCustomScript(id: string): Promise<boolean> { return false; }
+
+  // Post-Deployment Tasks - Stub Implementation
+  async getPostDeploymentTasks(profileId: string): Promise<PostDeploymentTask[]> { return []; }
+  async getPostDeploymentTask(id: string): Promise<PostDeploymentTask | undefined> { return undefined; }
+  async createPostDeploymentTask(task: InsertPostDeploymentTask): Promise<PostDeploymentTask> { throw new Error("Not implemented"); }
+  async updatePostDeploymentTask(id: string, task: Partial<InsertPostDeploymentTask>): Promise<PostDeploymentTask | undefined> { return undefined; }
+  async deletePostDeploymentTask(id: string): Promise<boolean> { return false; }
+
+  // Task Runs - Stub Implementation
+  async getTaskRuns(deploymentId: string): Promise<TaskRunWithDetails[]> { return []; }
+  async getTaskRun(id: string): Promise<TaskRunWithDetails | undefined> { return undefined; }
+  async createTaskRun(taskRun: InsertTaskRun): Promise<TaskRun> { throw new Error("Not implemented"); }
+  async updateTaskRun(id: string, taskRun: Partial<InsertTaskRun>): Promise<TaskRun | undefined> { return undefined; }
+
+  // Profile-Deployment Bindings - Stub Implementation
+  async getProfileDeploymentBindings(deploymentId: string): Promise<ProfileDeploymentBinding[]> { return []; }
+  async createProfileDeploymentBinding(binding: InsertProfileDeploymentBinding): Promise<ProfileDeploymentBinding> { throw new Error("Not implemented"); }
+  async updateProfileDeploymentBinding(id: string, binding: Partial<InsertProfileDeploymentBinding>): Promise<ProfileDeploymentBinding | undefined> { return undefined; }
 }
 
 export class DatabaseStorage implements IStorage {
@@ -2855,6 +3008,362 @@ export class DatabaseStorage implements IStorage {
   async deleteTopologySnapshot(id: string): Promise<boolean> {
     const result = await db.delete(topologySnapshots).where(eq(topologySnapshots.id, id));
     return result.rowCount ? result.rowCount > 0 : false;
+  }
+
+  // Post-Deployment Automation - Database Implementation
+  
+  // Post-Deployment Profiles
+  async getPostDeploymentProfiles(): Promise<PostDeploymentProfileWithDetails[]> {
+    const profiles = await db.select().from(postDeploymentProfiles);
+    const profilesWithTasks = await Promise.all(
+      profiles.map(async (profile) => {
+        const tasks = await db
+          .select()
+          .from(postDeploymentTasks)
+          .where(eq(postDeploymentTasks.profileId, profile.id))
+          .orderBy(postDeploymentTasks.stepOrder);
+        return { ...profile, tasks };
+      })
+    );
+    return profilesWithTasks;
+  }
+
+  async getPostDeploymentProfile(id: string): Promise<PostDeploymentProfileWithDetails | undefined> {
+    const [profile] = await db.select().from(postDeploymentProfiles).where(eq(postDeploymentProfiles.id, id));
+    if (!profile) return undefined;
+    
+    const tasks = await db
+      .select()
+      .from(postDeploymentTasks)
+      .where(eq(postDeploymentTasks.profileId, id))
+      .orderBy(postDeploymentTasks.stepOrder);
+    
+    return { ...profile, tasks };
+  }
+
+  async createPostDeploymentProfile(insertProfile: InsertPostDeploymentProfile): Promise<PostDeploymentProfile> {
+    const [profile] = await db.insert(postDeploymentProfiles).values(insertProfile).returning();
+    return profile;
+  }
+
+  async updatePostDeploymentProfile(id: string, updateData: Partial<InsertPostDeploymentProfile>): Promise<PostDeploymentProfile | undefined> {
+    const [profile] = await db
+      .update(postDeploymentProfiles)
+      .set({ ...updateData, updatedAt: new Date() })
+      .where(eq(postDeploymentProfiles.id, id))
+      .returning();
+    return profile;
+  }
+
+  async deletePostDeploymentProfile(id: string): Promise<boolean> {
+    const result = await db.delete(postDeploymentProfiles).where(eq(postDeploymentProfiles.id, id));
+    return result.rowCount ? result.rowCount > 0 : false;
+  }
+
+  // Snapin Packages
+  async getSnapinPackages(): Promise<SnapinPackage[]> {
+    return await db.select().from(snapinPackages);
+  }
+
+  async getSnapinPackage(id: string): Promise<SnapinPackage | undefined> {
+    const [snapin] = await db.select().from(snapinPackages).where(eq(snapinPackages.id, id));
+    return snapin;
+  }
+
+  async getActiveSnapinPackages(): Promise<SnapinPackage[]> {
+    return await db.select().from(snapinPackages).where(eq(snapinPackages.isActive, true));
+  }
+
+  async createSnapinPackage(insertSnapin: InsertSnapinPackage): Promise<SnapinPackage> {
+    const [snapin] = await db.insert(snapinPackages).values(insertSnapin).returning();
+    return snapin;
+  }
+
+  async updateSnapinPackage(id: string, updateData: Partial<InsertSnapinPackage>): Promise<SnapinPackage | undefined> {
+    const [snapin] = await db
+      .update(snapinPackages)
+      .set({ ...updateData, updatedAt: new Date() })
+      .where(eq(snapinPackages.id, id))
+      .returning();
+    return snapin;
+  }
+
+  async deleteSnapinPackage(id: string): Promise<boolean> {
+    const result = await db.delete(snapinPackages).where(eq(snapinPackages.id, id));
+    return result.rowCount ? result.rowCount > 0 : false;
+  }
+
+  // Hostname Patterns
+  async getHostnamePatterns(): Promise<HostnamePattern[]> {
+    return await db.select().from(hostnamePatterns);
+  }
+
+  async getHostnamePattern(id: string): Promise<HostnamePattern | undefined> {
+    const [pattern] = await db.select().from(hostnamePatterns).where(eq(hostnamePatterns.id, id));
+    return pattern;
+  }
+
+  async getActiveHostnamePatterns(): Promise<HostnamePattern[]> {
+    return await db.select().from(hostnamePatterns).where(eq(hostnamePatterns.isActive, true));
+  }
+
+  async createHostnamePattern(insertPattern: InsertHostnamePattern): Promise<HostnamePattern> {
+    const [pattern] = await db.insert(hostnamePatterns).values(insertPattern).returning();
+    return pattern;
+  }
+
+  async updateHostnamePattern(id: string, updateData: Partial<InsertHostnamePattern>): Promise<HostnamePattern | undefined> {
+    const [pattern] = await db
+      .update(hostnamePatterns)
+      .set(updateData)
+      .where(eq(hostnamePatterns.id, id))
+      .returning();
+    return pattern;
+  }
+
+  async deleteHostnamePattern(id: string): Promise<boolean> {
+    const result = await db.delete(hostnamePatterns).where(eq(hostnamePatterns.id, id));
+    return result.rowCount ? result.rowCount > 0 : false;
+  }
+
+  // Domain Join Configs
+  async getDomainJoinConfigs(): Promise<DomainJoinConfig[]> {
+    return await db.select().from(domainJoinConfigs);
+  }
+
+  async getDomainJoinConfig(id: string): Promise<DomainJoinConfig | undefined> {
+    const [config] = await db.select().from(domainJoinConfigs).where(eq(domainJoinConfigs.id, id));
+    return config;
+  }
+
+  async getActiveDomainJoinConfigs(): Promise<DomainJoinConfig[]> {
+    return await db.select().from(domainJoinConfigs).where(eq(domainJoinConfigs.isActive, true));
+  }
+
+  async createDomainJoinConfig(insertConfig: InsertDomainJoinConfig): Promise<DomainJoinConfig> {
+    const [config] = await db.insert(domainJoinConfigs).values(insertConfig).returning();
+    return config;
+  }
+
+  async updateDomainJoinConfig(id: string, updateData: Partial<InsertDomainJoinConfig>): Promise<DomainJoinConfig | undefined> {
+    const [config] = await db
+      .update(domainJoinConfigs)
+      .set({ ...updateData, updatedAt: new Date() })
+      .where(eq(domainJoinConfigs.id, id))
+      .returning();
+    return config;
+  }
+
+  async deleteDomainJoinConfig(id: string): Promise<boolean> {
+    const result = await db.delete(domainJoinConfigs).where(eq(domainJoinConfigs.id, id));
+    return result.rowCount ? result.rowCount > 0 : false;
+  }
+
+  // Product Keys
+  async getProductKeys(): Promise<ProductKey[]> {
+    return await db.select().from(productKeys);
+  }
+
+  async getProductKey(id: string): Promise<ProductKey | undefined> {
+    const [key] = await db.select().from(productKeys).where(eq(productKeys.id, id));
+    return key;
+  }
+
+  async getActiveProductKeys(): Promise<ProductKey[]> {
+    return await db.select().from(productKeys).where(eq(productKeys.isActive, true));
+  }
+
+  async createProductKey(insertKey: InsertProductKey): Promise<ProductKey> {
+    const [key] = await db.insert(productKeys).values(insertKey).returning();
+    return key;
+  }
+
+  async updateProductKey(id: string, updateData: Partial<InsertProductKey>): Promise<ProductKey | undefined> {
+    const [key] = await db
+      .update(productKeys)
+      .set({ ...updateData, updatedAt: new Date() })
+      .where(eq(productKeys.id, id))
+      .returning();
+    return key;
+  }
+
+  async deleteProductKey(id: string): Promise<boolean> {
+    const result = await db.delete(productKeys).where(eq(productKeys.id, id));
+    return result.rowCount ? result.rowCount > 0 : false;
+  }
+
+  async incrementProductKeyActivations(id: string): Promise<ProductKey | undefined> {
+    const [key] = await db
+      .update(productKeys)
+      .set({ 
+        currentActivations: sql`${productKeys.currentActivations} + 1`,
+        updatedAt: new Date()
+      })
+      .where(eq(productKeys.id, id))
+      .returning();
+    return key;
+  }
+
+  // Custom Scripts
+  async getCustomScripts(): Promise<CustomScript[]> {
+    return await db.select().from(customScripts);
+  }
+
+  async getCustomScript(id: string): Promise<CustomScript | undefined> {
+    const [script] = await db.select().from(customScripts).where(eq(customScripts.id, id));
+    return script;
+  }
+
+  async getActiveCustomScripts(): Promise<CustomScript[]> {
+    return await db.select().from(customScripts).where(eq(customScripts.isActive, true));
+  }
+
+  async createCustomScript(insertScript: InsertCustomScript): Promise<CustomScript> {
+    const [script] = await db.insert(customScripts).values(insertScript).returning();
+    return script;
+  }
+
+  async updateCustomScript(id: string, updateData: Partial<InsertCustomScript>): Promise<CustomScript | undefined> {
+    const [script] = await db
+      .update(customScripts)
+      .set({ ...updateData, updatedAt: new Date() })
+      .where(eq(customScripts.id, id))
+      .returning();
+    return script;
+  }
+
+  async deleteCustomScript(id: string): Promise<boolean> {
+    const result = await db.delete(customScripts).where(eq(customScripts.id, id));
+    return result.rowCount ? result.rowCount > 0 : false;
+  }
+
+  // Post-Deployment Tasks
+  async getPostDeploymentTasks(profileId: string): Promise<PostDeploymentTask[]> {
+    return await db
+      .select()
+      .from(postDeploymentTasks)
+      .where(eq(postDeploymentTasks.profileId, profileId))
+      .orderBy(postDeploymentTasks.stepOrder);
+  }
+
+  async getPostDeploymentTask(id: string): Promise<PostDeploymentTask | undefined> {
+    const [task] = await db.select().from(postDeploymentTasks).where(eq(postDeploymentTasks.id, id));
+    return task;
+  }
+
+  async createPostDeploymentTask(insertTask: InsertPostDeploymentTask): Promise<PostDeploymentTask> {
+    const [task] = await db.insert(postDeploymentTasks).values(insertTask).returning();
+    return task;
+  }
+
+  async updatePostDeploymentTask(id: string, updateData: Partial<InsertPostDeploymentTask>): Promise<PostDeploymentTask | undefined> {
+    const [task] = await db
+      .update(postDeploymentTasks)
+      .set({ ...updateData, updatedAt: new Date() })
+      .where(eq(postDeploymentTasks.id, id))
+      .returning();
+    return task;
+  }
+
+  async deletePostDeploymentTask(id: string): Promise<boolean> {
+    const result = await db.delete(postDeploymentTasks).where(eq(postDeploymentTasks.id, id));
+    return result.rowCount ? result.rowCount > 0 : false;
+  }
+
+  // Task Runs
+  async getTaskRuns(deploymentId: string): Promise<TaskRunWithDetails[]> {
+    const result = await db
+      .select({
+        taskRun: taskRuns,
+        task: postDeploymentTasks,
+        deployment: deployments,
+        device: devices,
+        image: images
+      })
+      .from(taskRuns)
+      .leftJoin(postDeploymentTasks, eq(taskRuns.taskId, postDeploymentTasks.id))
+      .leftJoin(deployments, eq(taskRuns.deploymentId, deployments.id))
+      .leftJoin(devices, eq(deployments.deviceId, devices.id))
+      .leftJoin(images, eq(deployments.imageId, images.id))
+      .where(eq(taskRuns.deploymentId, deploymentId))
+      .orderBy(taskRuns.createdAt);
+
+    return result.map(row => ({
+      ...row.taskRun,
+      task: row.task!,
+      deployment: {
+        ...row.deployment!,
+        device: row.device!,
+        image: row.image!
+      }
+    }));
+  }
+
+  async getTaskRun(id: string): Promise<TaskRunWithDetails | undefined> {
+    const [result] = await db
+      .select({
+        taskRun: taskRuns,
+        task: postDeploymentTasks,
+        deployment: deployments,
+        device: devices,
+        image: images
+      })
+      .from(taskRuns)
+      .leftJoin(postDeploymentTasks, eq(taskRuns.taskId, postDeploymentTasks.id))
+      .leftJoin(deployments, eq(taskRuns.deploymentId, deployments.id))
+      .leftJoin(devices, eq(deployments.deviceId, devices.id))
+      .leftJoin(images, eq(deployments.imageId, images.id))
+      .where(eq(taskRuns.id, id));
+
+    if (!result || !result.task || !result.deployment || !result.device || !result.image) {
+      return undefined;
+    }
+
+    return {
+      ...result.taskRun,
+      task: result.task,
+      deployment: {
+        ...result.deployment,
+        device: result.device,
+        image: result.image
+      }
+    };
+  }
+
+  async createTaskRun(insertTaskRun: InsertTaskRun): Promise<TaskRun> {
+    const [taskRun] = await db.insert(taskRuns).values(insertTaskRun).returning();
+    return taskRun;
+  }
+
+  async updateTaskRun(id: string, updateData: Partial<InsertTaskRun>): Promise<TaskRun | undefined> {
+    const [taskRun] = await db
+      .update(taskRuns)
+      .set(updateData)
+      .where(eq(taskRuns.id, id))
+      .returning();
+    return taskRun;
+  }
+
+  // Profile-Deployment Bindings
+  async getProfileDeploymentBindings(deploymentId: string): Promise<ProfileDeploymentBinding[]> {
+    return await db
+      .select()
+      .from(profileDeploymentBindings)
+      .where(eq(profileDeploymentBindings.deploymentId, deploymentId));
+  }
+
+  async createProfileDeploymentBinding(insertBinding: InsertProfileDeploymentBinding): Promise<ProfileDeploymentBinding> {
+    const [binding] = await db.insert(profileDeploymentBindings).values(insertBinding).returning();
+    return binding;
+  }
+
+  async updateProfileDeploymentBinding(id: string, updateData: Partial<InsertProfileDeploymentBinding>): Promise<ProfileDeploymentBinding | undefined> {
+    const [binding] = await db
+      .update(profileDeploymentBindings)
+      .set(updateData)
+      .where(eq(profileDeploymentBindings.id, id))
+      .returning();
+    return binding;
   }
 
   async getTemplates(): Promise<DeploymentTemplateWithDetails[]> { return []; }
