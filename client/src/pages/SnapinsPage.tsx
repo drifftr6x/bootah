@@ -421,7 +421,7 @@ export default function SnapinsPage() {
                     <FormItem>
                       <FormLabel>Version</FormLabel>
                       <FormControl>
-                        <Input placeholder="e.g., 1.0.0" {...field} data-testid="input-version" />
+                        <Input placeholder="e.g., 1.0.0" {...field} value={field.value ?? ""} data-testid="input-version" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -464,6 +464,7 @@ export default function SnapinsPage() {
                       <Textarea
                         placeholder="Brief description of the package"
                         {...field}
+                        value={field.value ?? ""}
                         data-testid="input-description"
                       />
                     </FormControl>
@@ -616,6 +617,7 @@ export default function SnapinsPage() {
                       <Input
                         placeholder="e.g., msiexec /x package.msi /quiet"
                         {...field}
+                        value={field.value ?? ""}
                         data-testid="input-uninstall-command"
                       />
                     </FormControl>
@@ -636,6 +638,7 @@ export default function SnapinsPage() {
                           type="number"
                           placeholder="30"
                           {...field}
+                          value={field.value ?? undefined}
                           onChange={(e) => field.onChange(parseInt(e.target.value) || 30)}
                           data-testid="input-timeout"
                         />
@@ -656,6 +659,7 @@ export default function SnapinsPage() {
                           type="number"
                           placeholder="2"
                           {...field}
+                          value={field.value ?? undefined}
                           onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
                           data-testid="input-retry-count"
                         />
@@ -676,6 +680,7 @@ export default function SnapinsPage() {
                           type="number"
                           placeholder="60"
                           {...field}
+                          value={field.value ?? undefined}
                           onChange={(e) => field.onChange(parseInt(e.target.value) || 60)}
                           data-testid="input-retry-delay"
                         />
@@ -694,7 +699,7 @@ export default function SnapinsPage() {
                     <FormItem className="flex items-center space-x-2 space-y-0">
                       <FormControl>
                         <Switch
-                          checked={field.value}
+                          checked={field.value ?? false}
                           onCheckedChange={field.onChange}
                           data-testid="switch-requires-reboot"
                         />
@@ -711,7 +716,7 @@ export default function SnapinsPage() {
                     <FormItem className="flex items-center space-x-2 space-y-0">
                       <FormControl>
                         <Switch
-                          checked={field.value}
+                          checked={field.value ?? false}
                           onCheckedChange={field.onChange}
                           data-testid="switch-is-active"
                         />

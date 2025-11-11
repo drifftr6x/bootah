@@ -24,6 +24,8 @@ import {
   ChevronRight,
   Radio,
   Network,
+  Package,
+  Tag,
 } from "lucide-react";
 
 const navigation = [
@@ -36,6 +38,8 @@ const navigation = [
   { name: "Multicast Sessions", href: "/multicast", icon: Radio },
   { name: "Network Topology", href: "/topology", icon: Network },
   { name: "Templates", href: "/templates", icon: Workflow },
+  { name: "Snapins", href: "/snapins", icon: Package },
+  { name: "Hostname Patterns", href: "/hostname-patterns", icon: Tag },
   { name: "Network Discovery", href: "/network", icon: Wifi },
   { name: "Workstations", href: "/workstations", icon: Laptop },
   { name: "Monitoring", href: "/monitoring", icon: Activity },

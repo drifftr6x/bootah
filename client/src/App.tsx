@@ -26,6 +26,8 @@ import Configuration from "@/pages/configuration";
 import Logs from "@/pages/logs";
 import Help from "@/pages/help";
 import NotFound from "@/pages/not-found";
+import SnapinsPage from "@/pages/SnapinsPage";
+import HostnamePatternsPage from "@/pages/HostnamePatternsPage";
 
 function AuthenticatedApp() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -79,6 +81,8 @@ function AuthenticatedApp() {
           <Route path="/configuration" component={Configuration} />
           <Route path="/logs" component={Logs} />
           <Route path="/help" component={Help} />
+          <Route path="/snapins" component={SnapinsPage} />
+          <Route path="/hostname-patterns" component={HostnamePatternsPage} />
           <Route component={NotFound} />
         </Switch>
       </div>

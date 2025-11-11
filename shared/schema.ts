@@ -406,9 +406,11 @@ export const hostnamePatterns = pgTable("hostname_patterns", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: text("name").notNull(),
   description: text("description"),
-  pattern: text("pattern").notNull(), // e.g., "LAB-{room}-{number}", "DESK-{dept}-{asset}"
-  variables: text("variables"), // JSON: {room: "101", dept: "IT"}
-  previewSample: text("preview_sample"), // Example: "LAB-101-001"
+  pattern: text("pattern").notNull(), // e.g., "DELL-LAB-{###}", "HP-OFFICE-{YYYY}{MM}{###}"
+  startingCounter: integer("starting_counter").default(1),
+  currentCounter: integer("current_counter").default(1),
+  prefix: text("prefix"), // Optional text before pattern
+  suffix: text("suffix"), // Optional text after pattern
   isActive: boolean("is_active").default(true),
   createdBy: varchar("created_by").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow(),

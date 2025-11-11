@@ -257,19 +257,6 @@ export default function TemplatesPage() {
             description: "Install Microsoft Office suite",
           }
         ],
-        creator: {
-          id: "user-1",
-          username: "admin",
-          email: "admin@bootah.local",
-          fullName: "System Administrator",
-          passwordHash: "hashed",
-          isActive: true,
-          lastLogin: new Date(),
-          profileImage: null,
-          department: "IT Operations",
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        }
       },
       {
         id: "template-2",
@@ -353,6 +340,7 @@ export default function TemplatesPage() {
         validationDate: new Date(),
         downloadCount: 15,
         uploadedAt: new Date(),
+        cloudUrl: null,
       },
       {
         id: "image-2",
@@ -372,6 +360,7 @@ export default function TemplatesPage() {
         validationDate: new Date(),
         downloadCount: 8,
         uploadedAt: new Date(),
+        cloudUrl: null,
       }
     ]),
   });
@@ -542,11 +531,11 @@ export default function TemplatesPage() {
   };
 
   // Filtered data
-  const filteredTemplates = templates.filter(template => {
+  const filteredTemplates = templates.filter((template: DeploymentTemplateWithDetails) => {
     const matchesSearch = !searchTerm || 
       template.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       template.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      template.tags.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase()));
+      template.tags?.some((tag: string) => tag.toLowerCase().includes(searchTerm.toLowerCase()));
     
     const matchesCategory = selectedCategory === "all" || template.category === selectedCategory;
     
@@ -571,7 +560,7 @@ export default function TemplatesPage() {
           </Badge>
           <Badge variant="outline" className="gap-1">
             <CheckCircle className="h-3 w-3" />
-            {templates.filter(t => t.isActive).length} Active
+            {templates.filter((t: DeploymentTemplateWithDetails) => t.isActive).length} Active
           </Badge>
         </div>
       </div>
@@ -689,7 +678,8 @@ export default function TemplatesPage() {
                                     <Input 
                                       type="number" 
                                       placeholder="30" 
-                                      {...field} 
+                                      {...field}
+                                      value={field.value ?? undefined}
                                       onChange={e => field.onChange(parseInt(e.target.value) || 0)}
                                       data-testid="input-estimated-duration"
                                     />
@@ -707,7 +697,7 @@ export default function TemplatesPage() {
                                   <FormItem className="flex flex-row items-center space-x-3 space-y-0">
                                     <FormControl>
                                       <Checkbox
-                                        checked={field.value}
+                                        checked={field.value ?? false}
                                         onCheckedChange={field.onChange}
                                         data-testid="checkbox-is-default"
                                       />
@@ -734,7 +724,8 @@ export default function TemplatesPage() {
                                   <Textarea 
                                     placeholder="Describe what this template does..." 
                                     className="min-h-[100px]"
-                                    {...field} 
+                                    {...field}
+                                    value={field.value ?? ""}
                                     data-testid="textarea-template-description"
                                   />
                                 </FormControl>
@@ -871,7 +862,8 @@ export default function TemplatesPage() {
                                               <Input 
                                                 type="number" 
                                                 placeholder="30" 
-                                                {...timeoutField} 
+                                                {...timeoutField}
+                                                value={timeoutField.value ?? undefined}
                                                 onChange={e => timeoutField.onChange(parseInt(e.target.value) || 0)}
                                                 data-testid={`input-step-timeout-${index}`}
                                               />
@@ -888,7 +880,7 @@ export default function TemplatesPage() {
                                           <FormItem className="flex flex-row items-center space-x-3 space-y-0 rounded-md border p-4">
                                             <FormControl>
                                               <Checkbox
-                                                checked={optionalField.value}
+                                                checked={optionalField.value ?? false}
                                                 onCheckedChange={optionalField.onChange}
                                                 data-testid={`checkbox-step-optional-${index}`}
                                               />
@@ -925,7 +917,7 @@ export default function TemplatesPage() {
                                                   <SelectValue placeholder="Select image" />
                                                 </SelectTrigger>
                                                 <SelectContent>
-                                                  {images.map(image => (
+                                                  {images.map((image: Image) => (
                                                     <SelectItem key={image.id} value={image.id}>
                                                       {image.name}
                                                     </SelectItem>
@@ -1116,6 +1108,7 @@ export default function TemplatesPage() {
                                           <Input 
                                             placeholder="Default value" 
                                             {...defaultField}
+                                            value={defaultField.value ?? ""}
                                             data-testid={`input-variable-default-${index}`}
                                           />
                                         </FormControl>
@@ -1131,7 +1124,7 @@ export default function TemplatesPage() {
                                         <FormItem className="flex flex-row items-center space-x-3 space-y-0">
                                           <FormControl>
                                             <Checkbox
-                                              checked={requiredField.value}
+                                              checked={requiredField.value ?? false}
                                               onCheckedChange={requiredField.onChange}
                                               data-testid={`checkbox-variable-required-${index}`}
                                             />
@@ -1187,7 +1180,7 @@ export default function TemplatesPage() {
 
           {/* Templates List */}
           <div className="space-y-4">
-            {filteredTemplates.map((template) => {
+            {filteredTemplates.map((template: DeploymentTemplateWithDetails) => {
               const CategoryIcon = getCategoryIcon(template.category);
               const isExpanded = expandedTemplates.has(template.id);
               
@@ -1284,7 +1277,7 @@ export default function TemplatesPage() {
                     </div>
 
                     <div className="flex flex-wrap gap-1 mt-3">
-                      {template.tags.map((tag, index) => (
+                      {template.tags?.map((tag: string, index: number) => (
                         <Badge key={index} variant="outline" className="text-xs">
                           <Tag className="h-2 w-2 mr-1" />
                           {tag}
@@ -1303,7 +1296,7 @@ export default function TemplatesPage() {
                             Deployment Steps
                           </h4>
                           <div className="space-y-2">
-                            {template.steps.map((step, index) => {
+                            {template.steps.map((step: TemplateStep, index: number) => {
                               const StepIcon = getStepIcon(step.type);
                               return (
                                 <div key={step.id} className="flex items-center gap-3 p-3 bg-muted rounded-lg">
@@ -1337,7 +1330,7 @@ export default function TemplatesPage() {
                               Template Variables
                             </h4>
                             <div className="grid grid-cols-2 gap-3">
-                              {template.variables.map((variable) => (
+                              {template.variables.map((variable: TemplateVariable) => (
                                 <div key={variable.id} className="p-3 bg-muted rounded-lg">
                                   <div className="flex items-center gap-2 mb-1">
                                     <span className="font-medium text-sm">{variable.name}</span>
@@ -1371,11 +1364,11 @@ export default function TemplatesPage() {
                             </div>
                             <div className="flex justify-between">
                               <span className="text-muted-foreground">Compatible OS:</span>
-                              <span className="capitalize">{template.compatibleOSTypes.join(", ") || "Any"}</span>
+                              <span className="capitalize">{template.compatibleOSTypes?.join(", ") || "Any"}</span>
                             </div>
                             <div className="flex justify-between">
                               <span className="text-muted-foreground">Created:</span>
-                              <span>{new Date(template.createdAt).toLocaleDateString()}</span>
+                              <span>{template.createdAt ? new Date(template.createdAt).toLocaleDateString() : "N/A"}</span>
                             </div>
                           </div>
                           <div className="space-y-2 text-sm">
@@ -1385,7 +1378,7 @@ export default function TemplatesPage() {
                             </div>
                             <div className="flex justify-between">
                               <span className="text-muted-foreground">Last Updated:</span>
-                              <span>{new Date(template.updatedAt).toLocaleDateString()}</span>
+                              <span>{template.updatedAt ? new Date(template.updatedAt).toLocaleDateString() : "N/A"}</span>
                             </div>
                             <div className="flex justify-between">
                               <span className="text-muted-foreground">Status:</span>
