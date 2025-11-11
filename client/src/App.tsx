@@ -28,6 +28,9 @@ import Help from "@/pages/help";
 import NotFound from "@/pages/not-found";
 import SnapinsPage from "@/pages/SnapinsPage";
 import HostnamePatternsPage from "@/pages/HostnamePatternsPage";
+import DomainJoinPage from "@/pages/DomainJoinPage";
+import ProductKeysPage from "@/pages/ProductKeysPage";
+import CustomScriptsPage from "@/pages/CustomScriptsPage";
 
 function AuthenticatedApp() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -83,6 +86,9 @@ function AuthenticatedApp() {
           <Route path="/help" component={Help} />
           <Route path="/snapins" component={SnapinsPage} />
           <Route path="/hostname-patterns" component={HostnamePatternsPage} />
+          <Route path="/domain-join" component={DomainJoinPage} />
+          <Route path="/product-keys" component={ProductKeysPage} />
+          <Route path="/custom-scripts" component={CustomScriptsPage} />
           <Route component={NotFound} />
         </Switch>
       </div>
