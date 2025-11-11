@@ -1766,11 +1766,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(403).json({ message: "Test endpoints are only available in development mode" });
     }
 
-    if (!req.user || !req.user.id) {
+    const user = req.user as any;
+    if (!user || !user.claims || !user.claims.sub) {
       return res.status(401).json({ message: "User not authenticated or user ID not available" });
     }
 
-    const userId = req.user.id;
+    const userId = user.claims.sub;
     
     if (!userId.startsWith('test-')) {
       return res.status(403).json({ message: "Only test users can be promoted via this endpoint" });
