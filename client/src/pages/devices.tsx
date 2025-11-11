@@ -104,9 +104,13 @@ export default function Devices() {
 
   const deleteDeviceMutation = useMutation({
     mutationFn: async (deviceId: string) => {
-      return apiRequest("DELETE", `/api/devices/${deviceId}`);
+      console.log("[DELETE] Attempting to delete device:", deviceId);
+      const result = await apiRequest("DELETE", `/api/devices/${deviceId}`);
+      console.log("[DELETE] Delete successful");
+      return result;
     },
     onSuccess: () => {
+      console.log("[DELETE] onSuccess called");
       queryClient.invalidateQueries({ queryKey: ["/api/devices"] });
       setShowDeleteDialog(false);
       setDeviceToDelete(null);
@@ -115,7 +119,8 @@ export default function Devices() {
         description: "The device has been removed successfully.",
       });
     },
-    onError: () => {
+    onError: (error) => {
+      console.error("[DELETE] onError called:", error);
       setShowDeleteDialog(false);
       setDeviceToDelete(null);
       toast({
@@ -132,8 +137,12 @@ export default function Devices() {
   };
 
   const handleConfirmDelete = () => {
+    console.log("[DELETE] handleConfirmDelete called with device:", deviceToDelete);
     if (deviceToDelete) {
+      console.log("[DELETE] Calling mutation with ID:", deviceToDelete.id);
       deleteDeviceMutation.mutate(deviceToDelete.id);
+    } else {
+      console.warn("[DELETE] No device to delete!");
     }
   };
 

@@ -152,12 +152,16 @@ export async function registerRoutes(app: Express): Promise<{
 
   app.delete("/api/devices/:id", isAuthenticated, requirePermission("devices", "delete"), async (req, res) => {
     try {
+      console.log(`[DELETE Device] Request to delete device: ${req.params.id}`);
       const deleted = await storage.deleteDevice(req.params.id);
       if (!deleted) {
+        console.log(`[DELETE Device] Device not found: ${req.params.id}`);
         return res.status(404).json({ message: "Device not found" });
       }
+      console.log(`[DELETE Device] Successfully deleted device: ${req.params.id}`);
       res.status(204).send();
     } catch (error) {
+      console.error(`[DELETE Device] Error deleting device: ${req.params.id}`, error);
       res.status(500).json({ message: "Failed to delete device" });
     }
   });

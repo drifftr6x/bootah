@@ -69,9 +69,31 @@ async function upsertUser(
       const allUsers = await storage.getUsers();
       const isFirstUser = allUsers.length === 1;
       
-      // First user gets admin, others get viewer by default
-      const defaultRoleName = isFirstUser ? "admin" : "viewer";
+      // Determine default role with validation and fallback
       const roles = await storage.getRoles();
+      const isDevelopment = process.env.NODE_ENV === "development";
+      
+      let defaultRoleName: string;
+      if (isFirstUser) {
+        defaultRoleName = "admin";
+      } else {
+        // Use configurable default role with validation
+        const requestedRole = process.env.DEFAULT_USER_ROLE || "viewer";
+        const roleExists = roles.some(r => r.name === requestedRole);
+        
+        if (!roleExists) {
+          console.error(`[Auth] Invalid DEFAULT_USER_ROLE="${requestedRole}" - role not found. Falling back to "viewer".`);
+          defaultRoleName = "viewer";
+        } else {
+          defaultRoleName = requestedRole;
+          
+          // Warn if granting privileged roles in production
+          if (!isDevelopment && (defaultRoleName === "operator" || defaultRoleName === "admin")) {
+            console.warn(`[Auth] WARNING: DEFAULT_USER_ROLE="${defaultRoleName}" grants elevated privileges in production!`);
+          }
+        }
+      }
+      
       const defaultRole = roles.find(r => r.name === defaultRoleName);
       
       if (defaultRole) {
@@ -82,7 +104,8 @@ async function upsertUser(
         });
         console.log(`[Auth] Auto-assigned ${defaultRoleName} role to new user: ${user.email || user.username}`);
       } else {
-        console.warn(`[Auth] Could not find ${defaultRoleName} role for auto-assignment`);
+        // This should never happen after validation, but handle it gracefully
+        console.error(`[Auth] CRITICAL: Could not find "${defaultRoleName}" role for auto-assignment. User ${user.email || user.username} has NO role!`);
       }
     }
   } catch (error) {
