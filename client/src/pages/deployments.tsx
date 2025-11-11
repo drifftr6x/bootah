@@ -7,9 +7,10 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { DeploymentWithDetails } from "@shared/schema";
-import { Zap, StopCircle, Plus } from "lucide-react";
+import { Zap, StopCircle, Plus, Calendar, Clock, Repeat, X } from "lucide-react";
 import { useState } from "react";
 import StartDeploymentDialog from "@/components/dialogs/start-deployment-dialog";
+import { formatScheduledTime, formatRelativeTime } from "@/lib/scheduling";
 
 function getStatusColor(status: string) {
   switch (status) {
@@ -75,6 +76,14 @@ export default function Deployments() {
   const activeDeployments = deployments?.filter(d => 
     d.status === "deploying" || d.status === "pending"
   ) || [];
+
+  const scheduledDeployments = deployments?.filter(d => 
+    d.status === "scheduled"
+  ).sort((a, b) => {
+    const aTime = new Date(a.nextRunAt || a.scheduledFor || 0).getTime();
+    const bTime = new Date(b.nextRunAt || b.scheduledFor || 0).getTime();
+    return aTime - bTime;
+  }) || [];
 
   const completedDeployments = deployments?.filter(d => 
     d.status === "completed" || d.status === "failed" || d.status === "cancelled"
@@ -203,6 +212,102 @@ export default function Deployments() {
             )}
           </CardContent>
         </Card>
+
+        {/* Scheduled Deployments */}
+        {scheduledDeployments.length > 0 && (
+          <Card>
+            <CardHeader className="p-6 border-b border-border">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold text-foreground">Scheduled Deployments</h3>
+                <Badge variant="secondary" className="text-xs">
+                  {scheduledDeployments.length} upcoming
+                </Badge>
+              </div>
+            </CardHeader>
+            <CardContent className="p-0">
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-muted/50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Device</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Image</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Schedule Type</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Next Run</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {scheduledDeployments.map((deployment) => (
+                      <tr key={deployment.id} className="hover:bg-muted/30 transition-colors">
+                        <td className="px-6 py-4">
+                          <div className="flex items-center space-x-2">
+                            <div>
+                              <div className="font-medium text-foreground">{deployment.device?.name}</div>
+                              <div className="text-sm text-muted-foreground">{deployment.device?.macAddress}</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex flex-col">
+                            <span className="font-medium text-foreground">{deployment.image?.name}</span>
+                            <Badge variant="outline" className={cn("text-xs w-fit mt-1", getStatusColor(deployment.image?.osType || ""))} data-testid={`badge-os-${deployment.image?.osType}`}>
+                              {deployment.image?.osType}
+                            </Badge>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex items-center space-x-2">
+                            {deployment.scheduleType === "delayed" ? (
+                              <>
+                                <Clock className="w-4 h-4 text-blue-500" />
+                                <span className="text-sm">Delayed</span>
+                              </>
+                            ) : deployment.scheduleType === "recurring" ? (
+                              <>
+                                <Repeat className="w-4 h-4 text-purple-500" />
+                                <span className="text-sm">Recurring</span>
+                              </>
+                            ) : (
+                              <span className="text-sm text-muted-foreground">Instant</span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex flex-col">
+                            <span className="text-sm font-medium text-foreground">
+                              {formatScheduledTime(deployment.nextRunAt || deployment.scheduledFor || new Date())}
+                            </span>
+                            <span className="text-xs text-muted-foreground">
+                              {formatRelativeTime(deployment.nextRunAt || deployment.scheduledFor || new Date())}
+                            </span>
+                            {deployment.recurringPattern && (
+                              <span className="text-xs text-purple-600 dark:text-purple-400 font-mono mt-1">
+                                {deployment.recurringPattern}
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => stopDeploymentMutation.mutate(deployment.id)}
+                            disabled={stopDeploymentMutation.isPending}
+                            data-testid={`button-cancel-${deployment.id}`}
+                            className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                          >
+                            <X className="w-4 h-4 mr-1" />
+                            Cancel
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Deployment History */}
         <Card>

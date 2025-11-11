@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -10,11 +10,12 @@ import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { insertDeploymentSchema, type InsertDeployment, type Device, type Image } from "@shared/schema";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
-import { Loader2, Monitor, HardDrive, PlayCircle, AlertCircle, Calendar, Clock, Repeat } from "lucide-react";
+import { Loader2, Monitor, HardDrive, PlayCircle, AlertCircle, Calendar, Clock, Repeat, CheckCircle2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
+import { validateCronPattern, getNextCronOccurrences, formatScheduledTime, formatRelativeTime } from "@/lib/scheduling";
 
 interface StartDeploymentDialogProps {
   open: boolean;
@@ -22,6 +23,13 @@ interface StartDeploymentDialogProps {
   preselectedDeviceId?: string;
   preselectedImageId?: string;
 }
+
+const cronPresets = [
+  { label: "Daily at 2 AM", value: "0 2 * * *", description: "Every day at 2:00 AM" },
+  { label: "Weekdays at 9 AM", value: "0 9 * * 1-5", description: "Monday-Friday at 9:00 AM" },
+  { label: "Weekly (Sunday 2 AM)", value: "0 2 * * 0", description: "Every Sunday at 2:00 AM" },
+  { label: "Monthly (1st, 2 AM)", value: "0 2 1 * *", description: "1st of every month at 2:00 AM" },
+];
 
 const extendedDeploymentSchema = insertDeploymentSchema
   .refine((data: InsertDeployment) => {
@@ -43,6 +51,16 @@ const extendedDeploymentSchema = insertDeploymentSchema
     return true;
   }, {
     message: "Scheduled date/time is required for delayed and recurring deployments",
+    path: ["scheduledFor"],
+  })
+  .refine((data: InsertDeployment) => {
+    if (data.scheduleType === "delayed" && data.scheduledFor) {
+      const scheduledDate = new Date(data.scheduledFor);
+      return scheduledDate > new Date();
+    }
+    return true;
+  }, {
+    message: "Scheduled time must be in the future",
     path: ["scheduledFor"],
   })
   .refine((data: InsertDeployment) => {
@@ -96,6 +114,8 @@ export default function StartDeploymentDialog({
 }: StartDeploymentDialogProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [cronNextRuns, setCronNextRuns] = useState<Date[]>([]);
+  const [selectedPreset, setSelectedPreset] = useState<string | null>(null);
   
   const form = useForm<InsertDeployment>({
     resolver: zodResolver(extendedDeploymentSchema),
@@ -112,6 +132,21 @@ export default function StartDeploymentDialog({
   });
 
   const scheduleType = form.watch("scheduleType");
+  const recurringPattern = form.watch("recurringPattern");
+  const scheduledFor = form.watch("scheduledFor");
+  
+  // Calculate next runs when cron pattern changes
+  useEffect(() => {
+    if (scheduleType === "recurring" && recurringPattern) {
+      const validation = validateCronPattern(recurringPattern);
+      if (validation.valid) {
+        const nextRuns = getNextCronOccurrences(recurringPattern, 3);
+        setCronNextRuns(nextRuns);
+      } else {
+        setCronNextRuns([]);
+      }
+    }
+  }, [recurringPattern, scheduleType]);
 
   // Fetch devices and images
   const { data: devices, isLoading: devicesLoading } = useQuery<Device[]>({
@@ -448,33 +483,104 @@ export default function StartDeploymentDialog({
 
             {/* Cron Pattern - Show for recurring only */}
             {scheduleType === "recurring" && (
-              <FormField
-                control={form.control}
-                name="recurringPattern"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel data-testid="label-recurring-pattern">
-                      <Repeat className="w-4 h-4 inline mr-2" />
-                      Recurrence Pattern (Cron)
-                    </FormLabel>
-                    <FormControl>
-                      <Input
-                        {...field}
-                        value={field.value || ""}
-                        placeholder="0 2 * * 0 (Every Sunday at 2 AM)"
-                        data-testid="input-recurring-pattern"
-                        className="font-mono"
-                      />
-                    </FormControl>
-                    <FormDescription>
-                      Use cron format: minute hour day month weekday
-                      <br />
-                      Examples: "0 2 * * *" (daily at 2 AM), "0 0 * * 0" (weekly on Sunday)
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              <>
+                {/* Cron Preset Cards */}
+                <div className="space-y-3">
+                  <Label className="text-sm font-medium">
+                    Quick Presets
+                  </Label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {cronPresets.map((preset) => (
+                      <button
+                        key={preset.value}
+                        type="button"
+                        onClick={() => {
+                          form.setValue("recurringPattern", preset.value);
+                          setSelectedPreset(preset.value);
+                        }}
+                        className={cn(
+                          "flex items-center justify-between p-3 rounded-lg border-2 text-left transition-colors",
+                          selectedPreset === preset.value
+                            ? "border-primary bg-primary/5"
+                            : "border-muted hover:border-primary/50 hover:bg-accent"
+                        )}
+                        data-testid={`preset-${preset.label.toLowerCase().replace(/\s+/g, '-')}`}
+                      >
+                        <div className="flex-1">
+                          <div className="text-sm font-medium">{preset.label}</div>
+                          <div className="text-xs text-muted-foreground">{preset.description}</div>
+                        </div>
+                        {selectedPreset === preset.value && (
+                          <CheckCircle2 className="w-4 h-4 text-primary flex-shrink-0 ml-2" />
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                
+                <FormField
+                  control={form.control}
+                  name="recurringPattern"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel data-testid="label-recurring-pattern">
+                        <Repeat className="w-4 h-4 inline mr-2" />
+                        Custom Cron Pattern (Advanced)
+                      </FormLabel>
+                      <FormControl>
+                        <Input
+                          {...field}
+                          value={field.value || ""}
+                          placeholder="0 2 * * 0 (Every Sunday at 2 AM)"
+                          data-testid="input-recurring-pattern"
+                          className="font-mono"
+                          onBlur={() => {
+                            if (field.value) {
+                              const validation = validateCronPattern(field.value);
+                              if (!validation.valid) {
+                                form.setError("recurringPattern", {
+                                  type: "manual",
+                                  message: validation.error || "Invalid cron pattern",
+                                });
+                              } else {
+                                form.clearErrors("recurringPattern");
+                              }
+                              // Clear selected preset if custom pattern entered
+                              if (field.value && !cronPresets.find(p => p.value === field.value)) {
+                                setSelectedPreset(null);
+                              }
+                            }
+                          }}
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        {cronNextRuns.length > 0 ? (
+                          <div className="mt-2 space-y-1">
+                            <div className="flex items-center text-sm font-medium text-foreground">
+                              <Calendar className="w-3 h-3 mr-1" />
+                              Next Scheduled Runs:
+                            </div>
+                            <ul className="text-xs text-muted-foreground space-y-0.5 ml-4">
+                              {cronNextRuns.map((date, index) => (
+                                <li key={index}>
+                                  • {formatScheduledTime(date)} ({formatRelativeTime(date)})
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        ) : (
+                          <>
+                            Cron format: minute hour day month weekday
+                            <br />
+                            Examples: "0 2 * * *" (daily at 2 AM), "0 0 * * 0" (weekly on Sunday)
+                          </>
+                        )}
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </>
             )}
 
             {/* Deployment Warning */}
@@ -486,6 +592,24 @@ export default function StartDeploymentDialog({
                     <strong>Warning:</strong> This will completely wipe the target device and install {selectedImage.name}. 
                     All existing data on {selectedDevice.name} will be permanently lost.
                   </p>
+                </div>
+              </div>
+            )}
+
+            {/* Next Run Summary - Show for scheduled deployments */}
+            {(scheduleType === "delayed" || scheduleType === "recurring") && scheduledFor && (
+              <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                <div className="flex items-center space-x-2">
+                  <Clock className="w-4 h-4 text-blue-600" />
+                  <div className="text-sm text-blue-700 dark:text-blue-300">
+                    <strong>Next run:</strong>{" "}
+                    {formatScheduledTime(scheduledFor)} ({formatRelativeTime(scheduledFor)})
+                    {scheduleType === "recurring" && cronNextRuns.length > 0 && (
+                      <span className="text-xs block mt-1 text-blue-600 dark:text-blue-400">
+                        Recurring: {cronNextRuns.length} scheduled executions calculated
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
             )}
