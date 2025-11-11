@@ -39,7 +39,7 @@ export const deployments = pgTable("deployments", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   deviceId: varchar("device_id").notNull().references(() => devices.id),
   imageId: varchar("image_id").notNull().references(() => images.id),
-  status: text("status").notNull().default("pending"), // pending, scheduled, deploying, completed, failed, cancelled
+  status: text("status").notNull().default("pending"), // pending, scheduled, deploying, post_processing, completed, failed, cancelled
   progress: real("progress").default(0), // 0-100
   startedAt: timestamp("started_at"), // Set by scheduler when deployment actually starts
   completedAt: timestamp("completed_at"),
