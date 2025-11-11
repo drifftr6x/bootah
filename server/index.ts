@@ -23,9 +23,13 @@ app.use((req, res, next) => {
   res.on("finish", () => {
     const duration = Date.now() - start;
     if (path.startsWith("/api")) {
+      const isSensitiveRoute = path.includes("/reveal");
+      
       let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
-      if (capturedJsonResponse) {
+      if (capturedJsonResponse && !isSensitiveRoute) {
         logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
+      } else if (isSensitiveRoute) {
+        logLine += ` :: [REDACTED - sensitive data]`;
       }
 
       if (logLine.length > 80) {
