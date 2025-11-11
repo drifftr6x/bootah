@@ -160,9 +160,10 @@ export default function StartDeploymentDialog({
   });
 
   // Filter available devices (online or idle, not currently deploying)
-  const availableDevices = devices?.filter(device => 
-    device.status === "online" || device.status === "idle"
-  ) || [];
+  const availableDevices = devices?.filter(device => {
+    const status = device.status?.toLowerCase();
+    return status === "online" || status === "idle";
+  }) || [];
 
   const selectedDevice = devices?.find(d => d.id === form.watch("deviceId"));
   const selectedImage = images?.find(i => i.id === form.watch("imageId"));
