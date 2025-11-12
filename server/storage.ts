@@ -471,6 +471,7 @@ export class MemStorage implements IStorage {
       isValidated: true,
       validationDate: new Date(),
       downloadCount: 15,
+      cloudUrl: null,
       uploadedAt: new Date(),
     };
 
@@ -491,6 +492,7 @@ export class MemStorage implements IStorage {
       isValidated: true,
       validationDate: new Date(),
       downloadCount: 8,
+      cloudUrl: null,
       uploadedAt: new Date(),
     };
 
@@ -511,6 +513,7 @@ export class MemStorage implements IStorage {
       isValidated: false,
       validationDate: null,
       downloadCount: 3,
+      cloudUrl: null,
       uploadedAt: new Date(),
     };
 
@@ -528,6 +531,13 @@ export class MemStorage implements IStorage {
       startedAt: new Date(Date.now() - 300000), // 5 minutes ago
       completedAt: null,
       errorMessage: null,
+      scheduleType: "instant",
+      scheduledFor: null,
+      recurringPattern: null,
+      lastRunAt: null,
+      nextRunAt: null,
+      createdBy: null,
+      createdAt: new Date(Date.now() - 300000),
     };
 
     const deployment2: Deployment = {
@@ -539,6 +549,13 @@ export class MemStorage implements IStorage {
       startedAt: new Date(Date.now() - 600000), // 10 minutes ago
       completedAt: null,
       errorMessage: null,
+      scheduleType: "instant",
+      scheduledFor: null,
+      recurringPattern: null,
+      lastRunAt: null,
+      nextRunAt: null,
+      createdBy: null,
+      createdAt: new Date(Date.now() - 600000),
     };
 
     const deployment3: Deployment = {
@@ -550,6 +567,13 @@ export class MemStorage implements IStorage {
       startedAt: new Date(Date.now() - 900000), // 15 minutes ago
       completedAt: null,
       errorMessage: null,
+      scheduleType: "instant",
+      scheduledFor: null,
+      recurringPattern: null,
+      lastRunAt: null,
+      nextRunAt: null,
+      createdBy: null,
+      createdAt: new Date(Date.now() - 900000),
     };
 
     this.deployments.set(deployment1.id, deployment1);
@@ -649,17 +673,18 @@ export class MemStorage implements IStorage {
       ...insertImage,
       id,
       uploadedAt: new Date(),
-      version: insertImage.version || null,
-      description: insertImage.description || null,
-      checksum: insertImage.checksum || null,
-      category: insertImage.category || "General",
-      tags: insertImage.tags || [],
-      compressionType: insertImage.compressionType || "none",
-      originalSize: insertImage.originalSize || null,
-      architecture: insertImage.architecture || "x64",
-      isValidated: insertImage.isValidated || false,
+      version: insertImage.version ?? null,
+      description: insertImage.description ?? null,
+      checksum: insertImage.checksum ?? null,
+      category: insertImage.category ?? "General",
+      tags: insertImage.tags ?? [],
+      compressionType: insertImage.compressionType ?? "none",
+      originalSize: insertImage.originalSize ?? null,
+      architecture: insertImage.architecture ?? "x64",
+      isValidated: insertImage.isValidated ?? false,
       validationDate: null,
       downloadCount: 0,
+      cloudUrl: insertImage.cloudUrl ?? null,
     };
     this.images.set(id, image);
     return image;
@@ -768,9 +793,16 @@ export class MemStorage implements IStorage {
       id,
       startedAt: new Date(),
       completedAt: null,
-      status: insertDeployment.status || "pending",
-      progress: insertDeployment.progress || 0,
-      errorMessage: insertDeployment.errorMessage || null,
+      status: insertDeployment.status ?? "pending",
+      progress: insertDeployment.progress ?? 0,
+      errorMessage: insertDeployment.errorMessage ?? null,
+      scheduleType: insertDeployment.scheduleType ?? "instant",
+      scheduledFor: insertDeployment.scheduledFor ?? null,
+      recurringPattern: insertDeployment.recurringPattern ?? null,
+      lastRunAt: insertDeployment.lastRunAt ?? null,
+      nextRunAt: insertDeployment.nextRunAt ?? null,
+      createdBy: insertDeployment.createdBy ?? null,
+      createdAt: new Date(),
     };
     this.deployments.set(id, deployment);
     return deployment;
@@ -803,6 +835,7 @@ export class MemStorage implements IStorage {
     const session: MulticastSession = {
       ...insertSession,
       id,
+      description: insertSession.description ?? null,
       status: "waiting",
       clientCount: 0,
       totalBytes: 0,
@@ -1094,14 +1127,14 @@ export class MemStorage implements IStorage {
   private initializeUserManagement() {
     // Sample permissions
     const permissions = [
-      { id: randomUUID(), name: "view_dashboard", description: "View dashboard" },
-      { id: randomUUID(), name: "manage_devices", description: "Manage devices" },
-      { id: randomUUID(), name: "manage_images", description: "Manage OS images" },
-      { id: randomUUID(), name: "manage_deployments", description: "Manage deployments" },
-      { id: randomUUID(), name: "manage_users", description: "Manage users" },
-      { id: randomUUID(), name: "manage_roles", description: "Manage roles" },
-      { id: randomUUID(), name: "view_logs", description: "View activity logs" },
-      { id: randomUUID(), name: "manage_system", description: "Manage system settings" },
+      { id: randomUUID(), name: "view_dashboard", resource: "dashboard", action: "read", description: "View dashboard" },
+      { id: randomUUID(), name: "manage_devices", resource: "devices", action: "manage", description: "Manage devices" },
+      { id: randomUUID(), name: "manage_images", resource: "images", action: "manage", description: "Manage OS images" },
+      { id: randomUUID(), name: "manage_deployments", resource: "deployments", action: "manage", description: "Manage deployments" },
+      { id: randomUUID(), name: "manage_users", resource: "users", action: "manage", description: "Manage users" },
+      { id: randomUUID(), name: "manage_roles", resource: "roles", action: "manage", description: "Manage roles" },
+      { id: randomUUID(), name: "view_logs", resource: "logs", action: "read", description: "View activity logs" },
+      { id: randomUUID(), name: "manage_system", resource: "system", action: "manage", description: "Manage system settings" },
     ];
 
     permissions.forEach(p => this.permissions.set(p.id, p));
@@ -1141,7 +1174,6 @@ export class MemStorage implements IStorage {
         id: randomUUID(),
         roleId: adminRole.id,
         permissionId: perm.id,
-        assignedAt: new Date(),
       };
       this.rolePermissions.set(rolePermission.id, rolePermission);
     });
@@ -1155,7 +1187,6 @@ export class MemStorage implements IStorage {
         id: randomUUID(),
         roleId: operatorRole.id,
         permissionId: perm.id,
-        assignedAt: new Date(),
       };
       this.rolePermissions.set(rolePermission.id, rolePermission);
     });
@@ -1169,7 +1200,6 @@ export class MemStorage implements IStorage {
         id: randomUUID(),
         roleId: viewerRole.id,
         permissionId: perm.id,
-        assignedAt: new Date(),
       };
       this.rolePermissions.set(rolePermission.id, rolePermission);
     });
@@ -1181,10 +1211,25 @@ export class MemStorage implements IStorage {
       email: "admin@bootah.local",
       firstName: "System",
       lastName: "Administrator",
+      fullName: null,
+      profileImageUrl: null,
+      passwordHash: null,
       isActive: true,
-      lastLoginAt: new Date(),
+      isLocked: false,
+      accountStatus: "active",
+      failedLoginAttempts: 0,
+      lastFailedLogin: null,
+      lockedUntil: null,
+      forcePasswordChange: false,
+      passwordLastChanged: null,
+      passwordExpiresAt: null,
+      lastLogin: new Date(),
+      department: null,
+      jobTitle: null,
+      phoneNumber: null,
       createdAt: new Date(),
       updatedAt: new Date(),
+      createdBy: null,
     };
 
     const operatorUser: User = {
@@ -1193,10 +1238,25 @@ export class MemStorage implements IStorage {
       email: "operator@bootah.local",
       firstName: "IT",
       lastName: "Operator",
+      fullName: null,
+      profileImageUrl: null,
+      passwordHash: null,
       isActive: true,
-      lastLoginAt: new Date(Date.now() - 3600000), // 1 hour ago
+      isLocked: false,
+      accountStatus: "active",
+      failedLoginAttempts: 0,
+      lastFailedLogin: null,
+      lockedUntil: null,
+      forcePasswordChange: false,
+      passwordLastChanged: null,
+      passwordExpiresAt: null,
+      lastLogin: new Date(Date.now() - 3600000), // 1 hour ago
+      department: null,
+      jobTitle: null,
+      phoneNumber: null,
       createdAt: new Date(),
       updatedAt: new Date(),
+      createdBy: null,
     };
 
     this.users.set(adminUser.id, adminUser);
@@ -1208,6 +1268,7 @@ export class MemStorage implements IStorage {
       userId: adminUser.id,
       roleId: adminRole.id,
       assignedAt: new Date(),
+      assignedBy: null,
     };
 
     const operatorUserRole: UserRole = {
@@ -1215,6 +1276,7 @@ export class MemStorage implements IStorage {
       userId: operatorUser.id,
       roleId: operatorRole.id,
       assignedAt: new Date(),
+      assignedBy: null,
     };
 
     this.userRoles.set(adminUserRole.id, adminUserRole);
@@ -1228,9 +1290,13 @@ export class MemStorage implements IStorage {
       id: randomUUID(),
       name: "Windows 11 Enterprise Deployment",
       description: "Complete Windows 11 Enterprise deployment with domain join and software installation",
-      version: "1.0",
+      category: "standard",
+      isDefault: false,
       isActive: true,
-      createdBy: Array.from(this.users.values())[0]?.id || "admin",
+      estimatedDuration: 45,
+      compatibleOSTypes: ["windows"],
+      tags: ["windows", "enterprise", "domain"],
+      createdBy: Array.from(this.users.values())[0]?.id || null,
       createdAt: new Date(),
       updatedAt: new Date(),
     };
@@ -1240,9 +1306,13 @@ export class MemStorage implements IStorage {
       id: randomUUID(),
       name: "Ubuntu Server Setup",
       description: "Ubuntu 22.04 LTS server deployment with Docker and monitoring tools",
-      version: "1.2",
+      category: "standard",
+      isDefault: false,
       isActive: true,
-      createdBy: Array.from(this.users.values())[0]?.id || "admin",
+      estimatedDuration: 30,
+      compatibleOSTypes: ["linux"],
+      tags: ["ubuntu", "server", "docker"],
+      createdBy: Array.from(this.users.values())[0]?.id || null,
       createdAt: new Date(),
       updatedAt: new Date(),
     };
@@ -1251,78 +1321,75 @@ export class MemStorage implements IStorage {
     this.templates.set(linuxTemplate.id, linuxTemplate);
 
     // Windows template steps
-    const winSteps = [
+    const winSteps: TemplateStep[] = [
       {
         id: randomUUID(),
         templateId: winTemplate.id,
-        stepNumber: 1,
+        stepOrder: 1,
         name: "Boot from Network",
-        description: "Configure BIOS/UEFI for PXE boot",
-        action: "pxe_boot",
-        parameters: { bootMode: "uefi", networkInterface: "primary" },
-        timeoutSeconds: 300,
+        type: "pxe_boot",
+        configuration: JSON.stringify({ bootMode: "uefi", networkInterface: "primary" }),
+        isOptional: false,
+        timeoutMinutes: 5,
         retryCount: 3,
-        isOptional: false,
-        dependsOn: null,
       },
       {
         id: randomUUID(),
         templateId: winTemplate.id,
-        stepNumber: 2,
+        stepOrder: 2,
         name: "Deploy Windows Image",
-        description: "Deploy Windows 11 Enterprise base image",
-        action: "deploy_image",
-        parameters: { imageId: "{{WINDOWS_IMAGE_ID}}", partitionScheme: "gpt" },
-        timeoutSeconds: 2400,
-        retryCount: 1,
+        type: "deploy_image",
+        configuration: JSON.stringify({ imageId: "{{WINDOWS_IMAGE_ID}}", partitionScheme: "gpt" }),
         isOptional: false,
-        dependsOn: null,
+        timeoutMinutes: 40,
+        retryCount: 1,
       },
       {
         id: randomUUID(),
         templateId: winTemplate.id,
-        stepNumber: 3,
+        stepOrder: 3,
         name: "Domain Join",
-        description: "Join computer to Active Directory domain",
-        action: "domain_join",
-        parameters: { domain: "{{DOMAIN_NAME}}", ou: "{{TARGET_OU}}" },
-        timeoutSeconds: 180,
-        retryCount: 2,
+        type: "domain_join",
+        configuration: JSON.stringify({ domain: "{{DOMAIN_NAME}}", ou: "{{TARGET_OU}}" }),
         isOptional: true,
-        dependsOn: null,
+        timeoutMinutes: 3,
+        retryCount: 2,
       }
     ];
 
     winSteps.forEach(step => this.templateSteps.set(step.id, step));
 
     // Template variables
-    const winVariables = [
+    const winVariables: TemplateVariable[] = [
       {
         id: randomUUID(),
         templateId: winTemplate.id,
         name: "WINDOWS_IMAGE_ID",
-        description: "Windows 11 Enterprise Image ID",
+        type: "string",
         defaultValue: "",
         isRequired: true,
-        variableType: "string" as const,
+        options: null,
+        description: "Windows 11 Enterprise Image ID",
       },
       {
         id: randomUUID(),
         templateId: winTemplate.id,
         name: "DOMAIN_NAME",
-        description: "Active Directory Domain Name",
+        type: "string",
         defaultValue: "company.local",
         isRequired: false,
-        variableType: "string" as const,
+        options: null,
+        description: "Active Directory Domain Name",
       },
       {
         id: randomUUID(),
         templateId: winTemplate.id,
         name: "TARGET_OU",
-        description: "Target Organizational Unit",
+        type: "string",
         defaultValue: "OU=Workstations,DC=company,DC=local",
         isRequired: false,
-        variableType: "string" as const,
+        options: null,
+        description: "Target Organizational Unit",
       }
     ];
 
@@ -1335,14 +1402,21 @@ export class MemStorage implements IStorage {
     const usersWithRoles: UserWithRoles[] = [];
 
     for (const user of users) {
-      const userRoles = Array.from(this.userRoles.values())
+      const userRoleRelations = Array.from(this.userRoles.values())
         .filter(ur => ur.userId === user.id)
-        .map(ur => this.roles.get(ur.roleId))
-        .filter(Boolean) as Role[];
+        .map(ur => {
+          const role = this.roles.get(ur.roleId);
+          if (!role) return null;
+          return {
+            ...ur,
+            role
+          };
+        })
+        .filter(Boolean) as (UserRole & { role: Role })[];
 
       usersWithRoles.push({
         ...user,
-        roles: userRoles,
+        roles: userRoleRelations,
       });
     }
 
@@ -1353,14 +1427,21 @@ export class MemStorage implements IStorage {
     const user = this.users.get(id);
     if (!user) return undefined;
 
-    const userRoles = Array.from(this.userRoles.values())
+    const userRoleRelations = Array.from(this.userRoles.values())
       .filter(ur => ur.userId === id)
-      .map(ur => this.roles.get(ur.roleId))
-      .filter(Boolean) as Role[];
+      .map(ur => {
+        const role = this.roles.get(ur.roleId);
+        if (!role) return null;
+        return {
+          ...ur,
+          role
+        };
+      })
+      .filter(Boolean) as (UserRole & { role: Role })[];
 
     return {
       ...user,
-      roles: userRoles,
+      roles: userRoleRelations,
     };
   }
 
@@ -1375,12 +1456,30 @@ export class MemStorage implements IStorage {
   async createUser(insertUser: InsertUser): Promise<User> {
     const id = randomUUID();
     const user: User = {
-      ...insertUser,
       id,
+      email: insertUser.email ?? null,
+      firstName: insertUser.firstName ?? null,
+      lastName: insertUser.lastName ?? null,
+      profileImageUrl: insertUser.profileImageUrl ?? null,
+      username: insertUser.username ?? null,
+      fullName: insertUser.fullName ?? null,
+      passwordHash: insertUser.passwordHash ?? null,
       isActive: insertUser.isActive ?? true,
-      lastLoginAt: insertUser.lastLoginAt ?? null,
+      isLocked: insertUser.isLocked ?? false,
+      accountStatus: insertUser.accountStatus ?? "active",
+      failedLoginAttempts: insertUser.failedLoginAttempts ?? 0,
+      lastFailedLogin: insertUser.lastFailedLogin ?? null,
+      lockedUntil: insertUser.lockedUntil ?? null,
+      forcePasswordChange: insertUser.forcePasswordChange ?? false,
+      passwordLastChanged: insertUser.passwordLastChanged ?? null,
+      passwordExpiresAt: insertUser.passwordExpiresAt ?? null,
+      lastLogin: insertUser.lastLogin ?? null,
+      department: insertUser.department ?? null,
+      jobTitle: insertUser.jobTitle ?? null,
+      phoneNumber: insertUser.phoneNumber ?? null,
       createdAt: new Date(),
       updatedAt: new Date(),
+      createdBy: insertUser.createdBy ?? null,
     };
     this.users.set(id, user);
     return user;
@@ -1419,6 +1518,34 @@ export class MemStorage implements IStorage {
     };
     this.users.set(id, updatedUser);
     return updatedUser;
+  }
+
+  async upsertUser(upsertData: UpsertUser): Promise<User> {
+    // Check if user exists by email
+    const existingUser = await this.getUserByEmail(upsertData.email);
+    
+    if (existingUser) {
+      // Update existing user
+      const updatedUser = {
+        ...existingUser,
+        firstName: upsertData.firstName ?? existingUser.firstName,
+        lastName: upsertData.lastName ?? existingUser.lastName,
+        profileImageUrl: upsertData.profileImageUrl ?? existingUser.profileImageUrl,
+        lastLogin: new Date(),
+        updatedAt: new Date(),
+      };
+      this.users.set(existingUser.id, updatedUser);
+      return updatedUser;
+    } else {
+      // Create new user
+      return await this.createUser({
+        email: upsertData.email,
+        firstName: upsertData.firstName ?? null,
+        lastName: upsertData.lastName ?? null,
+        profileImageUrl: upsertData.profileImageUrl ?? null,
+        lastLogin: new Date(),
+      });
+    }
   }
 
   // Role Management Implementation
@@ -1530,6 +1657,7 @@ export class MemStorage implements IStorage {
       ...insertUserRole,
       id,
       assignedAt: new Date(),
+      assignedBy: insertUserRole.assignedBy ?? null,
     };
     this.userRoles.set(id, userRole);
     return userRole;
@@ -1553,7 +1681,6 @@ export class MemStorage implements IStorage {
     const rolePermission: RolePermission = {
       ...insertRolePermission,
       id,
-      assignedAt: new Date(),
     };
     this.rolePermissions.set(id, rolePermission);
     return rolePermission;
@@ -1575,7 +1702,7 @@ export class MemStorage implements IStorage {
     for (const template of templates) {
       const steps = Array.from(this.templateSteps.values())
         .filter(step => step.templateId === template.id)
-        .sort((a, b) => a.stepNumber - b.stepNumber);
+        .sort((a, b) => a.stepOrder - b.stepOrder);
 
       const variables = Array.from(this.templateVariables.values())
         .filter(variable => variable.templateId === template.id);
@@ -1596,7 +1723,7 @@ export class MemStorage implements IStorage {
 
     const steps = Array.from(this.templateSteps.values())
       .filter(step => step.templateId === id)
-      .sort((a, b) => a.stepNumber - b.stepNumber);
+      .sort((a, b) => a.stepOrder - b.stepOrder);
 
     const variables = Array.from(this.templateVariables.values())
       .filter(variable => variable.templateId === id);
@@ -1656,7 +1783,7 @@ export class MemStorage implements IStorage {
     const newTemplate = await this.createTemplate({
       name: newName,
       description: `Copy of ${originalTemplate.description}`,
-      version: "1.0",
+      category: originalTemplate.category,
       createdBy: originalTemplate.createdBy,
     });
 
@@ -1664,15 +1791,13 @@ export class MemStorage implements IStorage {
     for (const step of originalTemplate.steps) {
       await this.createTemplateStep({
         templateId: newTemplate.id,
-        stepNumber: step.stepNumber,
+        stepOrder: step.stepOrder,
         name: step.name,
-        description: step.description,
-        action: step.action,
-        parameters: step.parameters,
-        timeoutSeconds: step.timeoutSeconds,
+        type: step.type,
+        configuration: step.configuration,
+        timeoutMinutes: step.timeoutMinutes,
         retryCount: step.retryCount,
         isOptional: step.isOptional,
-        dependsOn: step.dependsOn,
       });
     }
 
@@ -1681,10 +1806,11 @@ export class MemStorage implements IStorage {
       await this.createTemplateVariable({
         templateId: newTemplate.id,
         name: variable.name,
+        type: variable.type,
         description: variable.description,
         defaultValue: variable.defaultValue,
         isRequired: variable.isRequired,
-        variableType: variable.variableType,
+        options: variable.options,
       });
     }
 
@@ -1695,7 +1821,7 @@ export class MemStorage implements IStorage {
   async getTemplateSteps(templateId: string): Promise<TemplateStep[]> {
     return Array.from(this.templateSteps.values())
       .filter(step => step.templateId === templateId)
-      .sort((a, b) => a.stepNumber - b.stepNumber);
+      .sort((a, b) => a.stepOrder - b.stepOrder);
   }
 
   async createTemplateStep(insertStep: InsertTemplateStep): Promise<TemplateStep> {
@@ -1703,10 +1829,9 @@ export class MemStorage implements IStorage {
     const step: TemplateStep = {
       ...insertStep,
       id,
-      timeoutSeconds: insertStep.timeoutSeconds ?? 300,
+      timeoutMinutes: insertStep.timeoutMinutes ?? 30,
       retryCount: insertStep.retryCount ?? 0,
       isOptional: insertStep.isOptional ?? false,
-      dependsOn: insertStep.dependsOn ?? null,
     };
     this.templateSteps.set(id, step);
     return step;
@@ -1736,8 +1861,10 @@ export class MemStorage implements IStorage {
     const variable: TemplateVariable = {
       ...insertVariable,
       id,
-      defaultValue: insertVariable.defaultValue ?? "",
+      defaultValue: insertVariable.defaultValue ?? null,
       isRequired: insertVariable.isRequired ?? false,
+      options: insertVariable.options ?? null,
+      description: insertVariable.description ?? null,
     };
     this.templateVariables.set(id, variable);
     return variable;
@@ -2123,6 +2250,31 @@ export class MemStorage implements IStorage {
   async getProfileDeploymentBindings(deploymentId: string): Promise<ProfileDeploymentBinding[]> { return []; }
   async createProfileDeploymentBinding(binding: InsertProfileDeploymentBinding): Promise<ProfileDeploymentBinding> { throw new Error("Not implemented"); }
   async updateProfileDeploymentBinding(id: string, binding: Partial<InsertProfileDeploymentBinding>): Promise<ProfileDeploymentBinding | undefined> { return undefined; }
+
+  // Network Topology - Stub Implementation
+  async getTopology(): Promise<TopologyData> {
+    return {
+      nodes: [],
+      edges: [],
+      segments: []
+    };
+  }
+  async getNetworkSegments(): Promise<NetworkSegment[]> { return []; }
+  async getNetworkSegment(id: string): Promise<NetworkSegment | undefined> { return undefined; }
+  async createNetworkSegment(segment: InsertNetworkSegment): Promise<NetworkSegment> { throw new Error("Not implemented"); }
+  async updateNetworkSegment(id: string, segment: Partial<InsertNetworkSegment>): Promise<NetworkSegment | undefined> { return undefined; }
+  async deleteNetworkSegment(id: string): Promise<boolean> { return false; }
+  
+  async getDeviceConnections(): Promise<DeviceConnection[]> { return []; }
+  async getDeviceConnection(id: string): Promise<DeviceConnection | undefined> { return undefined; }
+  async createDeviceConnection(connection: InsertDeviceConnection): Promise<DeviceConnection> { throw new Error("Not implemented"); }
+  async updateDeviceConnection(id: string, connection: Partial<InsertDeviceConnection>): Promise<DeviceConnection | undefined> { return undefined; }
+  async deleteDeviceConnection(id: string): Promise<boolean> { return false; }
+  
+  async getTopologySnapshots(): Promise<TopologySnapshot[]> { return []; }
+  async getTopologySnapshot(id: string): Promise<TopologySnapshot | undefined> { return undefined; }
+  async createTopologySnapshot(snapshot: InsertTopologySnapshot): Promise<TopologySnapshot> { throw new Error("Not implemented"); }
+  async deleteTopologySnapshot(id: string): Promise<boolean> { return false; }
 }
 
 export class DatabaseStorage implements IStorage {
