@@ -1,19 +1,60 @@
 # Bootah64x Installation & Configuration Guide
 
-Complete guide to deploying and configuring Bootah64x PXE imaging platform on Replit.
+Complete guide to deploying and configuring Bootah64x PXE imaging platform on Replit or your own server.
 
 ---
 
 ## Table of Contents
 
-1. [Quick Start](#quick-start)
-2. [Deployment Options](#deployment-options)
-3. [Environment Configuration](#environment-configuration)
-4. [Network Setup](#network-setup)
-5. [First-Time Setup](#first-time-setup)
-6. [User Management](#user-management)
-7. [Testing & Verification](#testing--verification)
-8. [Troubleshooting](#troubleshooting)
+1. [Deployment Overview](#deployment-overview)
+2. [Replit Cloud Deployment](#replit-cloud-deployment)
+3. [Local Server Installation](#local-server-installation)
+4. [Environment Configuration](#environment-configuration)
+5. [Network Setup](#network-setup)
+6. [First-Time Setup](#first-time-setup)
+7. [User Management](#user-management)
+8. [Testing & Verification](#testing--verification)
+9. [Troubleshooting](#troubleshooting)
+
+---
+
+## Deployment Overview
+
+Bootah64x can be deployed in two ways:
+
+### ☁️ Replit Cloud Deployment
+**Best for:** Development, testing, small-scale deployments, cloud-managed infrastructure
+
+**Advantages:**
+- Zero infrastructure setup
+- Automatic HTTPS/TLS
+- Managed database
+- Auto-scaling
+- Built-in monitoring
+
+**Limitations:**
+- Internet connectivity required
+- Free tier has sleep/wake delays
+- Network latency for PXE operations
+
+### 🖥️ Local Server Installation
+**Best for:** Production environments, isolated networks, high-volume imaging, air-gapped networks
+
+**Advantages:**
+- Full control over infrastructure
+- No internet dependency
+- Low latency for PXE operations
+- No cloud service fees
+- Custom network configuration
+
+**Limitations:**
+- Manual server setup required
+- You manage backups and updates
+- Need technical expertise
+
+---
+
+## Replit Cloud Deployment
 
 ---
 
@@ -78,6 +119,515 @@ To deploy Bootah64x for production use:
 - All services start in production mode
 - Deployment simulator is disabled
 - Enhanced security settings
+
+---
+
+## Local Server Installation
+
+This section covers installing Bootah64x on your own physical or virtual server.
+
+### Prerequisites
+
+#### Required Software
+- **Ubuntu Server 22.04 LTS** or **Debian 11+** (recommended)
+  - Also compatible with: CentOS Stream 9, Rocky Linux 9, RHEL 9
+- **Node.js 20+** and **npm 10+**
+- **PostgreSQL 14+**
+- **Root/sudo access**
+
+#### Network Requirements
+- **Static IP address** for the Bootah64x server
+- **DHCP server** on your network (or ability to configure one)
+- **Gigabit network** recommended for imaging performance
+- **Isolated network segment** (VLAN) recommended for security
+
+#### Hardware Requirements
+- **CPU**: 4 cores minimum (8+ recommended for multicast)
+- **RAM**: 8GB minimum (16GB+ recommended)
+- **Storage**: 
+  - 50GB for system and application
+  - Additional storage for images (plan 20-50GB per image)
+  - SSD strongly recommended for performance
+- **Network**: Gigabit Ethernet (required)
+
+---
+
+### Step 1: Prepare Server
+
+```bash
+# Update system packages
+sudo apt update && sudo apt upgrade -y
+
+# Install essential tools
+sudo apt install -y curl git unzip build-essential
+```
+
+---
+
+### Step 2: Install Node.js
+
+```bash
+# Install Node.js 20.x
+curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+sudo apt install -y nodejs
+
+# Verify installation
+node --version  # Should show v20.x.x
+npm --version   # Should show 10.x.x
+```
+
+---
+
+### Step 3: Install PostgreSQL
+
+```bash
+# Install PostgreSQL 14+
+sudo apt install -y postgresql postgresql-contrib
+
+# Start and enable PostgreSQL
+sudo systemctl start postgresql
+sudo systemctl enable postgresql
+
+# Create database and user
+sudo -u postgres psql << 'EOF'
+CREATE DATABASE bootah64x;
+CREATE USER bootah64x WITH ENCRYPTED PASSWORD 'CHANGE_THIS_PASSWORD';
+GRANT ALL PRIVILEGES ON DATABASE bootah64x TO bootah64x;
+\c bootah64x
+GRANT ALL ON SCHEMA public TO bootah64x;
+EOF
+
+# Verify database connection
+sudo -u postgres psql -d bootah64x -c "\dt"
+```
+
+---
+
+### Step 4: Clone and Install Bootah64x
+
+```bash
+# Create installation directory
+sudo mkdir -p /opt/bootah64x
+sudo chown $USER:$USER /opt/bootah64x
+cd /opt/bootah64x
+
+# Clone repository (or upload your code)
+# Option A: If you have git repository
+git clone https://github.com/your-org/bootah64x.git .
+
+# Option B: Upload from Replit
+# Download your Replit project as ZIP, then:
+# scp bootah64x.zip user@your-server:/tmp/
+# cd /opt/bootah64x
+# unzip /tmp/bootah64x.zip
+
+# Install dependencies
+npm install
+
+# This installs all required packages (may take 2-5 minutes)
+```
+
+---
+
+### Step 5: Configure Environment Variables
+
+```bash
+# Create .env file
+cat > /opt/bootah64x/.env << 'EOF'
+# Database Configuration
+DATABASE_URL=postgresql://bootah64x:CHANGE_THIS_PASSWORD@localhost:5432/bootah64x
+PGHOST=localhost
+PGPORT=5432
+PGUSER=bootah64x
+PGPASSWORD=CHANGE_THIS_PASSWORD
+PGDATABASE=bootah64x
+
+# Server Configuration
+NODE_ENV=production
+PORT=5000
+
+# Session Secret (generate a strong random string)
+SESSION_SECRET=$(openssl rand -base64 32)
+
+# Encryption Key (generate a strong random string)
+ENCRYPTION_KEY=$(openssl rand -base64 32)
+
+# RBAC Configuration (choose: viewer, operator, or admin)
+DEFAULT_USER_ROLE=viewer
+
+# Server Identity
+SERVER_NAME=Bootah64x-Production
+
+# Network Configuration (will be auto-detected if not set)
+# SERVER_IP=192.168.1.100
+EOF
+
+# Secure the .env file
+chmod 600 /opt/bootah64x/.env
+
+# Replace CHANGE_THIS_PASSWORD with your actual password
+nano /opt/bootah64x/.env
+```
+
+---
+
+### Step 6: Initialize Database Schema
+
+```bash
+cd /opt/bootah64x
+
+# Push database schema (creates all tables)
+npm run db:push
+
+# Verify tables were created
+PGPASSWORD=your_password psql -U bootah64x -d bootah64x -c "\dt"
+
+# You should see tables:
+# - users
+# - roles
+# - permissions
+# - devices
+# - images
+# - deployments
+# - activity_logs
+# - multicast_sessions
+# - and more...
+```
+
+---
+
+### Step 7: Build Frontend
+
+```bash
+cd /opt/bootah64x
+
+# Build production frontend
+npm run build
+
+# This creates optimized production build in dist/
+```
+
+---
+
+### Step 8: Configure Firewall
+
+```bash
+# Allow required ports
+sudo ufw allow 5000/tcp   # Web interface
+sudo ufw allow 69/udp     # TFTP
+sudo ufw allow 4067/udp   # DHCP Proxy
+sudo ufw allow 22/tcp     # SSH (if not already open)
+
+# Enable firewall if not already enabled
+sudo ufw enable
+
+# Check status
+sudo ufw status
+```
+
+---
+
+### Step 9: Create System Service
+
+```bash
+# Create systemd service
+sudo tee /etc/systemd/system/bootah64x.service > /dev/null << 'EOF'
+[Unit]
+Description=Bootah64x PXE Imaging Platform
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=simple
+User=bootah64x
+WorkingDirectory=/opt/bootah64x
+ExecStart=/usr/bin/npm run dev
+Restart=always
+RestartSec=10
+Environment=NODE_ENV=production
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=bootah64x
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# Create dedicated user (optional but recommended)
+sudo useradd -r -s /bin/false -d /opt/bootah64x bootah64x
+sudo chown -R bootah64x:bootah64x /opt/bootah64x
+
+# Reload systemd and enable service
+sudo systemctl daemon-reload
+sudo systemctl enable bootah64x
+sudo systemctl start bootah64x
+
+# Check service status
+sudo systemctl status bootah64x
+```
+
+---
+
+### Step 10: Verify Installation
+
+```bash
+# Check service is running
+sudo systemctl status bootah64x
+
+# Check logs
+sudo journalctl -u bootah64x -f
+
+# Test web interface
+curl http://localhost:5000
+
+# You should see HTML response (login page)
+
+# Test API
+curl http://localhost:5000/api/server-status
+
+# You should see JSON response with server info
+```
+
+---
+
+### Step 11: Configure Network DHCP
+
+You need to configure your DHCP server to point PXE clients to Bootah64x.
+
+#### Option A: Using dnsmasq (Recommended for dedicated imaging server)
+
+```bash
+# Install dnsmasq
+sudo apt install -y dnsmasq
+
+# Backup original config
+sudo mv /etc/dnsmasq.conf /etc/dnsmasq.conf.backup
+
+# Create PXE configuration
+sudo tee /etc/dnsmasq.d/pxe.conf > /dev/null << 'EOF'
+# Network Interface
+interface=eth0  # Change to your network interface
+
+# DHCP Range
+dhcp-range=192.168.100.50,192.168.100.200,12h
+dhcp-option=3,192.168.100.1       # Gateway
+dhcp-option=6,8.8.8.8,8.8.4.4     # DNS servers
+
+# PXE Boot Configuration
+dhcp-boot=pxelinux.0,bootah64x,192.168.100.10  # Change to your server IP
+
+# UEFI Support
+dhcp-match=set:efi-x86_64,option:client-arch,7
+dhcp-boot=tag:efi-x86_64,efi64/syslinux.efi
+
+# Legacy BIOS Support
+dhcp-match=set:bios,option:client-arch,0
+dhcp-boot=tag:bios,pxelinux.0
+
+# Enable TFTP (if using dnsmasq for TFTP)
+# enable-tftp
+# tftp-root=/opt/bootah64x/pxe-files/tftp
+EOF
+
+# Note: Replace IP addresses and interface name with your configuration
+
+# Restart dnsmasq
+sudo systemctl restart dnsmasq
+sudo systemctl enable dnsmasq
+
+# Check status
+sudo systemctl status dnsmasq
+```
+
+#### Option B: Using ISC DHCP Server
+
+```bash
+# Install ISC DHCP
+sudo apt install -y isc-dhcp-server
+
+# Configure
+sudo tee -a /etc/dhcp/dhcpd.conf > /dev/null << 'EOF'
+
+# Bootah64x PXE Configuration
+option domain-name "imaging.local";
+option domain-name-servers 8.8.8.8, 8.8.4.4;
+default-lease-time 600;
+max-lease-time 7200;
+authoritative;
+
+subnet 192.168.100.0 netmask 255.255.255.0 {
+  range 192.168.100.50 192.168.100.200;
+  option routers 192.168.100.1;
+  option broadcast-address 192.168.100.255;
+  
+  # PXE boot options
+  next-server 192.168.100.10;  # Bootah64x server IP
+  
+  # BIOS clients
+  if option arch = 00:07 {
+    # UEFI 64-bit
+    filename "efi64/syslinux.efi";
+  } else {
+    # Legacy BIOS
+    filename "pxelinux.0";
+  }
+}
+EOF
+
+# Specify network interface
+sudo tee /etc/default/isc-dhcp-server > /dev/null << 'EOF'
+INTERFACESv4="eth0"  # Change to your network interface
+EOF
+
+# Restart DHCP server
+sudo systemctl restart isc-dhcp-server
+sudo systemctl enable isc-dhcp-server
+
+# Check status
+sudo systemctl status isc-dhcp-server
+```
+
+#### Option C: Existing DHCP Server (Windows Server, Router, etc.)
+
+**Add these DHCP options to your existing server:**
+
+| Option | Name | Value |
+|--------|------|-------|
+| 66 | TFTP Server Name | `192.168.100.10` (your Bootah64x server IP) |
+| 67 | Boot Filename | `pxelinux.0` (for BIOS) or `efi64/syslinux.efi` (for UEFI) |
+
+**For Windows DHCP Server:**
+1. Open DHCP Manager
+2. Right-click on Scope Options → Configure Options
+3. Check option 66, enter your Bootah64x server IP
+4. Check option 67, enter `pxelinux.0`
+5. Click OK and restart DHCP service
+
+---
+
+### Step 12: Access Web Interface
+
+Open your browser and navigate to:
+
+```
+http://your-server-ip:5000
+```
+
+**First Login:**
+1. You'll see the login page
+2. Click **Sign in with Replit** (for local deployments, this uses local credentials)
+3. Create your first admin account
+4. Set your profile information
+
+---
+
+### Step 13: Set Up Reverse Proxy (Optional but Recommended)
+
+For production, use Nginx as a reverse proxy to add HTTPS:
+
+```bash
+# Install Nginx
+sudo apt install -y nginx certbot python3-certbot-nginx
+
+# Create Nginx configuration
+sudo tee /etc/nginx/sites-available/bootah64x > /dev/null << 'EOF'
+server {
+    listen 80;
+    server_name bootah.yourdomain.com;  # Change to your domain
+
+    # Redirect HTTP to HTTPS (after certbot setup)
+    # return 301 https://$server_name$request_uri;
+
+    # For now, proxy to app
+    location / {
+        proxy_pass http://localhost:5000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_cache_bypass $http_upgrade;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # WebSocket support
+    location /ws {
+        proxy_pass http://localhost:5000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "Upgrade";
+        proxy_set_header Host $host;
+    }
+}
+EOF
+
+# Enable site
+sudo ln -s /etc/nginx/sites-available/bootah64x /etc/nginx/sites-enabled/
+sudo rm /etc/nginx/sites-enabled/default  # Remove default site
+
+# Test configuration
+sudo nginx -t
+
+# Restart Nginx
+sudo systemctl restart nginx
+sudo systemctl enable nginx
+
+# Optional: Set up SSL with Let's Encrypt
+sudo certbot --nginx -d bootah.yourdomain.com
+```
+
+---
+
+### Step 14: Configure Automatic Backups
+
+```bash
+# Create backup script
+sudo tee /usr/local/bin/backup-bootah64x.sh > /dev/null << 'EOF'
+#!/bin/bash
+BACKUP_DIR="/backup/bootah64x"
+DATE=$(date +%Y%m%d_%H%M%S)
+
+mkdir -p "$BACKUP_DIR"
+
+# Backup database
+PGPASSWORD=your_password pg_dump -U bootah64x -d bootah64x > "$BACKUP_DIR/db_$DATE.sql"
+
+# Backup images (if you have a local image directory)
+# rsync -av /opt/bootah64x/pxe-images/ "$BACKUP_DIR/images_$DATE/"
+
+# Backup configuration
+cp /opt/bootah64x/.env "$BACKUP_DIR/env_$DATE"
+
+# Keep only last 7 days of backups
+find "$BACKUP_DIR" -name "db_*.sql" -mtime +7 -delete
+find "$BACKUP_DIR" -name "env_*" -mtime +7 -delete
+
+echo "Backup completed: $DATE"
+EOF
+
+sudo chmod +x /usr/local/bin/backup-bootah64x.sh
+
+# Schedule daily backups via cron
+sudo crontab -e
+# Add this line:
+# 0 2 * * * /usr/local/bin/backup-bootah64x.sh >> /var/log/bootah64x-backup.log 2>&1
+```
+
+---
+
+### Installation Complete!
+
+Your Bootah64x server is now running. Next steps:
+
+1. ✅ **Verify all services** are running
+2. ✅ **Test PXE boot** with a test machine
+3. ✅ **Create user accounts** for your team
+4. ✅ **Configure RBAC** roles and permissions
+5. ✅ **Upload OS images** for deployment
+6. ✅ **Set up monitoring** and alerts
 
 ---
 
