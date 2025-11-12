@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 
 function formatBytes(bytes: number): string {
   const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
-  if (bytes === 0) return '0 Bytes';
+  if (!bytes || bytes === 0 || !Number.isFinite(bytes)) return '0 Bytes';
   const i = Math.floor(Math.log(bytes) / Math.log(1024));
   return Math.round((bytes / Math.pow(1024, i)) * 100) / 100 + ' ' + sizes[i];
 }
