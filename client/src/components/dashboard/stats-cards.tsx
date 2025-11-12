@@ -14,6 +14,8 @@ function formatBytes(bytes: number): string {
 function AnimatedCounter({ value, duration = 1000 }: { value: number; duration?: number }) {
   const [displayValue, setDisplayValue] = useState(0);
   
+  const safeValue = Number.isFinite(value) ? value : 0;
+  
   useEffect(() => {
     let startTime: number;
     let animationFrame: number;
@@ -23,7 +25,7 @@ function AnimatedCounter({ value, duration = 1000 }: { value: number; duration?:
       const progress = Math.min((timestamp - startTime) / duration, 1);
       
       const easeOutCubic = 1 - Math.pow(1 - progress, 3);
-      const currentValue = Math.floor(easeOutCubic * value);
+      const currentValue = Math.floor(easeOutCubic * safeValue);
       
       setDisplayValue(currentValue);
       
@@ -35,7 +37,7 @@ function AnimatedCounter({ value, duration = 1000 }: { value: number; duration?:
     animationFrame = requestAnimationFrame(animate);
     
     return () => cancelAnimationFrame(animationFrame);
-  }, [value, duration]);
+  }, [safeValue, duration]);
   
   return <span>{displayValue}</span>;
 }
