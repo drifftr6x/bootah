@@ -1,783 +1,498 @@
 # Bootah64x Installation & Configuration Guide
 
-Complete guide to installing and configuring Bootah64x PXE imaging platform on your local network.
+Complete guide to deploying and configuring Bootah64x PXE imaging platform on Replit.
 
 ---
 
 ## Table of Contents
 
-1. [Prerequisites](#prerequisites)
-2. [System Requirements](#system-requirements)
-3. [Installation Steps](#installation-steps)
-4. [Network Configuration](#network-configuration)
-5. [DHCP Server Setup](#dhcp-server-setup)
-6. [Testing & Verification](#testing--verification)
-7. [First Image Capture](#first-image-capture)
+1. [Quick Start](#quick-start)
+2. [Deployment Options](#deployment-options)
+3. [Environment Configuration](#environment-configuration)
+4. [Network Setup](#network-setup)
+5. [First-Time Setup](#first-time-setup)
+6. [User Management](#user-management)
+7. [Testing & Verification](#testing--verification)
 8. [Troubleshooting](#troubleshooting)
 
 ---
 
-## Prerequisites
+## Quick Start
 
-### Required Software
-- **Ubuntu Server 22.04 LTS** or **Debian 11+** (recommended)
-- **Node.js 18+** and **npm**
-- **PostgreSQL 14+**
-- **Root/sudo access**
+Bootah64x is designed to run on Replit with zero external dependencies. Everything runs in a single container.
 
-### Network Requirements
-- **Static IP address** for the Bootah64x server
-- **DHCP server** on your network (or ability to configure one)
-- **Gigabit network** recommended for imaging performance
-- **Isolated network segment** (VLAN) recommended for security
+### What's Included
 
-### Hardware Requirements
-- **CPU**: 4 cores minimum (8+ recommended)
-- **RAM**: 8GB minimum (16GB+ recommended)
-- **Storage**: 
-  - 50GB for system and application
-  - Additional storage for images (plan 20-50GB per image)
-  - SSD strongly recommended for performance
-- **Network**: Gigabit Ethernet (required)
+- ✅ **Web Interface** (React + TypeScript)
+- ✅ **REST API** (Express.js backend)
+- ✅ **PostgreSQL Database** (managed by Replit)
+- ✅ **Built-in TFTP Server** (port 6969)
+- ✅ **Built-in DHCP Proxy** (port 4067)
+- ✅ **WebSocket** for real-time updates
+- ✅ **Deployment Scheduler** for automated imaging
+- ✅ **Multicast Support** for simultaneous deployments
 
----
+### Access the Application
 
-## Installation Steps
-
-### Step 1: Download Deployment Package
-
-Transfer the `bootah64x-clonezilla-deployment.zip` file to your server:
-
-```bash
-# Option A: Using scp from your workstation
-scp bootah64x-clonezilla-deployment.zip user@your-server-ip:~
-
-# Option B: Using wget (if hosted somewhere)
-wget https://your-hosting-location/bootah64x-clonezilla-deployment.zip
-```
-
-### Step 2: Extract Package
-
-```bash
-# Create installation directory
-mkdir -p ~/bootah64x
-cd ~/bootah64x
-
-# Extract files
-unzip ~/bootah64x-clonezilla-deployment.zip -d .
-
-# Set permissions
-chmod +x scripts/*.sh
-```
-
-### Step 3: Install Node.js Dependencies
-
-```bash
-cd ~/bootah64x
-
-# Install dependencies
-npm install
-
-# This will install all required packages (may take 2-5 minutes)
-```
-
-### Step 4: Setup PostgreSQL Database
-
-```bash
-# Install PostgreSQL if not already installed
-sudo apt update
-sudo apt install -y postgresql postgresql-contrib
-
-# Create database and user
-sudo -u postgres psql << EOF
-CREATE DATABASE bootah64x;
-CREATE USER bootah64x WITH ENCRYPTED PASSWORD 'your-secure-password';
-GRANT ALL PRIVILEGES ON DATABASE bootah64x TO bootah64x;
-\c bootah64x
-GRANT ALL ON SCHEMA public TO bootah64x;
-EOF
-```
-
-### Step 5: Configure Environment Variables
-
-```bash
-# Create .env file
-cat > .env << EOF
-# Database Configuration
-DATABASE_URL=postgresql://bootah64x:your-secure-password@localhost:5432/bootah64x
-
-# Server Configuration
-NODE_ENV=production
-PORT=5000
-
-# Session Secret (generate a random string)
-SESSION_SECRET=$(openssl rand -base64 32)
-EOF
-
-# Secure the .env file
-chmod 600 .env
-```
-
-### Step 6: Initialize Database Schema
-
-```bash
-# Run database migrations
-npm run db:push
-
-# Verify database is ready
-psql -U bootah64x -d bootah64x -c "\dt"
-# You should see tables: users, devices, images, deployments, etc.
-```
-
-### Step 7: Download Clonezilla
-
-This downloads ~350MB of Clonezilla and SYSLINUX files:
-
-```bash
-cd ~/bootah64x
-
-# Run setup script (takes 5-10 minutes depending on internet speed)
-./scripts/setup-clonezilla.sh
-
-# When prompted:
-# - Press Enter to start download
-# - Wait for extraction and setup
-# - Type 'y' when asked to cleanup temporary files
-```
-
-**What this does:**
-- Downloads Clonezilla Live 3.1.2-22 ISO
-- Extracts kernel, initrd, and filesystem
-- Downloads SYSLINUX bootloaders (BIOS + UEFI)
-- Sets up directory structure
-
-### Step 8: Configure PXE Server
-
-This configures all network services:
-
-```bash
-cd ~/bootah64x
-
-# Run configuration script
-sudo ./scripts/configure-pxe-server.sh
-
-# This will:
-# - Detect your server IP automatically
-# - Update all configuration files
-# - Install NFS server
-# - Install TFTP server
-# - Configure firewall rules
-```
-
-**Server IP Detection:**
-The script automatically detects your server's IP address. If you have multiple network interfaces, verify it detected the correct one:
-
-```bash
-# Check detected IP
-hostname -I
-
-# If wrong IP was detected, manually edit configs:
-# nano pxe-files/pxelinux.cfg/default
-# nano pxe-files/bootah-clonezilla-capture.sh
-# nano pxe-files/bootah-clonezilla-deploy.sh
-```
-
-### Step 9: Create Image Storage Directory
-
-```bash
-# Create directory for captured images
-mkdir -p ~/bootah64x/pxe-images
-
-# Set proper permissions
-chmod 755 ~/bootah64x/pxe-images
-```
-
-### Step 10: Start Bootah64x Application
-
-```bash
-# Option A: Using PM2 (recommended for production)
-sudo npm install -g pm2
-pm2 start npm --name "bootah64x" -- run dev
-pm2 save
-pm2 startup  # Follow the instructions to enable autostart
-
-# Option B: Using systemd (alternative)
-sudo tee /etc/systemd/system/bootah64x.service > /dev/null << EOF
-[Unit]
-Description=Bootah64x PXE Imaging Platform
-After=network.target postgresql.service
-
-[Service]
-Type=simple
-User=$(whoami)
-WorkingDirectory=$(pwd)
-ExecStart=/usr/bin/npm run dev
-Restart=on-failure
-Environment=NODE_ENV=production
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-sudo systemctl daemon-reload
-sudo systemctl enable bootah64x
-sudo systemctl start bootah64x
-```
-
-### Step 11: Verify Services
-
-```bash
-# Check Bootah64x application
-pm2 status
-# OR
-sudo systemctl status bootah64x
-
-# Check NFS exports
-showmount -e localhost
-# Expected output:
-# /home/user/bootah64x/pxe-files *
-# /home/user/bootah64x/pxe-images *
-
-# Check TFTP server
-sudo systemctl status tftpd-hpa
-
-# Test TFTP access
-tftp localhost
-> get pxelinux.0 /tmp/test.bin
-> quit
-ls -lh /tmp/test.bin  # Should show the downloaded file
-```
-
-### Step 12: Access Web Interface
-
-Open your browser and navigate to:
-
-```
-http://your-server-ip:5000
-```
-
-**First Login:**
-1. Click "Sign in with Replit" (this uses local authentication, not cloud)
-2. Create your admin account
-3. Set up your profile
+1. Open your Replit project
+2. Click **Run** to start the application
+3. Access the web interface at your Replit URL (e.g., `https://your-repl.replit.dev`)
+4. Log in with Replit authentication
 
 ---
 
-## Network Configuration
+## Deployment Options
 
-### Firewall Configuration
+### Option 1: Development Mode (Default)
 
-The configure script opens these ports automatically, but verify:
+Running on Replit for development and testing:
 
 ```bash
-# Check firewall status
-sudo ufw status
-
-# Required ports:
-# 5000/tcp  - Web interface
-# 67/udp    - DHCP (if running DHCP server)
-# 69/udp    - TFTP
-# 80/tcp    - HTTP (optional)
-# 111/tcp   - RPC (NFS)
-# 2049/tcp  - NFS
-# 2049/udp  - NFS
-
-# If not opened, add them:
-sudo ufw allow 5000/tcp
-sudo ufw allow 69/udp
-sudo ufw allow 111/tcp
-sudo ufw allow 2049/tcp
-sudo ufw allow 2049/udp
+npm run dev
 ```
 
-### Network Topology
+**What happens:**
+- Express server starts on port 5000
+- Vite dev server provides hot-reload
+- TFTP server listens on port 6969
+- DHCP proxy listens on port 4067
+- Deployment simulator runs (for testing)
 
-**Recommended Setup:**
+**Workflow:**
+The "Start application" workflow is pre-configured and runs automatically when you click Run.
+
+### Option 2: Production Deployment
+
+To deploy Bootah64x for production use:
+
+1. Click the **Publish** button in Replit
+2. Configure your custom domain (optional)
+3. Application will be deployed with:
+   - Automatic HTTPS/TLS
+   - Health checks
+   - Auto-scaling
+   - Production database
+
+**Environment:**
+- `NODE_ENV=production` (automatically set)
+- All services start in production mode
+- Deployment simulator is disabled
+- Enhanced security settings
+
+---
+
+## Environment Configuration
+
+### Required Environment Variables
+
+These are automatically configured by Replit:
+
+| Variable | Purpose | Set By |
+|----------|---------|--------|
+| `DATABASE_URL` | PostgreSQL connection string | Replit |
+| `PGHOST`, `PGPORT`, `PGUSER`, `PGPASSWORD`, `PGDATABASE` | Database credentials | Replit |
+| `SESSION_SECRET` | Express session encryption | Auto-generated |
+| `ENCRYPTION_KEY` | Data encryption key | Auto-generated |
+
+### Optional Configuration
+
+Set these in Replit Secrets for customization:
+
+#### RBAC Configuration
+
+```bash
+DEFAULT_USER_ROLE=viewer
+```
+
+**Valid roles:**
+- `viewer` - Read-only access (recommended default)
+- `operator` - Can manage devices and deployments
+- `admin` - Full system access
+
+**Security Note:** Production deployments should use `viewer` as default. Set to `operator` or `admin` only in trusted environments.
+
+#### Server Configuration
+
+```bash
+# Server identity
+SERVER_NAME=Bootah64x-Production
+
+# Network settings (auto-detected if not set)
+SERVER_IP=192.168.1.100
+```
+
+### Setting Secrets in Replit
+
+1. Open your Repl
+2. Click on **Tools** → **Secrets**
+3. Add key-value pairs
+4. Restart the application
+
+---
+
+## Network Setup
+
+### Replit Network Architecture
 
 ```
 Internet
-   |
- Router ─── Management Network (192.168.1.0/24)
-   |
- Switch ─── Imaging VLAN (192.168.100.0/24)
-            |
-            ├─ Bootah64x Server (192.168.100.10)
-            ├─ Target Machine 1
-            ├─ Target Machine 2
-            └─ Target Machine N
+   ↓
+Replit Cloud (HTTPS/WSS)
+   ↓
+Your Application (port 5000)
+   ├─ Web Interface (HTTP/HTTPS)
+   ├─ WebSocket (real-time updates)
+   ├─ REST API (/api/*)
+   └─ Built-in Services
+      ├─ TFTP Server (port 6969)
+      └─ DHCP Proxy (port 4067)
 ```
 
-**Benefits of dedicated imaging VLAN:**
-- Network isolation from production
-- No interference with production DHCP
-- Better security
-- Easier troubleshooting
+### Connecting Physical Network
+
+To use Bootah64x for PXE booting physical machines:
+
+#### Option A: Cloud Deployment (Recommended)
+
+1. **Publish your Repl** to get a public URL
+2. **Configure your network DHCP** to point to Replit:
+   ```
+   DHCP Option 66: <your-repl-url>
+   DHCP Option 67: pxelinux.0
+   ```
+
+3. **Firewall rules:**
+   - Allow TFTP (UDP 69) from your network to Replit
+   - Allow HTTP/HTTPS from machines to Replit
+
+#### Option B: Hybrid Deployment
+
+For networks that can't reach Replit directly:
+
+1. Use **Replit for management** (web interface, database)
+2. Run a **local TFTP/DHCP proxy** on your network
+3. Sync images between Replit and local storage
 
 ---
 
-## DHCP Server Setup
+## First-Time Setup
 
-You need to configure your DHCP server to point machines to Bootah64x for PXE booting.
+### Step 1: Initialize Database
 
-### Option 1: Using dnsmasq (Recommended for dedicated server)
+The database schema is automatically created on first run. Verify it's working:
 
-```bash
-# Install dnsmasq
-sudo apt install -y dnsmasq
+1. Start the application
+2. Check logs for: `[RBAC] Initializing RBAC defaults...`
+3. Database tables are created automatically via Drizzle ORM
 
-# Configure for PXE
-sudo tee /etc/dnsmasq.d/pxe.conf > /dev/null << EOF
-# DHCP Configuration
-interface=eth0                    # Your network interface
-dhcp-range=192.168.100.50,192.168.100.200,12h
-dhcp-option=3,192.168.100.1       # Gateway
-dhcp-option=6,8.8.8.8,8.8.4.4     # DNS servers
+### Step 2: Create Admin User
 
-# PXE Boot Configuration
-dhcp-boot=pxelinux.0,bootah64x,192.168.100.10  # Your Bootah64x server IP
+**First login automatically creates an admin user:**
 
-# UEFI Support
-dhcp-match=set:efi-x86_64,option:client-arch,7
-dhcp-boot=tag:efi-x86_64,efi64/syslinux.efi
+1. Access the web interface
+2. Click **Sign in with Replit**
+3. Your Replit account becomes the first admin
+4. Default role: `operator` (configurable via `DEFAULT_USER_ROLE`)
 
-# Legacy BIOS Support
-dhcp-match=set:bios,option:client-arch,0
-dhcp-boot=tag:bios,pxelinux.0
+### Step 3: Configure Server Settings
 
-# TFTP Configuration
-enable-tftp
-tftp-root=/home/user/bootah64x/pxe-files/tftp
-EOF
+1. Navigate to **Settings** (gear icon)
+2. Update server information:
+   - Server name
+   - Network settings
+   - Deployment preferences
+3. Click **Save Changes**
 
-# Replace /home/user with your actual path
-# Replace IP addresses with your network configuration
+### Step 4: Verify Services
 
-# Restart dnsmasq
-sudo systemctl restart dnsmasq
-sudo systemctl enable dnsmasq
-```
+Check the Dashboard to ensure all services are running:
 
-### Option 2: Using ISC DHCP Server
+- ✅ **PXE Server** - Should show "Running"
+- ✅ **TFTP Server** - Port 6969
+- ✅ **DHCP Proxy** - Port 4067
+- ✅ **Database** - Connected
+- ✅ **WebSocket** - Active connections shown
 
-```bash
-# Install ISC DHCP
-sudo apt install -y isc-dhcp-server
+---
 
-# Configure
-sudo tee /etc/dhcp/dhcpd.conf > /dev/null << 'EOF'
-# Global settings
-option domain-name "imaging.local";
-option domain-name-servers 8.8.8.8, 8.8.4.4;
-default-lease-time 600;
-max-lease-time 7200;
-authoritative;
+## User Management
 
-# Imaging subnet
-subnet 192.168.100.0 netmask 255.255.255.0 {
-  range 192.168.100.50 192.168.100.200;
-  option routers 192.168.100.1;
-  option broadcast-address 192.168.100.255;
-  
-  # PXE boot options
-  next-server 192.168.100.10;  # Bootah64x server IP
-  
-  # BIOS clients
-  if exists user-class and option user-class = "iPXE" {
-    filename "pxelinux.0";
-  }
-  elsif option arch = 00:07 {
-    # UEFI 64-bit
-    filename "efi64/syslinux.efi";
-  }
-  else {
-    # Legacy BIOS
-    filename "pxelinux.0";
-  }
-}
-EOF
+### Creating Users
 
-# Restart DHCP server
-sudo systemctl restart isc-dhcp-server
-sudo systemctl enable isc-dhcp-server
-```
+**Via Web Interface:**
 
-### Option 3: Existing DHCP Server (Windows Server, Router, etc.)
+1. Navigate to **User Management** from sidebar
+2. Click **Create User**
+3. Fill in user details:
+   - Username (required, unique)
+   - Email (required for notifications)
+   - First Name / Last Name
+   - Department / Job Title
+   - Phone Number
+4. Click **Create User**
 
-**Add these DHCP options:**
+**Via CSV Import:**
 
-| Option | Name | Value |
-|--------|------|-------|
-| 66 | TFTP Server Name | `192.168.100.10` (your Bootah64x IP) |
-| 67 | Boot Filename | `pxelinux.0` (for BIOS) or `efi64/syslinux.efi` (for UEFI) |
+1. Click **Import CSV** button
+2. Paste CSV data:
+   ```csv
+   username,email,firstName,lastName,department,jobTitle,phoneNumber
+   jdoe,john@example.com,John,Doe,IT,Systems Engineer,555-1234
+   asmith,alice@example.com,Alice,Smith,IT,Network Admin,555-5678
+   ```
+3. Click **Import Users**
 
-**For Windows DHCP:**
-1. Open DHCP Manager
-2. Right-click on Scope Options → Configure Options
-3. Add Option 66: Enter Bootah64x server IP
-4. Add Option 67: Enter `pxelinux.0`
-5. Click OK
+### Role-Based Access Control (RBAC)
+
+Bootah64x supports three roles:
+
+| Role | Permissions |
+|------|-------------|
+| **Viewer** | View devices, images, deployments, activity logs |
+| **Operator** | Viewer + Create/delete devices, deploy images, manage deployments |
+| **Admin** | Operator + User management, system settings, delete images |
+
+**Assigning Roles:**
+
+1. Navigate to **User Management**
+2. Click **Assign Roles** next to a user
+3. Select desired roles
+4. Click **Update Roles**
+
+### Password Management
+
+**For local authentication (non-Replit users):**
+
+1. Click **Reset Password** icon next to user
+2. User receives reset email (if email configured)
+3. User sets new password via reset link
+
+**Password Requirements:**
+- Minimum 8 characters
+- Must include: uppercase, lowercase, number, special character
+- Password history enforced (last 5 passwords)
 
 ---
 
 ## Testing & Verification
 
-### Test 1: Verify Services
+### Test 1: Web Interface
 
 ```bash
-# Check all services are running
-pm2 status                        # Bootah64x app
-sudo systemctl status nfs-kernel-server
-sudo systemctl status tftpd-hpa
-sudo systemctl status dnsmasq     # If using dnsmasq
+# Access your Replit URL
+https://your-repl.replit.dev
 
-# Check network connectivity
-curl http://localhost:5000        # Should return HTML
-showmount -e localhost            # Should show NFS exports
+# Expected:
+# - Login page appears
+# - Can authenticate with Replit
+# - Dashboard loads with stats
+# - No console errors (check browser DevTools)
 ```
 
-### Test 2: Test PXE Boot Menu
-
-1. **Configure test machine:**
-   - Enter BIOS/UEFI settings (F2, F12, Del, or Esc during boot)
-   - Enable Network Boot / PXE Boot
-   - Disable Secure Boot (for UEFI)
-   - Set network boot as first boot priority
-   - Save and exit
-
-2. **Boot the machine:**
-   - Machine should request IP from DHCP
-   - Should download bootloader via TFTP
-   - Bootah64x menu should appear
-
-3. **Expected boot menu:**
-   ```
-   ╔═══════════════════════════════════════════╗
-   ║      Bootah64x PXE Boot Menu              ║
-   ╚═══════════════════════════════════════════╝
-   
-   1) Boot from Local Disk
-   2) Clonezilla Live (Full Environment)
-   3) Capture System Image
-   4) Deploy System Image
-   5) Quick Capture (Minimal prompts)
-   6) Batch Deploy (Auto mode)
-   7) Clonezilla Shell (Advanced)
-   8) Memory Test (Memtest86+)
-   9) Reboot System
-   0) Power Off System
-   ```
-
-### Test 3: Test Clonezilla Boot
-
-1. Select option **2) Clonezilla Live**
-2. Clonezilla should load (takes 30-60 seconds)
-3. You should see Clonezilla welcome screen
-4. Verify network connectivity:
-   ```bash
-   # Inside Clonezilla
-   ip addr show
-   ping 192.168.100.10  # Your Bootah64x server
-   ```
-
----
-
-## First Image Capture
-
-### Prepare Source Machine
-
-1. **Install and configure OS** on the machine you want to image
-2. **Install all drivers and applications**
-3. **Run Windows Updates** (if Windows)
-4. **Run Sysprep** (Windows only):
-   ```cmd
-   C:\Windows\System32\Sysprep\sysprep.exe /oobe /generalize /shutdown
-   ```
-5. **Machine will shut down** - don't boot it again before capturing
-
-### Capture Process
-
-1. **Boot via PXE**
-   - Power on the machine
-   - Press F12 (or your network boot key)
-   - Select network boot
-
-2. **Select capture option**
-   - From menu, select **3) Capture System Image**
-   - Wait for Clonezilla to load
-
-3. **Follow prompts:**
-   ```
-   Image name: win11-dell-optiplex-7090
-   Source disk: /dev/sda (or /dev/nvme0n1)
-   Compression: Use default (gzip)
-   Verification: Yes (recommended)
-   Encryption: No (unless required)
-   ```
-
-4. **Monitor progress:**
-   - Image capture begins
-   - Progress shown in terminal
-   - Web interface updates in real-time
-
-5. **Completion:**
-   - Image saved to `/pxe-images/win11-dell-optiplex-7090/`
-   - Machine reboots automatically
-   - Image appears in Bootah64x web interface
-
-### Verify Captured Image
+### Test 2: API Endpoints
 
 ```bash
-# Check image exists
-ls -lh ~/bootah64x/pxe-images/
+# Test API health
+curl https://your-repl.replit.dev/api/devices
 
-# Check image size
-du -sh ~/bootah64x/pxe-images/win11-dell-optiplex-7090/
-
-# Check image contents
-ls -la ~/bootah64x/pxe-images/win11-dell-optiplex-7090/
-# Should contain:
-# - parts/  (partition data)
-# - Info file
-# - Checksum files
+# Expected: JSON array of devices
+# Status: 200 OK
 ```
 
-### Deploy Image to Target
+### Test 3: WebSocket Connection
 
-1. **Boot target machine via PXE**
-2. **Select option 4) Deploy System Image**
-3. **Select your image** from the list
-4. **Confirm target disk** (WARNING: This will erase the disk!)
-5. **Type YES to confirm**
-6. **Deployment begins**
-7. **Machine auto-reboots** when complete
-8. **Boot from local disk** - OS should be ready
+Open browser console (F12) and look for:
+```
+WebSocket connected
+```
+
+### Test 4: Built-in Services
+
+Check the Dashboard for service status:
+
+- **TFTP Server**: Status should be "Running" on port 6969
+- **DHCP Proxy**: Status should be "Running" on port 4067
+- **Database**: Connection status shown
+- **Active Deployments**: Counter should update in real-time
+
+### Test 5: Database Operations
+
+1. **Create a test device:**
+   - Go to **Devices** page
+   - Click **Add Device**
+   - Enter MAC address and IP
+   - Click **Save**
+
+2. **Verify database persistence:**
+   - Refresh page
+   - Device should still appear
+   - Check activity log for creation event
+
+3. **Test deletion:**
+   - Click delete icon
+   - Confirm deletion
+   - Verify cascading delete (no foreign key errors)
 
 ---
 
 ## Troubleshooting
 
-### Problem: PXE boot fails with "No bootable device"
+### Problem: Application won't start
 
-**Cause:** DHCP not configured or machine not finding boot server
+**Symptoms:**
+```
+Error: listen EADDRINUSE: address already in use 0.0.0.0:5000
+```
 
 **Solution:**
 ```bash
-# Verify DHCP is running
-sudo systemctl status dnsmasq  # or isc-dhcp-server
+# Kill existing processes
+pkill -f "tsx server/index.ts"
 
-# Check DHCP leases
-cat /var/lib/dhcp/dhcpd.leases
-
-# Verify TFTP is accessible
-tftp localhost
-> get pxelinux.0
-> quit
-
-# Check firewall
-sudo ufw status
-sudo ufw allow 67/udp
-sudo ufw allow 69/udp
+# Restart workflow
+# Click "Restart" button in Replit
 ```
 
-### Problem: Boot menu appears but Clonezilla fails to load
+### Problem: Database connection errors
 
-**Cause:** NFS mount failure or incorrect paths
+**Symptoms:**
+```
+Error: connect ECONNREFUSED
+FATAL: database "bootah64x" does not exist
+```
 
 **Solution:**
-```bash
-# Verify NFS exports
-showmount -e localhost
 
-# Check NFS paths in config
-grep "nfsroot=" pxe-files/pxelinux.cfg/default
+1. **Check Replit database:**
+   - Open **Database** tab in Replit
+   - Verify PostgreSQL is enabled
+   - Check connection string
 
-# Test NFS mount from another machine
-sudo mount -t nfs 192.168.100.10:/home/user/bootah64x/pxe-files /mnt
-ls /mnt/clonezilla/
-sudo umount /mnt
-
-# Restart NFS server
-sudo systemctl restart nfs-kernel-server
-```
-
-### Problem: "Permission denied" during image capture
-
-**Cause:** NFS permissions or filesystem issues
-
-**Solution:**
-```bash
-# Check pxe-images directory permissions
-ls -ld ~/bootah64x/pxe-images/
-# Should be: drwxr-xr-x
-
-# Fix permissions
-chmod 755 ~/bootah64x/pxe-images/
-
-# Verify NFS export options
-cat /etc/exports
-# Should have: no_root_squash
-
-# Re-export
-sudo exportfs -ra
-```
-
-### Problem: Web interface doesn't update during imaging
-
-**Cause:** WebSocket connection issue or API endpoint not reachable
-
-**Solution:**
-```bash
-# Check application logs
-pm2 logs bootah64x
-
-# Verify API is responding
-curl http://192.168.100.10:5000/api/activity
-
-# Check WebSocket connection from browser console:
-# Open browser Dev Tools (F12) → Console
-# Look for WebSocket connection errors
-
-# Restart application
-pm2 restart bootah64x
-```
-
-### Problem: Slow imaging performance
-
-**Causes & Solutions:**
-
-1. **Network bottleneck:**
+2. **Verify environment variables:**
    ```bash
-   # Test network speed
-   iperf3 -s  # On server
-   iperf3 -c 192.168.100.10  # On client
-   
-   # Should see 900+ Mbps on gigabit
-   # If lower, check switch, cables, network card
+   echo $DATABASE_URL
+   # Should output: postgresql://...
    ```
 
-2. **Disk I/O bottleneck:**
+3. **Reset database schema:**
    ```bash
-   # Check disk performance
-   sudo hdparm -tT /dev/sda
-   
-   # Check I/O wait
-   iostat -x 1
-   
-   # Consider moving pxe-images to faster disk (SSD)
+   npm run db:push
    ```
 
-3. **Compression settings:**
-   - Use `-z1p` (parallel gzip) instead of `-z9p`
-   - Edit capture scripts to use lower compression
+### Problem: TFTP/DHCP services fail to start
 
-### Problem: UEFI machines won't boot
-
-**Cause:** Secure Boot enabled or wrong bootloader
+**Symptoms:**
+```
+TFTP Server error: Error: bind EADDRINUSE 0.0.0.0:6969
+```
 
 **Solution:**
-1. Enter UEFI settings
-2. **Disable Secure Boot**
-3. Verify boot file is `efi64/syslinux.efi`
-4. Check DHCP option 67 points to correct file
+
+Ports 6969 and 4067 are already in use from previous run.
+
+```bash
+# Method 1: Restart the Repl completely
+# Click "Stop" then "Run"
+
+# Method 2: Kill process manually
+pkill -f "tsx server/index.ts"
+# Then click "Run"
+```
+
+### Problem: WebSocket disconnects frequently
+
+**Symptoms:**
+- Browser console shows: `WebSocket disconnected`
+- Real-time updates stop working
+- Dashboard stats don't refresh
+
+**Solution:**
+
+1. **Check browser console for errors**
+2. **Verify Replit is not sleeping:**
+   - Free tier Repls sleep after inactivity
+   - Consider upgrading to keep alive
+3. **Hard refresh:** Ctrl+Shift+R (Windows) or Cmd+Shift+R (Mac)
+
+### Problem: React warnings about invalid hooks or NaN
+
+**Symptoms:**
+```
+Warning: Invalid hook call
+Warning: Received NaN for the `children` attribute
+```
+
+**Solution:**
+
+This has been fixed in the latest version. If you see this:
+
+1. Hard refresh: Ctrl+Shift+R
+2. Clear browser cache
+3. Restart the application
+
+### Problem: Deletion fails with foreign key constraint
+
+**Symptoms:**
+```
+Error: update or delete on table "devices" violates foreign key constraint
+```
+
+**Solution:**
+
+This has been fixed with cascading deletes. If you still see this:
+
+1. **Update to latest code:**
+   ```bash
+   git pull origin main
+   ```
+
+2. **Restart application:**
+   - Click "Stop" then "Run"
+
+3. **Verify fix is applied:**
+   - Try deleting a device
+   - Should see success toast
+   - No error in console
+
+### Problem: Images page shows errors
+
+**Symptoms:**
+- Can't delete images
+- API requests fail
+- Console shows 400/500 errors
+
+**Solution:**
+
+API signature was corrected. Ensure you have latest code:
+
+```bash
+# In images.tsx, mutations should use:
+apiRequest("DELETE", `/api/images/${id}`)
+
+# NOT:
+apiRequest(`/api/images/${id}`, { method: "DELETE" })
+```
 
 ### Getting Help
 
-**Check logs:**
-```bash
-# Application logs
-pm2 logs bootah64x
+**Check Application Logs:**
 
-# NFS logs
-sudo journalctl -u nfs-kernel-server
-
-# TFTP logs
-sudo journalctl -u tftpd-hpa
-
-# DHCP logs
-sudo journalctl -u dnsmasq
-# or
-sudo journalctl -u isc-dhcp-server
+In Replit console, look for:
+```
+[Encryption] Validation successful
+[RBAC] Initializing RBAC defaults
+PXE servers started successfully
+[DeploymentSimulator] Started in development mode
 ```
 
-**Enable debug mode:**
-```bash
-# Edit .env file
-echo "LOG_LEVEL=debug" >> .env
+**Enable Debug Logging:**
 
-# Restart application
-pm2 restart bootah64x
-
-# Watch logs in real-time
-pm2 logs bootah64x --lines 100
+Add to Replit Secrets:
+```
+LOG_LEVEL=debug
 ```
 
----
-
-## Next Steps
-
-1. **Create baseline images** for your standard machine types
-2. **Document your images** in the web interface
-3. **Test deployment** on non-critical machines first
-4. **Set up regular backups** of your image library
-5. **Configure automated imaging** for batch deployments
-6. **Train your team** on the imaging process
-
----
-
-## Security Recommendations
-
-1. **Network Isolation:**
-   - Use dedicated VLAN for imaging
-   - Firewall rules to restrict access
-   - No internet access from imaging network
-
-2. **Access Control:**
-   - Create individual user accounts (not shared)
-   - Use strong passwords
-   - Implement RBAC roles
-
-3. **Image Security:**
-   - Encrypt sensitive images
-   - Use checksums for verification
-   - Regularly audit image library
-
-4. **Monitoring:**
-   - Enable activity logging
-   - Monitor for unauthorized access
-   - Set up alerts for failures
-
----
-
-## Backup & Recovery
-
-### Backup Your Images
-
-```bash
-# Create backup script
-cat > ~/backup-images.sh << 'EOF'
-#!/bin/bash
-BACKUP_DIR="/mnt/backup/bootah64x-images"
-IMAGE_DIR="$HOME/bootah64x/pxe-images"
-
-mkdir -p "$BACKUP_DIR"
-rsync -av --progress "$IMAGE_DIR/" "$BACKUP_DIR/"
-EOF
-
-chmod +x ~/backup-images.sh
-
-# Run daily via cron
-crontab -e
-# Add: 0 2 * * * /home/user/backup-images.sh
-```
-
-### Disaster Recovery
-
-If server fails, restore on new server:
-
-1. Install Bootah64x (steps 1-10)
-2. Restore images: `rsync -av /mnt/backup/bootah64x-images/ ~/bootah64x/pxe-images/`
-3. Restore database: `pg_restore -d bootah64x backup.sql`
-4. Restart services
+Then restart the application.
 
 ---
 
@@ -785,208 +500,216 @@ If server fails, restore on new server:
 
 ### For High-Volume Deployments
 
-```bash
-# Increase NFS threads
-sudo nano /etc/default/nfs-kernel-server
-# Set: RPCNFSDCOUNT=16
+**Database Connection Pooling:**
 
-# Tune network settings
-sudo tee -a /etc/sysctl.conf > /dev/null << EOF
-net.core.rmem_max = 134217728
-net.core.wmem_max = 134217728
-net.ipv4.tcp_rmem = 4096 87380 67108864
-net.ipv4.tcp_wmem = 4096 65536 67108864
-EOF
-
-sudo sysctl -p
-
-# Enable jumbo frames (if supported)
-sudo ip link set eth0 mtu 9000
+Already configured in `server/db.ts`:
+```typescript
+// Connection pool handles concurrent requests
+// Max connections: 20 (default)
 ```
+
+**Caching:**
+
+React Query provides automatic caching:
+- Dashboard stats: 10-second cache
+- Devices list: 5-second cache
+- Real-time updates via WebSocket
+
+**Multicast Deployments:**
+
+For deploying to multiple machines simultaneously:
+
+1. Navigate to **Multicast Sessions**
+2. Click **Create Session**
+3. Select image and configure:
+   - Max clients: 10-50 (adjust based on network)
+   - Bandwidth limit: Auto or manual
+4. Add devices to session
+5. Start deployment
+
+**Advantages:**
+- Deploy to 10+ machines simultaneously
+- Shared bandwidth (more efficient)
+- Progress tracking per device
 
 ---
 
-## Support & Documentation
+## Security Best Practices
 
-- **Full Deployment Guide:** `DEPLOYMENT.md`
-- **Code Review:** `CLONEZILLA_INTEGRATION_REVIEW.md`
-- **This Installation Guide:** `INSTALLATION_GUIDE.md`
+### 1. Environment Variables
 
-**Clonezilla Documentation:**
-- https://clonezilla.org/clonezilla-live-doc.php
-- https://clonezilla.org/fine-print.php
+- ✅ Never commit `.env` files to git
+- ✅ Use Replit Secrets for sensitive data
+- ✅ Rotate `SESSION_SECRET` and `ENCRYPTION_KEY` periodically
+
+### 2. RBAC Configuration
+
+- ✅ Set `DEFAULT_USER_ROLE=viewer` in production
+- ✅ Grant admin roles sparingly
+- ✅ Audit user permissions regularly
+
+### 3. Network Security
+
+- ✅ Use HTTPS for web interface (automatic on published Repls)
+- ✅ Restrict database access to application only
+- ✅ Enable rate limiting for API endpoints (future feature)
+
+### 4. Data Protection
+
+- ✅ Database backups via Replit (automatic)
+- ✅ Sensitive data encrypted at rest
+- ✅ Activity logs track all actions
+
+### 5. User Management
+
+- ✅ Strong password requirements enforced
+- ✅ Password history prevents reuse
+- ✅ Account lockout after failed attempts (future feature)
 
 ---
 
-## User Management and Authentication
+## Backup & Recovery
 
-Bootah64x supports dual-mode authentication for flexible deployment scenarios:
-- **Replit OAuth** - For cloud-connected deployments
-- **Local Credentials** - For isolated network deployments
+### Automatic Backups
 
-### User Management Features
+Replit provides automatic database backups:
 
-The User Management page (`/user-management`) provides comprehensive user administration:
+1. Open **Database** tab
+2. Click **Backups**
+3. Download backup or restore to point in time
 
-#### Creating Users
+### Manual Export
 
-1. Navigate to **User Management** from the sidebar
-2. Click **Create User** button
-3. Fill in user details:
-   - **Username** (required) - Must be unique
-   - **Email** - For OAuth and password reset
-   - **First Name / Last Name** - User's full name
-   - **Department / Job Title** - Organizational information
-   - **Phone Number** - Contact information
-   - **Password** - Optional for local auth (OAuth users don't need passwords)
-4. Click **Create User**
-
-#### Editing Users
-
-1. Click the **Edit** (pencil) icon next to any user
-2. Update user information
-3. Click **Update User** to save changes
-
-#### Managing User Status
-
-- **Toggle Active/Inactive**: Click the power icon to enable/disable users
-- **Delete User**: Click the trash icon (requires confirmation)
-
-#### Bulk User Import (CSV)
-
-For importing multiple users at once:
-
-1. Click **Import CSV** button
-2. Paste CSV data in the following format:
-   ```
-   username,email,firstName,lastName,department,jobTitle,phoneNumber
-   jdoe,john@example.com,John,Doe,IT,Systems Engineer,555-1234
-   asmith,alice@example.com,Alice,Smith,IT,Network Admin,555-5678
-   ```
-3. Click **Import Users**
-4. Review the import results (success/failure count)
-
-**CSV Import Notes:**
-- First row must contain column headers
-- Username is required for all users
-- Email is required for password reset functionality
-- Invalid rows will be skipped with error messages
-
-### Password Reset Functionality
-
-Administrators can initiate password resets for local authentication users:
-
-#### Requesting Password Reset
-
-**API Endpoint:**
+**Export users:**
 ```bash
-POST /api/auth/request-password-reset
-Content-Type: application/json
-
-{
-  "email": "user@example.com"
-}
+# Via API (requires admin role)
+curl -H "Authorization: Bearer YOUR_TOKEN" \
+  https://your-repl.replit.dev/api/users/export > users.csv
 ```
 
-**Response:**
-```json
-{
-  "message": "If the email exists, a reset link has been sent"
-}
-```
-
-**Important Security Note:** 
-- Reset tokens and codes are **NEVER** returned in the API response for security reasons
-- In production: Tokens/codes are sent via email to the user
-- In isolated networks without email: 
-  - Tokens/codes are logged to server console (check application logs)
-  - Administrators with server access can retrieve them from logs: `pm2 logs bootah64x | grep "PASSWORD RESET"`
-  - This ensures only authorized administrators can access reset credentials
-
-#### Verifying Reset Token
-
-**API Endpoint:**
+**Export activity logs:**
 ```bash
-POST /api/auth/verify-reset-token
-Content-Type: application/json
-
-{
-  "token": "reset-token-from-request"
-}
+curl https://your-repl.replit.dev/api/activity > activity.json
 ```
 
-#### Resetting Password
+### Disaster Recovery
 
-**API Endpoint:**
+If you need to restore:
+
+1. **Create new Repl** from template
+2. **Import database backup** via Replit Database tab
+3. **Set environment variables** in Secrets
+4. **Start application** - schema auto-updates
+5. **Import users** if needed via CSV
+
+---
+
+## Monitoring & Maintenance
+
+### Health Checks
+
+The application provides health endpoints:
+
 ```bash
-POST /api/auth/reset-password
-Content-Type: application/json
+# Check overall health
+curl https://your-repl.replit.dev/api/health
 
-{
-  "token": "reset-token-from-request",
-  "newPassword": "newSecurePassword123",
-  "code": "123456"
-}
+# Check service status
+curl https://your-repl.replit.dev/api/server-status
 ```
 
-**Password Requirements:**
-- Minimum 8 characters
-- Cannot reuse last 5 passwords
-- Password expires after 90 days
+### Activity Monitoring
 
-#### Password Security Features
+Navigate to **Activity Log** page to monitor:
+- User logins
+- Device discoveries
+- Image deployments
+- System events
+- Errors and warnings
 
-Bootah64x implements enterprise-grade password security:
+### Performance Metrics
 
-1. **Password Hashing**: bcrypt with 12 rounds
-2. **Password History**: Prevents reuse of last 5 passwords
-3. **Password Expiry**: 90-day automatic expiration
-4. **Account Lockout**: 5 failed login attempts → 30-minute lockout
-5. **Reset Token Security**: 
-   - SHA-256 hashed tokens
-   - 1-hour expiration
-   - Single-use tokens
-   - Optional 6-digit verification code
+Dashboard displays real-time metrics:
+- Total devices managed
+- Active deployments
+- Success rate (last 30 days)
+- Data transferred
 
-### Authentication Best Practices
+---
 
-#### For Isolated Network Deployments
+## Upgrading
 
-1. **Create local admin account immediately after installation:**
+### Updating Bootah64x
+
+1. **Pull latest code:**
    ```bash
-   # Use the User Management UI or API
-   POST /api/admin/users
-   {
-     "username": "admin",
-     "email": "admin@local",
-     "fullName": "System Administrator",
-     "passwordHash": "your-strong-password",
-     "isActive": true
-   }
+   git pull origin main
    ```
 
-2. **Disable Replit OAuth** (if not needed):
-   - Set environment variable: `DISABLE_OAUTH=true`
-   - Restart application
+2. **Install new dependencies:**
+   ```bash
+   npm install
+   ```
 
-3. **Implement password rotation policy:**
-   - Force password changes every 90 days (automatic)
-   - Maintain password history (automatic)
+3. **Update database schema:**
+   ```bash
+   npm run db:push
+   ```
 
-#### For Cloud-Connected Deployments
+4. **Restart application:**
+   - Click "Stop" then "Run"
 
-1. **Use Replit OAuth as primary authentication**
-2. **Create local fallback admin account** for emergency access
-3. **Monitor login history** via Security Center
+5. **Verify upgrade:**
+   - Check logs for successful startup
+   - Test key features (login, device management)
+   - Review changelog for breaking changes
 
-### User Role and Permission System
+### Migration Notes
 
-Currently in development. Future releases will include:
-- Role-based access control (RBAC)
-- Granular permissions (view, edit, delete, deploy)
-- Audit logging for all user actions
-- Multi-factor authentication (MFA)
+- Database migrations are automatic via Drizzle
+- No manual SQL scripts needed
+- Backup before major upgrades
 
 ---
 
-**Installation Complete!** Your Bootah64x platform is ready for enterprise PXE imaging operations with comprehensive user management and security features.
+## Next Steps
+
+After installation is complete:
+
+1. ✅ **Configure user roles** - Set up RBAC for your team
+2. ✅ **Add devices** - Import your device inventory
+3. ✅ **Upload images** - Prepare OS images for deployment
+4. ✅ **Test deployments** - Run a test deployment
+5. ✅ **Monitor activity** - Check logs and metrics
+6. ✅ **Train users** - Share access with your team
+
+---
+
+## Additional Resources
+
+- **Application Documentation:** `replit.md`
+- **Deployment Guide:** `DEPLOYMENT.md`
+- **Feature Comparison:** `FOG_COMPARISON_ROADMAP.md`
+- **Integration Review:** `CLONEZILLA_INTEGRATION_REVIEW.md`
+
+---
+
+## Support
+
+For issues or questions:
+
+1. Check the **Troubleshooting** section above
+2. Review application logs in Replit console
+3. Check browser console (F12) for client-side errors
+4. Enable debug logging for detailed diagnostics
+
+**Common Resources:**
+- Replit Documentation: https://docs.replit.com
+- Drizzle ORM: https://orm.drizzle.team
+- React Query: https://tanstack.com/query
+
+---
+
+**Version:** 1.0.0  
+**Last Updated:** November 12, 2025  
+**Platform:** Replit Cloud
