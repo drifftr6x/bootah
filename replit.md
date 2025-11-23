@@ -19,6 +19,20 @@ Bootah is a modern, lightweight PXE server and OS imaging platform designed for 
 
 ## Recent Changes
 
+### Device Groups & Deployment Templates Features (November 23, 2025)
+- **Device Groups**: Added color-coded device grouping system for organizing devices by project/location
+  - Full CRUD operations for device group management
+  - Flexible tagging system with `tags[]` array on devices
+  - UI component for creating and selecting groups
+  - Group-based device filtering and organization
+- **Deployment Templates**: Implemented deployment configuration saving and reuse
+  - Save deployment settings as reusable templates with `imageId` and `postDeploymentProfileId`
+  - Template duplication and management capabilities
+  - UI template manager with create, duplicate, delete, and use operations
+  - Accelerates deployment workflows and reduces configuration errors
+- **Database**: Extended schema with `deviceGroups` table and `devices.tags`, `devices.groupId` fields
+- **Status**: Schema updates complete. Storage layer fully implemented with database operations. UI components ready for API integration.
+
 ### Data Integrity and UX Improvements (November 11, 2025)
 - **Confirmation Dialogs**: Added reusable ConfirmDialog component for all destructive actions (delete devices, images, deployments, profiles)
 - **Graceful Shutdown**: Implemented SIGTERM/SIGINT handlers with proper cleanup of database connections, WebSocket, PXE servers, and simulators
