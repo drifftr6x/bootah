@@ -685,6 +685,7 @@ export const insertDeploymentSchema = createInsertSchema(deployments).omit({
 
 export const insertMulticastSessionSchema = createInsertSchema(multicastSessions).omit({
   id: true,
+  multicastAddress: true,
   clientCount: true,
   totalBytes: true,
   bytesSent: true,

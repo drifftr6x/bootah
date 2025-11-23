@@ -829,7 +829,7 @@ export async function registerRoutes(app: Express): Promise<{
         ...sessionData,
         multicastAddress,
         createdBy: (req as any).user?.claims.sub,
-      });
+      } as any);
       
       // Log session creation
       const image = await storage.getImage(session.imageId);
