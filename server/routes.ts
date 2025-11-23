@@ -39,7 +39,8 @@ import {
   insertCustomScriptSchema,
   insertPostDeploymentTaskSchema,
   insertTaskRunSchema,
-  insertProfileDeploymentBindingSchema
+  insertProfileDeploymentBindingSchema,
+  insertDeviceGroupSchema
 } from "@shared/schema";
 
 export async function registerRoutes(app: Express): Promise<{
@@ -3101,6 +3102,145 @@ export async function registerRoutes(app: Express): Promise<{
       res.json(binding);
     } catch (error) {
       res.status(400).json({ message: "Invalid binding data", error: String(error) });
+    }
+  });
+
+  // Device Groups Endpoints
+  app.get("/api/device-groups", isAuthenticated, requirePermission("devices", "read"), async (req, res) => {
+    try {
+      const groups = await storage.getDeviceGroups();
+      res.json(groups);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch device groups" });
+    }
+  });
+
+  app.get("/api/device-groups/:id", isAuthenticated, requirePermission("devices", "read"), async (req, res) => {
+    try {
+      const group = await storage.getDeviceGroup(req.params.id);
+      if (!group) {
+        return res.status(404).json({ message: "Device group not found" });
+      }
+      res.json(group);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch device group" });
+    }
+  });
+
+  app.post("/api/device-groups", isAuthenticated, requirePermission("devices", "create"), async (req, res) => {
+    try {
+      const groupData = insertDeviceGroupSchema.parse(req.body);
+      const group = await storage.createDeviceGroup(groupData);
+      res.status(201).json(group);
+    } catch (error) {
+      res.status(400).json({ message: "Invalid device group data" });
+    }
+  });
+
+  app.put("/api/device-groups/:id", isAuthenticated, requirePermission("devices", "update"), async (req, res) => {
+    try {
+      const groupData = insertDeviceGroupSchema.partial().parse(req.body);
+      const group = await storage.updateDeviceGroup(req.params.id, groupData);
+      if (!group) {
+        return res.status(404).json({ message: "Device group not found" });
+      }
+      res.json(group);
+    } catch (error) {
+      res.status(400).json({ message: "Invalid device group data" });
+    }
+  });
+
+  app.delete("/api/device-groups/:id", isAuthenticated, requirePermission("devices", "delete"), async (req, res) => {
+    try {
+      const deleted = await storage.deleteDeviceGroup(req.params.id);
+      if (!deleted) {
+        return res.status(404).json({ message: "Device group not found" });
+      }
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ message: "Failed to delete device group" });
+    }
+  });
+
+  app.get("/api/device-groups/:groupId/devices", isAuthenticated, requirePermission("devices", "read"), async (req, res) => {
+    try {
+      const devices = await storage.getDevicesInGroup(req.params.groupId);
+      res.json(devices);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch devices in group" });
+    }
+  });
+
+  // Deployment Templates Endpoints
+  app.get("/api/templates", isAuthenticated, requirePermission("deployments", "read"), async (req, res) => {
+    try {
+      const templates = await storage.getTemplates();
+      res.json(templates);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch templates" });
+    }
+  });
+
+  app.get("/api/templates/:id", isAuthenticated, requirePermission("deployments", "read"), async (req, res) => {
+    try {
+      const template = await storage.getTemplate(req.params.id);
+      if (!template) {
+        return res.status(404).json({ message: "Template not found" });
+      }
+      res.json(template);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch template" });
+    }
+  });
+
+  app.post("/api/templates", isAuthenticated, requirePermission("deployments", "create"), async (req, res) => {
+    try {
+      const templateData = insertDeploymentTemplateSchema.parse(req.body);
+      const template = await storage.createTemplate(templateData);
+      res.status(201).json(template);
+    } catch (error) {
+      res.status(400).json({ message: "Invalid template data" });
+    }
+  });
+
+  app.put("/api/templates/:id", isAuthenticated, requirePermission("deployments", "update"), async (req, res) => {
+    try {
+      const templateData = insertDeploymentTemplateSchema.partial().parse(req.body);
+      const template = await storage.updateTemplate(req.params.id, templateData);
+      if (!template) {
+        return res.status(404).json({ message: "Template not found" });
+      }
+      res.json(template);
+    } catch (error) {
+      res.status(400).json({ message: "Invalid template data" });
+    }
+  });
+
+  app.delete("/api/templates/:id", isAuthenticated, requirePermission("deployments", "delete"), async (req, res) => {
+    try {
+      const deleted = await storage.deleteTemplate(req.params.id);
+      if (!deleted) {
+        return res.status(404).json({ message: "Template not found" });
+      }
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ message: "Failed to delete template" });
+    }
+  });
+
+  app.post("/api/templates/:id/duplicate", isAuthenticated, requirePermission("deployments", "create"), async (req, res) => {
+    try {
+      const { name } = req.body;
+      if (!name) {
+        return res.status(400).json({ message: "Template name is required" });
+      }
+      const template = await storage.duplicateTemplate(req.params.id, name);
+      if (!template) {
+        return res.status(404).json({ message: "Template not found" });
+      }
+      res.status(201).json(template);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to duplicate template" });
     }
   });
   
