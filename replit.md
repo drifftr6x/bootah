@@ -4,6 +4,19 @@
 
 Bootah is a modern, lightweight PXE server and OS imaging platform designed for IT administrators, MSPs, and system builders. The application provides a web-based interface for managing network device discovery, OS image deployment, and monitoring deployment progress in real-time. It's built as a full-stack TypeScript application with a React frontend and Express.js backend, targeting environments that need efficient OS deployment across multiple machines.
 
+## 📚 Documentation
+
+### Installation & Deployment Guides
+- **[README_DEPLOYMENT.md](README_DEPLOYMENT.md)** - Quick start guide with deployment method comparison
+- **[SELF_HOSTING_INSTALLATION.md](SELF_HOSTING_INSTALLATION.md)** - Complete self-hosting installation guide
+  - Docker deployment (recommended for most users)
+  - Linux bare metal installation (Ubuntu/Debian)
+  - Kubernetes deployment (enterprise)
+- **[PROXMOX_INSTALLATION_GUIDE.md](PROXMOX_INSTALLATION_GUIDE.md)** - Proxmox-specific deployment
+  - LXC container setup
+  - PXE/TFTP/DHCP configuration
+  - Clonezilla integration (optional)
+
 ## Recent Changes
 
 ### Data Integrity and UX Improvements (November 11, 2025)
