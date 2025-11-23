@@ -659,6 +659,12 @@ export const complianceReports = pgTable("compliance_reports", {
   approvedAt: timestamp("approved_at"),
 });
 
+// Device Groups Insert Schema
+export const insertDeviceGroupSchema = createInsertSchema(deviceGroups).omit({
+  id: true,
+  createdAt: true,
+});
+
 // Insert schemas
 export const insertDeviceSchema = createInsertSchema(devices).omit({
   id: true,
@@ -912,6 +918,9 @@ export const insertTopologySnapshotSchema = createInsertSchema(topologySnapshots
 });
 
 // Types
+export type DeviceGroup = typeof deviceGroups.$inferSelect;
+export type InsertDeviceGroup = z.infer<typeof insertDeviceGroupSchema>;
+
 export type Device = typeof devices.$inferSelect;
 export type InsertDevice = z.infer<typeof insertDeviceSchema>;
 

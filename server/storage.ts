@@ -94,6 +94,14 @@ import { DeploymentScheduler } from "./scheduler";
 import { encrypt, decrypt } from "./encryption";
 
 export interface IStorage {
+  // Device Groups
+  getDeviceGroups(): Promise<DeviceGroup[]>;
+  getDeviceGroup(id: string): Promise<DeviceGroup | undefined>;
+  createDeviceGroup(group: InsertDeviceGroup): Promise<DeviceGroup>;
+  updateDeviceGroup(id: string, group: Partial<InsertDeviceGroup>): Promise<DeviceGroup | undefined>;
+  deleteDeviceGroup(id: string): Promise<boolean>;
+  getDevicesInGroup(groupId: string): Promise<Device[]>;
+
   // Devices
   getDevices(): Promise<Device[]>;
   getDevice(id: string): Promise<Device | undefined>;
@@ -363,6 +371,9 @@ export class MemStorage implements IStorage {
   private alertRules: Map<string, AlertRule> = new Map();
   private serverStatus: ServerStatus;
   
+  // Device Groups
+  private deviceGroups: Map<string, DeviceGroup> = new Map();
+
   // Multicast
   private multicastSessions: Map<string, MulticastSession> = new Map();
   private multicastParticipants: Map<string, MulticastParticipant> = new Map();
@@ -3653,12 +3664,71 @@ export class DatabaseStorage implements IStorage {
     return binding;
   }
 
-  async getTemplates(): Promise<DeploymentTemplateWithDetails[]> { return []; }
-  async getTemplate(id: string): Promise<DeploymentTemplateWithDetails | undefined> { return undefined; }
-  async createTemplate(template: InsertDeploymentTemplate): Promise<DeploymentTemplate> { throw new Error("Not implemented"); }
-  async updateTemplate(id: string, template: Partial<InsertDeploymentTemplate>): Promise<DeploymentTemplate | undefined> { return undefined; }
-  async deleteTemplate(id: string): Promise<boolean> { return false; }
-  async duplicateTemplate(id: string, newName: string): Promise<DeploymentTemplate | undefined> { return undefined; }
+  // Device Groups
+  async getDeviceGroups(): Promise<DeviceGroup[]> {
+    const groups = await db.select().from(deviceGroups);
+    return groups;
+  }
+
+  async getDeviceGroup(id: string): Promise<DeviceGroup | undefined> {
+    const [group] = await db.select().from(deviceGroups).where(eq(deviceGroups.id, id));
+    return group;
+  }
+
+  async createDeviceGroup(insertGroup: InsertDeviceGroup): Promise<DeviceGroup> {
+    const [group] = await db.insert(deviceGroups).values(insertGroup).returning();
+    return group;
+  }
+
+  async updateDeviceGroup(id: string, updateData: Partial<InsertDeviceGroup>): Promise<DeviceGroup | undefined> {
+    const [group] = await db.update(deviceGroups).set(updateData).where(eq(deviceGroups.id, id)).returning();
+    return group;
+  }
+
+  async deleteDeviceGroup(id: string): Promise<boolean> {
+    const result = await db.delete(deviceGroups).where(eq(deviceGroups.id, id)).returning();
+    return result.length > 0;
+  }
+
+  async getDevicesInGroup(groupId: string): Promise<Device[]> {
+    return await db.select().from(devices).where(eq(devices.groupId, groupId));
+  }
+
+  async getTemplates(): Promise<DeploymentTemplateWithDetails[]> {
+    const templates = await db.select().from(deploymentTemplates);
+    return templates as DeploymentTemplateWithDetails[];
+  }
+
+  async getTemplate(id: string): Promise<DeploymentTemplateWithDetails | undefined> {
+    const [template] = await db.select().from(deploymentTemplates).where(eq(deploymentTemplates.id, id));
+    return template as DeploymentTemplateWithDetails | undefined;
+  }
+
+  async createTemplate(insertTemplate: InsertDeploymentTemplate): Promise<DeploymentTemplate> {
+    const [template] = await db.insert(deploymentTemplates).values(insertTemplate).returning();
+    return template;
+  }
+
+  async updateTemplate(id: string, updateData: Partial<InsertDeploymentTemplate>): Promise<DeploymentTemplate | undefined> {
+    const [template] = await db.update(deploymentTemplates).set(updateData).where(eq(deploymentTemplates.id, id)).returning();
+    return template;
+  }
+
+  async deleteTemplate(id: string): Promise<boolean> {
+    const result = await db.delete(deploymentTemplates).where(eq(deploymentTemplates.id, id)).returning();
+    return result.length > 0;
+  }
+
+  async duplicateTemplate(id: string, newName: string): Promise<DeploymentTemplate | undefined> {
+    const template = await this.getTemplate(id);
+    if (!template) return undefined;
+    const [newTemplate] = await db.insert(deploymentTemplates).values({
+      ...template,
+      name: newName,
+      id: randomUUID(),
+    }).returning();
+    return newTemplate;
+  }
   async getTemplateSteps(templateId: string): Promise<TemplateStep[]> { return []; }
   async createTemplateStep(step: InsertTemplateStep): Promise<TemplateStep> { throw new Error("Not implemented"); }
   async updateTemplateStep(id: string, step: Partial<InsertTemplateStep>): Promise<TemplateStep | undefined> { return undefined; }
