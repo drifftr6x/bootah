@@ -3,6 +3,15 @@ import { pgTable, text, varchar, integer, timestamp, real, boolean, bigint, json
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
+export const deviceGroups = pgTable("device_groups", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  description: text("description"),
+  color: text("color").default("#3b82f6"),
+  createdBy: varchar("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 export const devices = pgTable("devices", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: text("name").notNull(),
@@ -12,6 +21,8 @@ export const devices = pgTable("devices", {
   lastSeen: timestamp("last_seen"),
   manufacturer: text("manufacturer"),
   model: text("model"),
+  tags: text("tags").array().default(sql`'{}'`),
+  groupId: varchar("group_id").references(() => deviceGroups.id),
 });
 
 export const images = pgTable("images", {
@@ -325,6 +336,8 @@ export const deploymentTemplates = pgTable("deployment_templates", {
   estimatedDuration: integer("estimated_duration"), // minutes
   compatibleOSTypes: text("compatible_os_types").array().default(sql`'{}'`),
   tags: text("tags").array().default(sql`'{}'`),
+  imageId: varchar("image_id").references(() => images.id),
+  postDeploymentProfileId: varchar("post_deployment_profile_id"),
   createdBy: varchar("created_by").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
