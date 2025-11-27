@@ -543,7 +543,7 @@ export default function TemplatesPage() {
   });
 
   return (
-    <div className="p-6" data-testid="templates-page">
+    <div className="flex flex-col overflow-y-auto p-6" data-testid="templates-page">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-3xl font-bold bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent">
