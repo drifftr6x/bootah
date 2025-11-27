@@ -10,7 +10,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { insertDeploymentSchema, type InsertDeployment, type Device, type Image, type PostDeploymentProfile } from "@shared/schema";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
-import { Loader2, Monitor, HardDrive, PlayCircle, AlertCircle, Calendar, Clock, Repeat, CheckCircle2, Settings } from "lucide-react";
+import { Loader2, Monitor, HardDrive, PlayCircle, AlertCircle, Calendar, Clock, Repeat, CheckCircle2, Settings, Zap } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -127,6 +127,7 @@ export default function StartDeploymentDialog({
       progress: 0,
       errorMessage: null,
       bootMode: "bios",
+      imagingEngine: "clonezilla",
       scheduleType: "instant",
       scheduledFor: null,
       recurringPattern: null,
@@ -136,6 +137,7 @@ export default function StartDeploymentDialog({
   const scheduleType = form.watch("scheduleType");
   const recurringPattern = form.watch("recurringPattern");
   const scheduledFor = form.watch("scheduledFor");
+  const imagingEngine = form.watch("imagingEngine");
   
   // Calculate next runs when cron pattern changes
   useEffect(() => {
@@ -501,6 +503,95 @@ export default function StartDeploymentDialog({
                     return null;
                   })()
                 )}
+              </div>
+            )}
+
+            {/* Imaging Engine Selection */}
+            <FormField
+              control={form.control}
+              name="imagingEngine"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel data-testid="label-imaging-engine">
+                    <Zap className="w-4 h-4 inline mr-2" />
+                    Imaging Engine
+                  </FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value || "clonezilla"}>
+                    <FormControl>
+                      <SelectTrigger data-testid="select-imaging-engine">
+                        <SelectValue placeholder="Select imaging engine" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="clonezilla">
+                        <div className="flex items-center space-x-2">
+                          <span>Clonezilla (Default)</span>
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="fog">
+                        <div className="flex items-center space-x-2">
+                          <span>FOG Project</span>
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="multicast">
+                        <div className="flex items-center space-x-2">
+                          <span>Multicast</span>
+                        </div>
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormDescription>
+                    Choose the imaging backend for this deployment
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {/* Imaging Engine Info Box */}
+            {imagingEngine && (
+              <div className={`p-4 rounded-lg border ${
+                imagingEngine === "clonezilla" ? "bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800" :
+                imagingEngine === "fog" ? "bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800" :
+                "bg-cyan-50 dark:bg-cyan-900/20 border-cyan-200 dark:border-cyan-800"
+              }`}>
+                <div className="flex items-start space-x-3">
+                  <Zap className={`w-5 h-5 mt-0.5 flex-shrink-0 ${
+                    imagingEngine === "clonezilla" ? "text-orange-600" :
+                    imagingEngine === "fog" ? "text-blue-600" :
+                    "text-cyan-600"
+                  }`} />
+                  <div className="flex-1">
+                    <h4 className={`font-medium ${
+                      imagingEngine === "clonezilla" ? "text-orange-700 dark:text-orange-300" :
+                      imagingEngine === "fog" ? "text-blue-700 dark:text-blue-300" :
+                      "text-cyan-700 dark:text-cyan-300"
+                    }`}>
+                      {imagingEngine === "clonezilla" ? "Clonezilla Deployment" :
+                       imagingEngine === "fog" ? "FOG Project Deployment" :
+                       "Multicast Deployment"}
+                    </h4>
+                    <div className={`text-sm mt-1 ${
+                      imagingEngine === "clonezilla" ? "text-orange-600 dark:text-orange-400" :
+                      imagingEngine === "fog" ? "text-blue-600 dark:text-blue-400" :
+                      "text-cyan-600 dark:text-cyan-400"
+                    }`}>
+                      {imagingEngine === "clonezilla" && "Single device imaging via Clonezilla. Fast, reliable, supports compression." }
+                      {imagingEngine === "fog" && "Deploy via FOG Project. Supports multiple concurrent deployments and advanced scheduling." }
+                      {imagingEngine === "multicast" && "Deploy to multiple devices simultaneously. Efficient for large-scale rollouts." }
+                    </div>
+                  </div>
+                  <Badge 
+                    variant="outline" 
+                    className={imagingEngine === "clonezilla" ? "bg-orange-500/10 text-orange-400 border-orange-500/20" :
+                               imagingEngine === "fog" ? "bg-blue-500/10 text-blue-400 border-blue-500/20" :
+                               "bg-cyan-500/10 text-cyan-400 border-cyan-500/20"}
+                  >
+                    {imagingEngine === "clonezilla" ? "Standard" :
+                     imagingEngine === "fog" ? "Advanced" :
+                     "Batch"}
+                  </Badge>
+                </div>
               </div>
             )}
 
