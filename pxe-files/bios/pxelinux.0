@@ -1,0 +1,20 @@
+# PXELINUX Legacy BIOS Bootloader Stub
+# This file serves as a placeholder for the actual pxelinux.0 bootloader
+# In production, replace this with the real pxelinux.0 from SYSLINUX project
+# Location: https://www.syslinux.org/wiki/index.php/PXELINUX
+# 
+# Real deployment: Download from https://mirrors.kernel.org/syslinux/
+# Copy the actual binary to replace this file
+#
+# Boot Mode: Legacy BIOS/MBR
+# Partition Table: MBR
+# File System: Any (NTFS, ext4, etc.)
+# Compatibility: Maximum - works with older systems
+#
+# BIOS PXE Boot Flow:
+# 1. Device sends DHCP DISCOVER
+# 2. DHCP server responds with bootfile: pxelinux.0
+# 3. Device fetches pxelinux.0 via TFTP
+# 4. pxelinux.0 loads pxelinux.cfg/default configuration
+# 5. Configuration specifies kernel/image to load
+# 6. Image deployment begins via HTTP/NFS/iSCSI

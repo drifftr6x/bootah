@@ -1,0 +1,28 @@
+# Shim UEFI Bootloader Stub
+# This is a placeholder for shim.efi (signed UEFI bootloader)
+# 
+# In production:
+# 1. Download signed shim from your Linux distribution:
+#    - Ubuntu: apt download shim-signed
+#    - RHEL: dnf download shim-x64
+#    - Debian: apt download shim-efi-amd64-signed
+# 
+# 2. Extract and install:
+#    unzip shim-signed_*.deb
+#    cp ./usr/lib/shim/shimx64.efi to this location
+#
+# Boot Mode: UEFI (Standard)
+# Partition Table: GPT
+# File System: FAT32 (EFI System Partition)
+# Compatibility: Modern systems (Windows 8+, Linux, macOS Intel)
+#
+# UEFI Boot Flow:
+# 1. Device performs UEFI PXE boot
+# 2. DHCP server provides bootfile: /efi/shimx64.efi
+# 3. Device fetches shimx64.efi via TFTP/HTTP
+# 4. Shim verifies grubx64.efi signature
+# 5. GRUB chainloads the OS image
+# 6. Image deployment begins
+#
+# Signing: This shim is pre-signed by the Linux distribution
+# Secure Boot: Works with Secure Boot DISABLED

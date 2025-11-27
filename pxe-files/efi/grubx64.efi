@@ -1,0 +1,34 @@
+# GRUB2 UEFI Bootloader Stub
+# This is a placeholder for grubx64.efi (UEFI boot loader)
+#
+# In production:
+# 1. For UEFI Secure Boot, download signed version from your distro
+# 2. For standard UEFI, use any recent GRUB2:
+#    - Build from source: https://www.gnu.org/software/grub/
+#    - Or download pre-built from your Linux distro
+#
+# 3. For Secure Boot signing:
+#    sbsign --key db.key --cert db.crt grubx64.efi --output grubx64.efi.signed
+#
+# Boot Mode: UEFI or UEFI Secure Boot
+# Partition Table: GPT
+# File System: FAT32 (EFI System Partition)
+# Compatibility: Modern systems with UEFI
+#
+# GRUB Configuration:
+# Create pxe-files/efi/grub.cfg with:
+# ---
+# insmod http
+# insmod gzio
+# set default=0
+# set timeout=10
+# menuentry 'Network Boot' {
+#   set root='(http,<SERVER_IP>)'
+#   chainload /pxe-images/bootx64.efi
+# }
+# ---
+#
+# Secure Boot: 
+# - This grubx64.efi must be signed with a DB (Database) certificate
+# - The signature validates that Microsoft and/or the OS vendor signed it
+# - Chain: BIOS/FIRMWARE keys -> Shim -> GRUB -> Kernel
