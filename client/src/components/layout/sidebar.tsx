@@ -32,30 +32,60 @@ import {
   Layers,
 } from "lucide-react";
 
-const navigation = [
-  { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { name: "Device Management", href: "/devices", icon: Monitor },
-  { name: "Image Library", href: "/images", icon: HardDrive },
-  { name: "Image Capture", href: "/capture", icon: Camera },
-  { name: "Deployments", href: "/deployments", icon: Zap },
-  { name: "Scheduled", href: "/scheduled", icon: Calendar },
-  { name: "Multicast Sessions", href: "/multicast", icon: Radio },
-  { name: "Network Topology", href: "/topology", icon: Network },
-  { name: "Templates", href: "/templates", icon: Workflow },
-  { name: "Snapins", href: "/snapins", icon: Package },
-  { name: "Hostname Patterns", href: "/hostname-patterns", icon: Tag },
-  { name: "Domain Join", href: "/domain-join", icon: Server },
-  { name: "Product Keys", href: "/product-keys", icon: Key },
-  { name: "Custom Scripts", href: "/custom-scripts", icon: FileCode },
-  { name: "Deployment Profiles", href: "/post-deployment-profiles", icon: Layers },
-  { name: "Network Discovery", href: "/network", icon: Wifi },
-  { name: "Workstations", href: "/workstations", icon: Laptop },
-  { name: "Monitoring", href: "/monitoring", icon: Activity },
-  { name: "Security Center", href: "/security", icon: Shield },
-  { name: "User Management", href: "/users", icon: Users },
-  { name: "Configuration", href: "/configuration", icon: Settings },
-  { name: "Logs & History", href: "/logs", icon: FileText },
-  { name: "Help & Support", href: "/help", icon: HelpCircle },
+const navigationGroups = [
+  {
+    section: "Core",
+    items: [
+      { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+    ],
+  },
+  {
+    section: "Inventory",
+    items: [
+      { name: "Device Management", href: "/devices", icon: Monitor },
+      { name: "Image Library", href: "/images", icon: HardDrive },
+      { name: "Image Capture", href: "/capture", icon: Camera },
+    ],
+  },
+  {
+    section: "Deployments",
+    items: [
+      { name: "Active", href: "/deployments", icon: Zap },
+      { name: "Scheduled", href: "/scheduled", icon: Calendar },
+      { name: "Multicast", href: "/multicast", icon: Radio },
+    ],
+  },
+  {
+    section: "Deployment Config",
+    items: [
+      { name: "Templates", href: "/templates", icon: Workflow },
+      { name: "Profiles", href: "/post-deployment-profiles", icon: Layers },
+      { name: "Snapins", href: "/snapins", icon: Package },
+      { name: "Hostname Patterns", href: "/hostname-patterns", icon: Tag },
+      { name: "Domain Join", href: "/domain-join", icon: Server },
+      { name: "Product Keys", href: "/product-keys", icon: Key },
+      { name: "Custom Scripts", href: "/custom-scripts", icon: FileCode },
+    ],
+  },
+  {
+    section: "Infrastructure",
+    items: [
+      { name: "Network Topology", href: "/topology", icon: Network },
+      { name: "Network Discovery", href: "/network", icon: Wifi },
+      { name: "Workstations", href: "/workstations", icon: Laptop },
+      { name: "Monitoring", href: "/monitoring", icon: Activity },
+    ],
+  },
+  {
+    section: "System",
+    items: [
+      { name: "Security", href: "/security", icon: Shield },
+      { name: "Users", href: "/users", icon: Users },
+      { name: "Configuration", href: "/configuration", icon: Settings },
+      { name: "Logs", href: "/logs", icon: FileText },
+      { name: "Help", href: "/help", icon: HelpCircle },
+    ],
+  },
 ];
 
 function formatUptime(seconds: number): string {
@@ -110,7 +140,7 @@ export default function Sidebar() {
       
       {/* Navigation */}
       <nav className={cn(
-        "flex-1 space-y-2 sidebar-scrollbar overflow-y-auto",
+        "flex-1 space-y-3 sidebar-scrollbar overflow-y-auto",
         isCollapsed ? "p-2" : "p-4"
       )}>
         {isCollapsed && (
@@ -126,31 +156,43 @@ export default function Sidebar() {
             </Button>
           </div>
         )}
-        {navigation.map((item) => {
-          const isActive = location === item.href || (location === "/" && item.href === "/dashboard");
-          const Icon = item.icon;
-          
-          return (
-            <Link 
-              key={item.name} 
-              href={item.href}
-              data-testid={`nav-${item.name.toLowerCase().replace(/\s+/g, "-")}`}
-              className={cn(
-                "flex items-center rounded-md text-sm font-medium transition-colors",
-                isCollapsed 
-                  ? "justify-center p-2 h-10 w-10 mx-auto" 
-                  : "space-x-3 px-3 py-2",
-                isActive
-                  ? "bg-sidebar-primary text-sidebar-primary-foreground"
-                  : "text-muted-foreground hover:text-sidebar-foreground hover:bg-sidebar-accent"
-              )}
-              title={isCollapsed ? item.name : undefined}
-            >
-              <Icon className={cn("w-5 h-5", isCollapsed ? "flex-shrink-0" : "")} />
-              {!isCollapsed && <span>{item.name}</span>}
-            </Link>
-          );
-        })}
+        {navigationGroups.map((group) => (
+          <div key={group.section} className={cn(
+            "space-y-1",
+            group.section !== "Core" && !isCollapsed && "pt-2 border-t border-sidebar-border"
+          )}>
+            {!isCollapsed && group.section !== "Core" && (
+              <div className="px-3 py-1 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                {group.section}
+              </div>
+            )}
+            {group.items.map((item) => {
+              const isActive = location === item.href || (location === "/" && item.href === "/dashboard");
+              const Icon = item.icon;
+              
+              return (
+                <Link 
+                  key={item.name} 
+                  href={item.href}
+                  data-testid={`nav-${item.name.toLowerCase().replace(/\s+/g, "-")}`}
+                  className={cn(
+                    "flex items-center rounded-md text-sm font-medium transition-colors",
+                    isCollapsed 
+                      ? "justify-center p-2 h-10 w-10 mx-auto" 
+                      : "space-x-3 px-3 py-2",
+                    isActive
+                      ? "bg-sidebar-primary text-sidebar-primary-foreground"
+                      : "text-muted-foreground hover:text-sidebar-foreground hover:bg-sidebar-accent"
+                  )}
+                  title={isCollapsed ? item.name : undefined}
+                >
+                  <Icon className={cn("w-5 h-5", isCollapsed ? "flex-shrink-0" : "")} />
+                  {!isCollapsed && <span>{item.name}</span>}
+                </Link>
+              );
+            })}
+          </div>
+        ))}
       </nav>
       
       {/* Server Status */}
