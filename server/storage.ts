@@ -88,7 +88,7 @@ import {
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
-import { devices, images, deployments, activityLogs, serverStatus, users, passwordResetTokens, passwordHistory, multicastSessions, multicastParticipants, roles, permissions, userRoles, rolePermissions, networkSegments, deviceConnections, topologySnapshots, postDeploymentProfiles, snapinPackages, hostnamePatterns, domainJoinConfigs, productKeys, customScripts, postDeploymentTasks, taskRuns, profileDeploymentBindings } from "@shared/schema";
+import { devices, images, deployments, activityLogs, serverStatus, users, passwordResetTokens, passwordHistory, multicastSessions, multicastParticipants, roles, permissions, userRoles, rolePermissions, networkSegments, deviceConnections, topologySnapshots, postDeploymentProfiles, snapinPackages, hostnamePatterns, domainJoinConfigs, productKeys, customScripts, postDeploymentTasks, taskRuns, profileDeploymentBindings, fogDeploymentMappings } from "@shared/schema";
 import { eq, desc, and, or, count, sql, inArray } from "drizzle-orm";
 import { DeploymentScheduler } from "./scheduler";
 import { encrypt, decrypt } from "./encryption";
@@ -292,6 +292,11 @@ export interface IStorage {
   updateComplianceReport(id: string, report: Partial<InsertComplianceReport>): Promise<ComplianceReport | undefined>;
   deleteComplianceReport(id: string): Promise<boolean>;
   approveComplianceReport(id: string, approvedBy: string): Promise<ComplianceReport | undefined>;
+
+  // FOG Deployment Mappings
+  createFOGDeploymentMapping(mapping: any): Promise<any>;
+  getFOGDeploymentMapping(bootahDeploymentId: string): Promise<any | undefined>;
+  updateFOGDeploymentMapping(id: string, mapping: Partial<any>): Promise<any | undefined>;
 
   // Post-Deployment Automation
   // Profiles
@@ -3296,6 +3301,26 @@ export class DatabaseStorage implements IStorage {
   async deletePostDeploymentProfile(id: string): Promise<boolean> {
     const result = await db.delete(postDeploymentProfiles).where(eq(postDeploymentProfiles.id, id));
     return result.rowCount ? result.rowCount > 0 : false;
+  }
+
+  // FOG Deployment Mappings
+  async createFOGDeploymentMapping(insertMapping: any): Promise<any> {
+    const [mapping] = await db.insert(fogDeploymentMappings).values(insertMapping).returning();
+    return mapping;
+  }
+
+  async getFOGDeploymentMapping(bootahDeploymentId: string): Promise<any | undefined> {
+    const [mapping] = await db.select().from(fogDeploymentMappings).where(eq(fogDeploymentMappings.bootahDeploymentId, bootahDeploymentId));
+    return mapping;
+  }
+
+  async updateFOGDeploymentMapping(id: string, updateData: Partial<any>): Promise<any | undefined> {
+    const [mapping] = await db
+      .update(fogDeploymentMappings)
+      .set({ ...updateData, updatedAt: new Date() })
+      .where(eq(fogDeploymentMappings.id, id))
+      .returning();
+    return mapping;
   }
 
   // Snapin Packages
