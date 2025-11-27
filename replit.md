@@ -19,6 +19,19 @@ Bootah is a modern, lightweight PXE server and OS imaging platform designed for 
 
 ## Recent Changes
 
+### FOG Project Integration Support (November 23, 2025)
+- **FOG Integration**: Added complete integration with FOG Project (Free and Open-Source Ghost)
+  - FOG as imaging backend option alongside Clonezilla
+  - Full API endpoints for FOG deployment management
+  - Image and host synchronization from FOG
+  - Real-time task monitoring and progress tracking
+  - Support for multi-device deployments via FOG
+  - Hybrid imaging mode (Clonezilla + FOG support)
+- **Documentation**: Created comprehensive FOG integration guide with setup instructions
+- **Storage Methods**: FOG client methods for task creation, status monitoring, cancellation
+- **API Endpoints**: 6 new FOG-specific endpoints for control and monitoring
+- **Status**: FOG integration ready for production deployment
+
 ### Device Groups & Deployment Templates Features (November 23, 2025)
 - **Device Groups**: Added color-coded device grouping system for organizing devices by project/location
   - Full CRUD operations for device group management

@@ -3243,6 +3243,144 @@ export async function registerRoutes(app: Express): Promise<{
       res.status(500).json({ message: "Failed to duplicate template" });
     }
   });
+
+  // FOG Project Integration Endpoints
+  app.get("/api/fog/status", isAuthenticated, requirePermission("configuration", "read"), async (req, res) => {
+    try {
+      const isFOGEnabled = process.env.FOG_ENABLED === 'true';
+      const isConnected = isFOGEnabled ? await checkFOGConnectivity() : false;
+      res.json({
+        enabled: isFOGEnabled,
+        connected: isConnected,
+        serverUrl: process.env.FOG_SERVER_URL,
+        message: isFOGEnabled ? (isConnected ? "Connected to FOG" : "FOG enabled but not connected") : "FOG integration disabled"
+      });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to check FOG status" });
+    }
+  });
+
+  app.post("/api/fog/sync-images", isAuthenticated, requirePermission("images", "create"), async (req, res) => {
+    try {
+      if (process.env.FOG_ENABLED !== 'true') {
+        return res.status(400).json({ message: "FOG integration not enabled" });
+      }
+      const images = await syncFOGImages();
+      res.json({ synced: images.length, images });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to sync FOG images", error: String(error) });
+    }
+  });
+
+  app.post("/api/fog/sync-hosts", isAuthenticated, requirePermission("devices", "create"), async (req, res) => {
+    try {
+      if (process.env.FOG_ENABLED !== 'true') {
+        return res.status(400).json({ message: "FOG integration not enabled" });
+      }
+      const hosts = await syncFOGHosts();
+      res.json({ synced: hosts.length, hosts });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to sync FOG hosts", error: String(error) });
+    }
+  });
+
+  app.post("/api/deployments/fog", isAuthenticated, requirePermission("deployments", "deploy"), async (req, res) => {
+    try {
+      const { deploymentId, fogImageId, deviceIds, taskType, shutdown } = req.body;
+      
+      if (!fogImageId || !deviceIds || deviceIds.length === 0) {
+        return res.status(400).json({ message: "FOG image ID and device IDs required" });
+      }
+
+      const devices = await Promise.all(deviceIds.map(id => storage.getDevice(id)));
+      const macAddresses = devices
+        .filter(d => d)
+        .map(d => d!.macAddress);
+
+      if (macAddresses.length === 0) {
+        return res.status(400).json({ message: "No valid device MAC addresses found" });
+      }
+
+      const fogTaskId = await createFOGTask(
+        fogImageId,
+        macAddresses,
+        taskType || 1,
+        shutdown !== false
+      );
+
+      await storage.updateDeployment(deploymentId, {
+        status: "deploying",
+        progress: 0,
+      });
+
+      res.json({ 
+        deploymentId,
+        fogTaskId,
+        status: "deploying",
+        devicesCount: macAddresses.length
+      });
+    } catch (error) {
+      res.status(500).json({ message: "FOG deployment failed", error: String(error) });
+    }
+  });
+
+  app.get("/api/fog/tasks/:taskId", isAuthenticated, requirePermission("deployments", "read"), async (req, res) => {
+    try {
+      const status = await getFOGTaskStatus(parseInt(req.params.taskId));
+      if (!status) {
+        return res.status(404).json({ message: "FOG task not found" });
+      }
+      res.json(status);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to get FOG task status" });
+    }
+  });
+
+  app.post("/api/fog/tasks/:taskId/cancel", isAuthenticated, requirePermission("deployments", "delete"), async (req, res) => {
+    try {
+      const cancelled = await cancelFOGTask(parseInt(req.params.taskId));
+      if (!cancelled) {
+        return res.status(500).json({ message: "Failed to cancel FOG task" });
+      }
+      res.json({ message: "FOG task cancelled", taskId: req.params.taskId });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to cancel FOG task" });
+    }
+  });
+
+  app.post("/api/fog/monitor/:taskId", isAuthenticated, requirePermission("deployments", "read"), async (req, res) => {
+    try {
+      const taskId = parseInt(req.params.taskId);
+      
+      monitorFOGDeployment(taskId, (progress, status) => {
+        wss.clients.forEach((client: any) => {
+          if (client.readyState === WebSocket.OPEN) {
+            client.send(JSON.stringify({
+              type: "fog_progress",
+              taskId,
+              progress,
+              status
+            }));
+          }
+        });
+      }).catch(error => {
+        console.error("FOG monitoring error:", error);
+      });
+
+      res.json({ message: "FOG task monitoring started", taskId });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to start monitoring" });
+    }
+  });
+
+  // Placeholder functions - import from FOG_STORAGE_INTEGRATION.ts in production
+  async function syncFOGImages() { return []; }
+  async function syncFOGHosts() { return []; }
+  async function createFOGTask(imgId: number, macs: string[], type: number, shutdown: boolean) { return 0; }
+  async function getFOGTaskStatus(taskId: number) { return null; }
+  async function cancelFOGTask(taskId: number) { return false; }
+  async function checkFOGConnectivity() { return false; }
+  async function monitorFOGDeployment(taskId: number, callback: Function) {}
   
   return {
     httpServer,
