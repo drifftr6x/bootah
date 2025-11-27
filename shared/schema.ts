@@ -55,6 +55,8 @@ export const deployments = pgTable("deployments", {
   startedAt: timestamp("started_at"), // Set by scheduler when deployment actually starts
   completedAt: timestamp("completed_at"),
   errorMessage: text("error_message"),
+  // Boot configuration
+  bootMode: text("boot_mode").default("bios"), // bios, uefi, uefi-secure
   // Scheduling fields
   scheduleType: text("schedule_type").notNull().default("instant"), // instant, delayed, recurring
   scheduledFor: timestamp("scheduled_for"), // Required for delayed/recurring - when to start deployment
@@ -709,6 +711,7 @@ export const insertDeploymentSchema = createInsertSchema(deployments).omit({
   createdAt: true,
 }).extend({
   scheduleType: z.enum(["instant", "delayed", "recurring"]).default("instant"),
+  bootMode: z.enum(["bios", "uefi", "uefi-secure"]).default("bios"),
 }).refine(
   (data) => {
     // For delayed or recurring, scheduledFor is required

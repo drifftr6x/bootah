@@ -254,7 +254,7 @@ export class PXEHTTPServer {
 
   // This integrates with the existing Express server
   public setupRoutes(app: any): void {
-    // Serve PXE boot files
+    // Serve PXE boot files with proper MIME types
     app.get("/pxe-files/:filename(*)", (req: any, res: any) => {
       const filename = req.params.filename;
       const filePath = path.join("./pxe-files", filename);
@@ -263,6 +263,21 @@ export class PXEHTTPServer {
         return res.status(404).send("File not found");
       }
       
+      // Determine MIME type based on file extension
+      const mimeTypes: { [key: string]: string } = {
+        '.efi': 'application/x-efi',
+        '.0': 'application/octet-stream',
+        '.bin': 'application/octet-stream',
+        '.rom': 'application/octet-stream',
+        '.cfg': 'text/plain',
+        '.txt': 'text/plain',
+      };
+      
+      const ext = path.extname(filePath).toLowerCase();
+      const contentType = mimeTypes[ext] || 'application/octet-stream';
+      
+      res.setHeader('Content-Type', contentType);
+      res.setHeader('Cache-Control', 'public, max-age=3600');
       res.sendFile(path.resolve(filePath));
     });
 
@@ -284,6 +299,22 @@ export class PXEHTTPServer {
       
       res.sendFile(path.resolve(filePath));
     });
+  }
+
+  // Add Secure Boot bootloader files
+  public addSecureBootFiles(): void {
+    // Create directory for Secure Boot files if it doesn't exist
+    const secureBootDir = path.join("./pxe-files", "efi");
+    if (!fs.existsSync(secureBootDir)) {
+      fs.mkdirSync(secureBootDir, { recursive: true });
+    }
+
+    // Note: These are placeholder stubs. In production, you would:
+    // 1. Download signed shim.efi from your certificate authority
+    // 2. Download grubx64.efi (signed for your environment)
+    // 3. Configure GRUB with your boot parameters
+    
+    console.log("[PXEHTTPServer] Secure Boot file directory initialized at:", secureBootDir);
   }
 }
 

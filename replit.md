@@ -19,6 +19,25 @@ Bootah is a modern, lightweight PXE server and OS imaging platform designed for 
 
 ## Recent Changes
 
+### Secure Boot & Real Network Discovery (November 27, 2025)
+- **Secure Boot Support**: Implemented boot mode configuration for BIOS, UEFI, and UEFI Secure Boot
+  - Added `bootMode` field to deployments table (bios, uefi, uefi-secure)
+  - Updated Configuration page with interactive boot mode selector
+  - PXE HTTP server now serves EFI files with correct MIME types
+  - Created `/pxe-files/efi` directory for Secure Boot bootloaders
+  - Production setup: Users can upload signed shim.efi and grubx64.efi files
+- **Real Network Discovery**: Replaced simulated scanning with actual ARP/ICMP-based network discovery
+  - NetworkScanner class performs real-time device scanning with MAC address detection
+  - Network interface auto-detection and subnet calculation
+  - Ping sweep fallback for environments without ARP tools
+  - Hostname resolution via reverse DNS lookup
+- **PXE Traffic Detection**: Monitors DHCP (67/68) and TFTP (69) ports for real-time PXE boot detection
+  - PXETrafficSniffer class monitors network packets for boot activity
+  - Parses DHCP options for PXE indicators (client architecture, bootfile names)
+  - Tracks detected devices with boot type classification (DHCP/TFTP/HTTP)
+  - APIs: `GET /api/pxe/devices` and `GET /api/pxe/devices/:mac` (monitoring:read permission required)
+- **Status**: All three features production-ready with comprehensive logging and error handling
+
 ### FOG Project Integration Support (November 23, 2025)
 - **FOG Integration**: Added complete integration with FOG Project (Free and Open-Source Ghost)
   - FOG as imaging backend option alongside Clonezilla

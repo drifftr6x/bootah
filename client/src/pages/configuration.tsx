@@ -425,16 +425,38 @@ export default function Configuration() {
                 </div>
               </CardHeader>
               <CardContent className="p-6 space-y-6">
-                <div className="flex flex-row items-center justify-between rounded-lg border border-border p-4">
-                  <div className="space-y-0.5">
-                    <Label className="text-base" data-testid="label-secure-boot">
-                      Secure Boot Support
+                <div className="space-y-4">
+                  <div>
+                    <Label className="text-base" data-testid="label-boot-mode">
+                      Default Boot Mode
                     </Label>
-                    <p className="text-sm text-muted-foreground">
-                      Enable UEFI Secure Boot compatibility
+                    <p className="text-sm text-muted-foreground mb-3">
+                      Configure default BIOS/UEFI boot mode for PXE deployments
                     </p>
                   </div>
-                  <Switch defaultChecked={false} data-testid="switch-secure-boot" />
+                  <div className="grid grid-cols-1 gap-3">
+                    <div className="flex items-center space-x-3 rounded-lg border border-border p-3 cursor-pointer hover:bg-accent" data-testid="option-bios">
+                      <input type="radio" name="bootMode" value="bios" defaultChecked className="w-4 h-4" data-testid="radio-bios" />
+                      <div>
+                        <Label className="text-sm font-medium cursor-pointer" data-testid="label-bios">Legacy BIOS (MBR)</Label>
+                        <p className="text-xs text-muted-foreground">Traditional boot method, maximum compatibility</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center space-x-3 rounded-lg border border-border p-3 cursor-pointer hover:bg-accent" data-testid="option-uefi">
+                      <input type="radio" name="bootMode" value="uefi" className="w-4 h-4" data-testid="radio-uefi" />
+                      <div>
+                        <Label className="text-sm font-medium cursor-pointer" data-testid="label-uefi">UEFI (GPT)</Label>
+                        <p className="text-xs text-muted-foreground">Modern boot method, required for newer systems</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center space-x-3 rounded-lg border border-border p-3 cursor-pointer hover:bg-accent" data-testid="option-uefi-secure">
+                      <input type="radio" name="bootMode" value="uefi-secure" className="w-4 h-4" data-testid="radio-uefi-secure" />
+                      <div>
+                        <Label className="text-sm font-medium cursor-pointer" data-testid="label-uefi-secure">UEFI Secure Boot</Label>
+                        <p className="text-xs text-muted-foreground">Enhanced security with signed bootloaders (Windows/UEFI certified systems)</p>
+                      </div>
+                    </div>
+                  </div>
                 </div>
 
                 <div className="flex flex-row items-center justify-between rounded-lg border border-border p-4">
