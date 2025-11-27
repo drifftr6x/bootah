@@ -10,6 +10,7 @@ import { requireRole, requirePermission, requireAnyPermission } from "./authMidd
 import { maskSecret } from "./encryption";
 import { PostDeploymentExecutor } from "./post-deployment-executor";
 import { DeploymentSimulator } from "./deploymentSimulator";
+import { NetworkScanner } from "./network-scanner";
 import { 
   insertDeviceSchema, 
   insertImageSchema, 
@@ -1212,70 +1213,81 @@ export async function registerRoutes(app: Express): Promise<{
     }
   });
   
-  // Network scan endpoint  
+  // Network scan endpoint with real network discovery
   app.post("/api/network/scan", isAuthenticated, requirePermission("devices", "create"), async (req, res) => {
     try {
-      // Simulate network discovery with realistic delay
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      const scanner = new NetworkScanner();
+      console.log("[NetworkScan] Starting real network discovery...");
       
-      // Simulate discovering new devices occasionally
-      const shouldDiscoverNew = Math.random() > 0.7; // 30% chance
+      const discoveredDevices = await scanner.scanNetwork();
+      console.log(`[NetworkScan] Found ${discoveredDevices.length} devices on network`);
       
-      if (shouldDiscoverNew) {
-        const newDeviceId = Math.random().toString(36).substr(2, 9);
-        const deviceTypes = [
-          { name: "WORKSTATION", manufacturer: "Dell", model: "OptiPlex 7090" },
-          { name: "LAPTOP", manufacturer: "HP", model: "EliteBook 840" },
-          { name: "LAB-PC", manufacturer: "Lenovo", model: "ThinkCentre M90" },
-          { name: "KIOSK", manufacturer: "Intel", model: "NUC 11" },
-        ];
+      const newDevices = [];
+      const updatedDevices = [];
+      
+      // Get existing devices to check for new ones
+      const existingDevices = await storage.getDevices();
+      const existingMacs = new Set(existingDevices.map(d => d.macAddress.toUpperCase()));
+      
+      for (const discovered of discoveredDevices) {
+        const mac = discovered.macAddress.toUpperCase();
         
-        const deviceType = deviceTypes[Math.floor(Math.random() * deviceTypes.length)];
-        const deviceNumber = Math.floor(Math.random() * 99) + 1;
-        
-        const newDevice = await storage.createDevice({
-          name: `${deviceType.name}-${deviceNumber.toString().padStart(2, '0')}`,
-          macAddress: `00:${Math.floor(Math.random() * 256).toString(16).padStart(2, '0')}:${Math.floor(Math.random() * 256).toString(16).padStart(2, '0')}:${Math.floor(Math.random() * 256).toString(16).padStart(2, '0')}:${Math.floor(Math.random() * 256).toString(16).padStart(2, '0')}:${Math.floor(Math.random() * 256).toString(16).padStart(2, '0')}`.toUpperCase(),
-          ipAddress: `192.168.1.${Math.floor(Math.random() * 200) + 50}`,
-          manufacturer: deviceType.manufacturer,
-          model: deviceType.model,
-          status: Math.random() > 0.5 ? "online" : "offline",
-        });
-
-        // Log the discovery
-        await storage.createActivityLog({
-          type: "discovery",
-          message: `Network scan discovered new device: ${newDevice.name} (${newDevice.macAddress})`,
-          deviceId: newDevice.id,
-          deploymentId: null,
-        });
-
-        res.json({ 
-          message: "Network scan completed", 
-          discovered: 1,
-          newDevices: [newDevice]
-        });
-      } else {
-        // Update last seen for existing online devices
-        const devices = await storage.getDevices();
-        const onlineDevices = devices.filter(d => d.status === "online");
-        
-        // Update last seen time for online devices (handled internally by storage)
-        for (const device of onlineDevices) {
-          await storage.updateDevice(device.id, {
-            status: "online" // Just refresh the status to update lastSeen internally
-          });
+        if (!existingMacs.has(mac)) {
+          // New device found
+          try {
+            const newDevice = await storage.createDevice({
+              name: discovered.hostname || `Device-${mac.slice(-5)}`,
+              macAddress: mac,
+              ipAddress: discovered.ipAddress,
+              manufacturer: discovered.manufacturer,
+              status: "online",
+            });
+            
+            await storage.createActivityLog({
+              type: "discovery",
+              message: `Real network scan discovered new device: ${newDevice.name} (${mac}) at ${discovered.ipAddress}`,
+              deviceId: newDevice.id,
+              deploymentId: null,
+            });
+            
+            newDevices.push(newDevice);
+            console.log(`[NetworkScan] New device: ${newDevice.name} (${mac})`);
+          } catch (error) {
+            console.error(`[NetworkScan] Failed to create device for ${mac}:`, error);
+          }
+        } else {
+          // Update existing device last seen
+          const existingDevice = existingDevices.find(d => d.macAddress.toUpperCase() === mac);
+          if (existingDevice && existingDevice.status !== "online") {
+            try {
+              await storage.updateDevice(existingDevice.id, {
+                status: "online",
+                ipAddress: discovered.ipAddress,
+              });
+              updatedDevices.push(existingDevice);
+              console.log(`[NetworkScan] Updated device: ${existingDevice.name} is now online`);
+            } catch (error) {
+              console.error(`[NetworkScan] Failed to update device ${existingDevice.id}:`, error);
+            }
+          }
         }
-
-        res.json({ 
-          message: "Network scan completed", 
-          discovered: 0,
-          updatedDevices: onlineDevices.length
-        });
       }
+      
+      res.json({
+        message: "Network scan completed",
+        discovered: newDevices.length,
+        scannedTotal: discoveredDevices.length,
+        newDevices: newDevices,
+        updatedDevices: updatedDevices.length,
+        timestamp: new Date().toISOString()
+      });
     } catch (error) {
-      console.error("Network scan error:", error);
-      res.status(500).json({ message: "Network scan failed" });
+      console.error("[NetworkScan] Error:", error);
+      res.status(500).json({ 
+        message: "Network scan failed",
+        error: String(error),
+        details: "Could not scan network. Ensure ping/arp commands are available on your system."
+      });
     }
   });
 
