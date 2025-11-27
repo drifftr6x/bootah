@@ -126,6 +126,7 @@ export default function StartDeploymentDialog({
       status: "pending",
       progress: 0,
       errorMessage: null,
+      bootMode: "bios",
       scheduleType: "instant",
       scheduledFor: null,
       recurringPattern: null,
@@ -502,6 +503,72 @@ export default function StartDeploymentDialog({
                 )}
               </div>
             )}
+
+            {/* Boot Mode Selection */}
+            <FormField
+              control={form.control}
+              name="bootMode"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel data-testid="label-boot-mode">Boot Mode</FormLabel>
+                  <FormControl>
+                    <RadioGroup
+                      onValueChange={field.onChange}
+                      value={field.value || "bios"}
+                      className="grid grid-cols-3 gap-4"
+                      data-testid="radio-group-boot-mode"
+                    >
+                      <div>
+                        <RadioGroupItem value="bios" id="bios" className="peer sr-only" />
+                        <Label
+                          htmlFor="bios"
+                          className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer"
+                          data-testid="radio-bios"
+                        >
+                          <HardDrive className="mb-3 h-6 w-6" />
+                          <div className="text-sm font-medium">Legacy BIOS</div>
+                          <div className="text-xs text-muted-foreground text-center mt-1">
+                            MBR, maximum compatibility
+                          </div>
+                        </Label>
+                      </div>
+                      <div>
+                        <RadioGroupItem value="uefi" id="uefi" className="peer sr-only" />
+                        <Label
+                          htmlFor="uefi"
+                          className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer"
+                          data-testid="radio-uefi"
+                        >
+                          <Monitor className="mb-3 h-6 w-6" />
+                          <div className="text-sm font-medium">UEFI</div>
+                          <div className="text-xs text-muted-foreground text-center mt-1">
+                            GPT, modern systems
+                          </div>
+                        </Label>
+                      </div>
+                      <div>
+                        <RadioGroupItem value="uefi-secure" id="uefi-secure" className="peer sr-only" />
+                        <Label
+                          htmlFor="uefi-secure"
+                          className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer"
+                          data-testid="radio-uefi-secure"
+                        >
+                          <CheckCircle2 className="mb-3 h-6 w-6" />
+                          <div className="text-sm font-medium">UEFI Secure</div>
+                          <div className="text-xs text-muted-foreground text-center mt-1">
+                            Enhanced security
+                          </div>
+                        </Label>
+                      </div>
+                    </RadioGroup>
+                  </FormControl>
+                  <FormDescription>
+                    Select the boot mode for this deployment
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
             {/* Schedule Type Selection */}
             <FormField
