@@ -117,6 +117,7 @@ export default function StartDeploymentDialog({
   const [cronNextRuns, setCronNextRuns] = useState<Date[]>([]);
   const [selectedPreset, setSelectedPreset] = useState<string | null>(null);
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
+  const [imagingEngine, setImagingEngine] = useState<string>("clonezilla");
   
   const form = useForm<InsertDeployment>({
     resolver: zodResolver(extendedDeploymentSchema),
@@ -127,7 +128,6 @@ export default function StartDeploymentDialog({
       progress: 0,
       errorMessage: null,
       bootMode: "bios",
-      imagingEngine: "clonezilla",
       scheduleType: "instant",
       scheduledFor: null,
       recurringPattern: null,
@@ -137,7 +137,6 @@ export default function StartDeploymentDialog({
   const scheduleType = form.watch("scheduleType");
   const recurringPattern = form.watch("recurringPattern");
   const scheduledFor = form.watch("scheduledFor");
-  const imagingEngine = form.watch("imagingEngine");
   
   // Calculate next runs when cron pattern changes
   useEffect(() => {
@@ -179,7 +178,8 @@ export default function StartDeploymentDialog({
 
   const startDeploymentMutation = useMutation({
     mutationFn: async (data: InsertDeployment) => {
-      const deployment: any = await apiRequest("POST", "/api/deployments", data);
+      const deploymentPayload = { ...data, imagingEngine };
+      const deployment: any = await apiRequest("POST", "/api/deployments", deploymentPayload);
       
       // Create profile binding if a profile was selected
       let bindingError = null;
@@ -225,6 +225,7 @@ export default function StartDeploymentDialog({
       
       form.reset();
       setSelectedProfileId(null);
+      setImagingEngine("clonezilla");
       onOpenChange(false);
     },
     onError: () => {
@@ -507,46 +508,41 @@ export default function StartDeploymentDialog({
             )}
 
             {/* Imaging Engine Selection */}
-            <FormField
-              control={form.control}
-              name="imagingEngine"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel data-testid="label-imaging-engine">
-                    <Zap className="w-4 h-4 inline mr-2" />
-                    Imaging Engine
-                  </FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value || "clonezilla"}>
+            <div>
+              <Label data-testid="label-imaging-engine">
+                <Zap className="w-4 h-4 inline mr-2" />
+                Imaging Engine
+              </Label>
+              <div className="mt-2">
+                <Select onValueChange={setImagingEngine} value={imagingEngine}>
                     <FormControl>
                       <SelectTrigger data-testid="select-imaging-engine">
                         <SelectValue placeholder="Select imaging engine" />
                       </SelectTrigger>
                     </FormControl>
-                    <SelectContent>
-                      <SelectItem value="clonezilla">
-                        <div className="flex items-center space-x-2">
-                          <span>Clonezilla (Default)</span>
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="fog">
-                        <div className="flex items-center space-x-2">
-                          <span>FOG Project</span>
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="multicast">
-                        <div className="flex items-center space-x-2">
-                          <span>Multicast</span>
-                        </div>
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <FormDescription>
-                    Choose the imaging backend for this deployment
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+                  <SelectContent>
+                    <SelectItem value="clonezilla">
+                      <div className="flex items-center space-x-2">
+                        <span>Clonezilla (Default)</span>
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="fog">
+                      <div className="flex items-center space-x-2">
+                        <span>FOG Project</span>
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="multicast">
+                      <div className="flex items-center space-x-2">
+                        <span>Multicast</span>
+                      </div>
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <p className="text-sm text-muted-foreground mt-2">
+                Choose the imaging backend for this deployment
+              </p>
+            </div>
 
             {/* Imaging Engine Info Box */}
             {imagingEngine && (
