@@ -30,6 +30,7 @@ import {
   Key,
   FileCode,
   Layers,
+  BookOpen,
 } from "lucide-react";
 
 const navigationGroups = [
@@ -83,6 +84,7 @@ const navigationGroups = [
       { name: "Users", href: "/users", icon: Users },
       { name: "Configuration", href: "/configuration", icon: Settings },
       { name: "Logs", href: "/logs", icon: FileText },
+      { name: "API Documentation", href: "/api-documentation", icon: BookOpen },
       { name: "Help", href: "/help", icon: HelpCircle },
     ],
   },

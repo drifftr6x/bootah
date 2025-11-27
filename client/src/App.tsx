@@ -32,6 +32,7 @@ import DomainJoinPage from "@/pages/DomainJoinPage";
 import ProductKeysPage from "@/pages/ProductKeysPage";
 import CustomScriptsPage from "@/pages/CustomScriptsPage";
 import PostDeploymentProfilesPage from "@/pages/PostDeploymentProfilesPage";
+import ApiDocumentation from "@/pages/api-documentation";
 
 function AuthenticatedApp() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -91,6 +92,7 @@ function AuthenticatedApp() {
           <Route path="/product-keys" component={ProductKeysPage} />
           <Route path="/custom-scripts" component={CustomScriptsPage} />
           <Route path="/post-deployment-profiles" component={PostDeploymentProfilesPage} />
+          <Route path="/api-documentation" component={ApiDocumentation} />
           <Route component={NotFound} />
         </Switch>
       </div>
