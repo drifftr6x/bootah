@@ -11,6 +11,7 @@ import { maskSecret } from "./encryption";
 import { PostDeploymentExecutor } from "./post-deployment-executor";
 import { DeploymentSimulator } from "./deploymentSimulator";
 import { NetworkScanner } from "./network-scanner";
+import { pxeTrafficSniffer } from "./pxe-traffic-sniffer";
 import { 
   insertDeviceSchema, 
   insertImageSchema, 
@@ -88,6 +89,14 @@ export async function registerRoutes(app: Express): Promise<{
     console.log("PXE servers started successfully");
   } catch (error) {
     console.error("Failed to start PXE servers:", error);
+  }
+
+  // Start PXE traffic sniffer for real-time boot detection
+  try {
+    await pxeTrafficSniffer.start();
+    console.log("PXE traffic sniffer started successfully");
+  } catch (error) {
+    console.error("Failed to start PXE traffic sniffer:", error);
   }
 
   // Start deployment scheduler
@@ -1213,6 +1222,33 @@ export async function registerRoutes(app: Express): Promise<{
     }
   });
   
+  // PXE traffic detection endpoints
+  app.get("/api/pxe/devices", isAuthenticated, requirePermission("monitoring", "read"), async (req, res) => {
+    try {
+      const pxeDevices = pxeTrafficSniffer.getPXEDevices();
+      res.json(pxeDevices);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch PXE devices" });
+    }
+  });
+
+  app.get("/api/pxe/devices/:mac", isAuthenticated, requirePermission("monitoring", "read"), async (req, res) => {
+    try {
+      const device = pxeTrafficSniffer.getPXEDevice(req.params.mac);
+      if (!device) {
+        return res.status(404).json({ message: "PXE device not found" });
+      }
+      res.json(device);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch PXE device" });
+    }
+  });
+
+  // Maintenance: clean up expired PXE devices every 10 minutes
+  setInterval(() => {
+    pxeTrafficSniffer.clearExpiredPXEDevices();
+  }, 10 * 60 * 1000);
+
   // Network scan endpoint with real network discovery
   app.post("/api/network/scan", isAuthenticated, requirePermission("devices", "create"), async (req, res) => {
     try {
