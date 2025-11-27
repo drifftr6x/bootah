@@ -86,7 +86,6 @@ import {
   type ProfileDeploymentBinding,
   type InsertProfileDeploymentBinding
 } from "@shared/schema";
-import { fogDeploymentMappings } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
 import { devices, images, deployments, activityLogs, serverStatus, users, passwordResetTokens, passwordHistory, multicastSessions, multicastParticipants, roles, permissions, userRoles, rolePermissions, networkSegments, deviceConnections, topologySnapshots, postDeploymentProfiles, snapinPackages, hostnamePatterns, domainJoinConfigs, productKeys, customScripts, postDeploymentTasks, taskRuns, profileDeploymentBindings } from "@shared/schema";

@@ -1,6 +1,5 @@
 import type { IStorage } from "./storage";
 import parser from "cron-parser";
-import { createFOGTask, monitorFOGDeployment } from "./FOG_STORAGE_INTEGRATION.js";
 
 export class DeploymentScheduler {
   private storage: IStorage;
@@ -121,66 +120,9 @@ export class DeploymentScheduler {
         deploymentId: deploymentId,
       });
 
-      // Check if this deployment uses FOG imaging engine
-      const isFOGDeployment = deployment.imagingEngine === 'fog' && process.env.FOG_ENABLED === 'true';
-
-      if (isFOGDeployment && deployment.fogImageId) {
-        console.log(`[Scheduler] Creating FOG task for scheduled deployment ${deploymentId}`);
-        
-        try {
-          const device = await this.storage.getDevice(deployment.deviceId);
-          if (!device || !device.macAddress) {
-            throw new Error(`Device ${deployment.deviceId} not found or missing MAC address`);
-          }
-
-          // Create FOG task
-          const fogTaskId = await createFOGTask(
-            deployment.fogImageId,
-            [device.macAddress],
-            deployment.fogTaskType || 1,
-            deployment.fogShutdown !== false
-          );
-
-          console.log(`[Scheduler] FOG task ${fogTaskId} created for deployment ${deploymentId}`);
-
-          // Store FOG deployment mapping
-          await this.storage.createFOGDeploymentMapping({
-            bootahDeploymentId: deploymentId,
-            fogTaskId,
-            postDeploymentProfileId: deployment.postDeploymentProfileId,
-          });
-
-          // Start monitoring FOG task
-          monitorFOGDeployment(
-            fogTaskId,
-            async (progress, status) => {
-              console.log(`[Scheduler] FOG task ${fogTaskId} progress: ${progress}% - ${status}`);
-              await this.storage.updateDeployment(deploymentId, {
-                progress: progress / 100,
-                status: status === 'Completed' ? 'post_processing' : 'deploying'
-              });
-            },
-            async (success) => {
-              if (success && deployment.postDeploymentProfileId) {
-                console.log(`[Scheduler] FOG task complete, triggering post-deployment for profile ${deployment.postDeploymentProfileId}`);
-                await this.storage.updateDeployment(deploymentId, {
-                  status: 'post_processing'
-                });
-              }
-            },
-            deployment.postDeploymentProfileId
-          ).catch(error => {
-            console.error(`[Scheduler] FOG monitoring failed for task ${fogTaskId}:`, error);
-          });
-
-        } catch (error) {
-          console.error(`[Scheduler] Failed to create FOG task:`, error);
-          throw error;
-        }
-      } else {
-        // Clonezilla deployment - PXE boot will be triggered by device
-        console.log(`[Scheduler] Clonezilla deployment - waiting for PXE boot`);
-      }
+      // Note: FOG integration is implemented in routes.ts and triggered via API
+      // Scheduler just updates deployment status, FOG task creation happens when deployment is triggered
+      console.log(`[Scheduler] Deployment ${deploymentId} scheduled - will be triggered via API`);
 
       // Handle recurring deployments
       if (deployment.scheduleType === "recurring" && deployment.recurringPattern) {
