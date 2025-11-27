@@ -3292,7 +3292,7 @@ export async function registerRoutes(app: Express): Promise<{
         return res.status(400).json({ message: "FOG image ID and device IDs required" });
       }
 
-      const devices = await Promise.all(deviceIds.map(id => storage.getDevice(id)));
+      const devices = await Promise.all(deviceIds.map((id: string) => storage.getDevice(id)));
       const macAddresses = devices
         .filter(d => d)
         .map(d => d!.macAddress);
@@ -3352,7 +3352,7 @@ export async function registerRoutes(app: Express): Promise<{
     try {
       const taskId = parseInt(req.params.taskId);
       
-      monitorFOGDeployment(taskId, (progress, status) => {
+      monitorFOGDeployment(taskId, (progress: number, status: string) => {
         wss.clients.forEach((client: any) => {
           if (client.readyState === WebSocket.OPEN) {
             client.send(JSON.stringify({
