@@ -485,6 +485,10 @@ export const productKeys = pgTable("product_keys", {
   assignmentRules: text("assignment_rules"), // JSON: conditions for auto-assignment
   expiresAt: timestamp("expires_at"),
   isActive: boolean("is_active").default(true),
+  keySource: text("key_source").default("manual"), // manual, auto-captured
+  capturedFromDeviceId: varchar("captured_from_device_id").references(() => devices.id),
+  capturedFromDeploymentId: varchar("captured_from_deployment_id").references(() => deployments.id),
+  capturedAt: timestamp("captured_at"),
   createdBy: varchar("created_by").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -869,6 +873,10 @@ export const insertProductKeySchema = createInsertSchema(productKeys).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
+  keySource: true,
+  capturedFromDeviceId: true,
+  capturedFromDeploymentId: true,
+  capturedAt: true,
 });
 
 export const insertCustomScriptSchema = createInsertSchema(customScripts).omit({
