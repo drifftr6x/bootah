@@ -2914,6 +2914,43 @@ export async function registerRoutes(app: Express): Promise<{
     }
   });
 
+  app.post("/api/post-deployment/product-keys/capture", async (req, res) => {
+    try {
+      const { deploymentId, deviceId, keys } = req.body;
+      
+      if (!deploymentId || !deviceId || !Array.isArray(keys) || keys.length === 0) {
+        return res.status(400).json({ message: "Missing required fields: deploymentId, deviceId, and keys array" });
+      }
+
+      // Validate key data
+      for (const key of keys) {
+        if (!key.productName || !key.productKey || !key.keyType || !key.osType) {
+          return res.status(400).json({ message: "Each key must have productName, productKey, keyType, and osType" });
+        }
+      }
+
+      const capturedKeys = await storage.captureProductKey(deviceId, deploymentId, keys);
+      
+      // Log the capture event
+      await storage.createActivityLog({
+        type: "info",
+        message: `Auto-captured ${keys.length} product key(s) from device during deployment`,
+        deviceId: deviceId,
+        deploymentId: deploymentId,
+      });
+
+      res.status(201).json({
+        message: `Successfully captured ${capturedKeys.length} product key(s)`,
+        keys: capturedKeys.map(k => ({
+          ...k,
+          keyEncrypted: maskSecret(k.keyEncrypted)
+        }))
+      });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to capture product keys", error: String(error) });
+    }
+  });
+
   // 6. Custom Scripts (6 routes)
 
   app.get("/api/post-deployment/scripts", isAuthenticated, requirePermission("configuration", "read"), async (req, res) => {

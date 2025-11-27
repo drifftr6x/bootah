@@ -338,6 +338,7 @@ export interface IStorage {
   updateProductKey(id: string, key: Partial<InsertProductKey>): Promise<ProductKey | undefined>;
   deleteProductKey(id: string): Promise<boolean>;
   incrementProductKeyActivations(id: string): Promise<ProductKey | undefined>;
+  captureProductKey(deviceId: string, deploymentId: string, keys: Array<{ productName: string; productKey: string; keyType: string; osType: string; version?: string }>): Promise<ProductKey[]>;
 
   // Custom Scripts
   getCustomScripts(): Promise<CustomScript[]>;
@@ -2240,6 +2241,7 @@ export class MemStorage implements IStorage {
   async updateProductKey(id: string, key: Partial<InsertProductKey>): Promise<ProductKey | undefined> { return undefined; }
   async deleteProductKey(id: string): Promise<boolean> { return false; }
   async incrementProductKeyActivations(id: string): Promise<ProductKey | undefined> { return undefined; }
+  async captureProductKey(deviceId: string, deploymentId: string, keys: Array<{ productName: string; productKey: string; keyType: string; osType: string; version?: string }>): Promise<ProductKey[]> { return []; }
 
   // Custom Scripts - Stub Implementation
   async getCustomScripts(): Promise<CustomScript[]> { return []; }
@@ -3525,6 +3527,37 @@ export class DatabaseStorage implements IStorage {
       .where(eq(productKeys.id, id))
       .returning();
     return key;
+  }
+
+  async captureProductKey(deviceId: string, deploymentId: string, keys: Array<{ productName: string; productKey: string; keyType: string; osType: string; version?: string }>): Promise<ProductKey[]> {
+    const capturedKeys: ProductKey[] = [];
+    const now = new Date();
+    
+    for (const key of keys) {
+      const encryptedKey = {
+        name: `${key.productName} (${key.keyType.toUpperCase()})`,
+        description: `Auto-captured from device ${deviceId}`,
+        keyType: key.keyType,
+        productName: key.productName,
+        keyEncrypted: encrypt(key.productKey),
+        osType: key.osType,
+        version: key.version,
+        architecture: "x64",
+        isActive: true,
+        keySource: "auto-captured" as const,
+        capturedFromDeviceId: deviceId,
+        capturedFromDeploymentId: deploymentId,
+        capturedAt: now,
+      };
+      
+      const [captured] = await db.insert(productKeys).values(encryptedKey).returning();
+      capturedKeys.push({
+        ...captured,
+        keyEncrypted: decrypt(captured.keyEncrypted)
+      });
+    }
+    
+    return capturedKeys;
   }
 
   // Custom Scripts
