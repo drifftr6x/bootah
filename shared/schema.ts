@@ -822,6 +822,12 @@ export const insertDeploymentTemplateSchema = createInsertSchema(deploymentTempl
   updatedAt: true,
 });
 
+export const insertFOGDeploymentMappingSchema = createInsertSchema(fogDeploymentMappings).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 export const insertTemplateStepSchema = createInsertSchema(templateSteps).omit({
   id: true,
 });
