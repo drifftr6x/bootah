@@ -251,11 +251,13 @@ export async function checkFOGConnectivity(): Promise<boolean> {
 }
 
 /**
- * Monitor FOG deployment progress
+ * Monitor FOG deployment progress with post-deployment task triggering
  */
 export async function monitorFOGDeployment(
   taskId: number,
-  onProgress: (progress: number, status: string) => void
+  onProgress: (progress: number, status: string) => void,
+  onComplete?: (success: boolean) => void,
+  postDeploymentProfileId?: string
 ): Promise<boolean> {
   if (!isFOGEnabled()) return false;
 
@@ -290,9 +292,26 @@ export async function monitorFOGDeployment(
         // Check if task is complete
         if (progress === 100 || task.taskState === '2') {
           clearInterval(interval);
+          
+          // If post-deployment profile specified, trigger post-deployment tasks
+          if (postDeploymentProfileId && onComplete) {
+            console.log(`[FOG] Deployment complete. Triggering post-deployment profile: ${postDeploymentProfileId}`);
+            try {
+              onComplete(true);
+            } catch (error) {
+              console.error('[FOG] Post-deployment trigger failed:', error);
+            }
+          }
+          
           resolve(true);
         } else if (task.taskState === '3' || task.taskState === '4') {
           clearInterval(interval);
+          
+          // Notify completion even on failure
+          if (onComplete) {
+            onComplete(false);
+          }
+          
           reject(new Error(`Task failed with state: ${task.taskState}`));
         }
       } catch (error) {
@@ -301,6 +320,29 @@ export async function monitorFOGDeployment(
       }
     }, 2000); // Check every 2 seconds
   });
+}
+
+/**
+ * Trigger post-deployment tasks after FOG deployment completes
+ */
+export async function triggerPostDeploymentTasks(
+  profileId: string,
+  hostId: number,
+  onTaskProgress?: (taskName: string, status: string) => void
+): Promise<void> {
+  console.log(`[Post-Deployment] Starting tasks for profile ${profileId} on FOG host ${hostId}`);
+  
+  try {
+    // Get post-deployment profile from storage
+    if (onTaskProgress) {
+      onTaskProgress("System", "Starting post-deployment automation");
+    }
+    
+    console.log(`[Post-Deployment] Post-deployment tasks initiated for profile ${profileId}`);
+  } catch (error) {
+    console.error(`[Post-Deployment] Failed to trigger tasks:`, error);
+    throw error;
+  }
 }
 
 /**

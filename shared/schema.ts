@@ -338,10 +338,30 @@ export const deploymentTemplates = pgTable("deployment_templates", {
   tags: text("tags").array().default(sql`'{}'`),
   imageId: varchar("image_id").references(() => images.id),
   postDeploymentProfileId: varchar("post_deployment_profile_id"),
+  // FOG Integration Fields
+  imagingEngine: text("imaging_engine").default("clonezilla"), // clonezilla, fog, multicast
+  fogImageId: integer("fog_image_id"), // FOG image ID if using FOG
+  fogTaskType: integer("fog_task_type").default(1), // 1=Deploy, 2=Capture
+  fogShutdown: boolean("fog_shutdown").default(true), // Shutdown after deployment
   createdBy: varchar("created_by").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
+
+// FOG Deployment Mappings - tracks connection between Bootah deployments and FOG tasks
+export const fogDeploymentMappings = pgTable("fog_deployment_mappings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  bootahDeploymentId: varchar("bootah_deployment_id").notNull().references(() => deployments.id, { onDelete: "cascade" }),
+  fogTaskId: integer("fog_task_id").notNull(),
+  postDeploymentProfileId: varchar("post_deployment_profile_id").references(() => postDeploymentProfiles.id),
+  postDeploymentStatus: text("post_deployment_status").default("pending"), // pending, running, completed, failed
+  postDeploymentError: text("post_deployment_error"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  deploymentIdx: index("fog_deployment_mappings_deployment_idx").on(table.bootahDeploymentId),
+  taskIdx: index("fog_deployment_mappings_task_idx").on(table.fogTaskId),
+}));
 
 export const templateSteps = pgTable("template_steps", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
