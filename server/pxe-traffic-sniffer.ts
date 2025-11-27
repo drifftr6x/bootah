@@ -59,7 +59,7 @@ export class PXETrafficSniffer extends EventEmitter {
       }
     });
 
-    this.dhcpServer.on('error', (error) => {
+    this.dhcpServer.on('error', (error: any) => {
       // Port may already be in use or not accessible - that's ok
       console.debug('[PXETrafficSniffer] DHCP monitoring error (expected):', error.code);
     });
@@ -87,7 +87,7 @@ export class PXETrafficSniffer extends EventEmitter {
       }
     });
 
-    this.tftpServer.on('error', (error) => {
+    this.tftpServer.on('error', (error: any) => {
       console.debug('[PXETrafficSniffer] TFTP monitoring error (expected):', error.code);
     });
 
