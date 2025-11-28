@@ -220,18 +220,13 @@ export default function ProductKeysPage() {
             </div>
           )}
           <Dialog open={isDialogOpen} onOpenChange={handleDialogOpenChange}>
-          <DialogTrigger asChild>
-            <Button data-testid="button-create-product-key">
-              <Plus className="h-4 w-4 mr-2" />
-              Add Product Key
-            </Button>
-          </DialogTrigger>
-          </Dialog>
-        </div>
-      </div>
-
-      <Dialog open={isDialogOpen} onOpenChange={handleDialogOpenChange}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogTrigger asChild>
+              <Button data-testid="button-create-product-key">
+                <Plus className="h-4 w-4 mr-2" />
+                Add Product Key
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>{editingKey ? "Edit Product Key" : "Create Product Key"}</DialogTitle>
               <DialogDescription>
@@ -487,8 +482,9 @@ export default function ProductKeysPage() {
                 </div>
               </form>
             </Form>
-          </DialogContent>
-        </Dialog>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       <Alert className="mb-6">

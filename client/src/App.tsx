@@ -33,6 +33,7 @@ import ProductKeysPage from "@/pages/ProductKeysPage";
 import CustomScriptsPage from "@/pages/CustomScriptsPage";
 import PostDeploymentProfilesPage from "@/pages/PostDeploymentProfilesPage";
 import ApiDocumentation from "@/pages/api-documentation";
+import Analytics from "@/pages/analytics";
 
 function AuthenticatedApp() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -93,6 +94,7 @@ function AuthenticatedApp() {
           <Route path="/custom-scripts" component={CustomScriptsPage} />
           <Route path="/post-deployment-profiles" component={PostDeploymentProfilesPage} />
           <Route path="/api-documentation" component={ApiDocumentation} />
+          <Route path="/analytics" component={Analytics} />
           <Route component={NotFound} />
         </Switch>
       </div>
