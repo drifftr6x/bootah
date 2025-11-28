@@ -238,13 +238,21 @@ export async function registerRoutes(app: Express): Promise<{
         return res.status(400).json({ error: "Missing required fields: deploymentId, imageId, targetDevice" });
       }
 
-      // Start deployment process
+      // Fetch full deployment record to get imagingEngine and bootMode
+      const deployment = await storage.getDeployment(deploymentId);
+      if (!deployment) {
+        return res.status(404).json({ error: "Deployment not found" });
+      }
+
+      // Start deployment process with imaging engine and boot mode from deployment record
       const deploymentPromise = imagingEngine.deployImage({
         deploymentId,
         imageId,
         targetDevice,
         targetMacAddress: targetMacAddress || "",
-        verifyAfterDeploy: verifyAfterDeploy || false
+        verifyAfterDeploy: verifyAfterDeploy || false,
+        imagingEngine: deployment.imagingEngine as "clonezilla" | "fog" | "multicast",
+        bootMode: deployment.bootMode as "bios" | "uefi" | "uefi-secure"
       }, (progress, message) => {
         // Broadcast progress via WebSocket
         wss.clients.forEach((client: WebSocket) => {

@@ -19,6 +19,8 @@ export interface ImageDeploymentOptions {
   targetDevice: string; // e.g., "/dev/sda"
   targetMacAddress: string;
   verifyAfterDeploy?: boolean;
+  imagingEngine?: "clonezilla" | "fog" | "multicast"; // Imaging backend selection
+  bootMode?: "bios" | "uefi" | "uefi-secure"; // Boot configuration
 }
 
 export interface ProgressCallback {
@@ -369,16 +371,20 @@ fi
         throw new Error("Image not found");
       }
 
+      // Determine imaging engine
+      const engine = options.imagingEngine || "clonezilla";
+      const bootMode = options.bootMode || "bios";
+
       // Update deployment status
       await storage.updateDeployment(options.deploymentId, { 
         status: "deploying",
         progress: 0 
       });
 
-      // Log activity
+      // Log activity with engine and boot mode info
       await storage.createActivityLog({
         type: "deployment",
-        message: `Started deployment: ${image.name}`,
+        message: `Started deployment: ${image.name} (Engine: ${engine}, Boot: ${bootMode})`,
         deviceId: null,
         deploymentId: options.deploymentId,
       });
