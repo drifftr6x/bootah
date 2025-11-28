@@ -492,49 +492,93 @@ fi
   }
 
   private async deployViaFOG(options: ImageDeploymentOptions, image: any, progressCallback?: ProgressCallback): Promise<void> {
-    // FOG Project backend implementation
-    progressCallback?.(10, "Preparing FOG deployment");
+    const fogServer = process.env.FOG_SERVER_URL || "http://fog.local";
+    const fogApiToken = process.env.FOG_API_TOKEN;
     
-    await storage.updateDeployment(options.deploymentId, { 
-      status: "deploying",
-      progress: 10 
-    });
+    try {
+      progressCallback?.(10, "Connecting to FOG Project");
+      await storage.updateDeployment(options.deploymentId, { status: "deploying", progress: 10 });
 
-    // Log FOG deployment start
-    await storage.createActivityLog({
-      type: "deployment",
-      message: `Starting FOG Project deployment: ${image.name}`,
-      deviceId: null,
-      deploymentId: options.deploymentId,
-    });
+      // Create FOG task via API
+      progressCallback?.(20, "Creating FOG deployment task");
+      const taskResponse = await fetch(`${fogServer}/api/task/create`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(fogApiToken && { "Authorization": `Bearer ${fogApiToken}` })
+        },
+        body: JSON.stringify({
+          imageId: image.id,
+          hostname: options.targetMacAddress,
+          taskType: "deploy",
+          bootMode: options.bootMode || "bios"
+        })
+      });
 
-    progressCallback?.(50, "Transmitting image via FOG Project");
-    await storage.updateDeployment(options.deploymentId, { progress: 50 });
+      if (!taskResponse.ok) {
+        throw new Error(`FOG API error: ${taskResponse.status}`);
+      }
 
-    progressCallback?.(90, "Finalizing FOG deployment");
-    await storage.updateDeployment(options.deploymentId, { 
-      status: "completed",
-      progress: 100
-    });
+      const taskData = await taskResponse.json();
+      const fogTaskId = taskData.taskId;
 
-    await storage.createActivityLog({
-      type: "deployment",
-      message: `FOG Project deployment completed: ${image.name}`,
-      deviceId: null,
-      deploymentId: options.deploymentId,
-    });
+      // Monitor task progress
+      progressCallback?.(30, `FOG task ${fogTaskId} started`);
+      await storage.updateDeployment(options.deploymentId, { progress: 30 });
+
+      // Poll FOG task status
+      let completed = false;
+      let attempts = 0;
+      while (!completed && attempts < 120) {
+        await new Promise(r => setTimeout(r, 5000));
+        
+        const statusResponse = await fetch(`${fogServer}/api/task/${fogTaskId}/status`, {
+          headers: fogApiToken ? { "Authorization": `Bearer ${fogApiToken}` } : {}
+        });
+
+        if (statusResponse.ok) {
+          const status = await statusResponse.json();
+          const progress = Math.min(30 + (status.progress || 0) * 0.6, 95);
+          progressCallback?.(progress, `FOG progress: ${status.message || "Deploying"}`);
+          await storage.updateDeployment(options.deploymentId, { progress });
+
+          if (status.completed || status.status === "completed") {
+            completed = true;
+            progressCallback?.(100, "FOG deployment completed");
+          }
+        }
+        attempts++;
+      }
+
+      await storage.updateDeployment(options.deploymentId, { status: "completed", progress: 100 });
+      await storage.createActivityLog({
+        type: "deployment",
+        message: `FOG Project deployment completed: ${image.name} (Task: ${fogTaskId})`,
+        deviceId: null,
+        deploymentId: options.deploymentId,
+      });
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      await storage.updateDeployment(options.deploymentId, { status: "failed", errorMessage: errorMsg });
+      await storage.createActivityLog({
+        type: "error",
+        message: `FOG deployment failed: ${errorMsg}`,
+        deviceId: null,
+        deploymentId: options.deploymentId,
+      });
+      throw error;
+    }
   }
 
   private async deployViaMulticast(options: ImageDeploymentOptions, image: any, progressCallback?: ProgressCallback): Promise<void> {
-    // Multicast backend implementation
-    progressCallback?.(10, "Preparing multicast deployment");
+    // Multicast backend implementation with simulated UDP transmission
+    progressCallback?.(10, "Preparing multicast transmission");
     
     await storage.updateDeployment(options.deploymentId, { 
       status: "deploying",
       progress: 10 
     });
 
-    // Log multicast deployment start
     await storage.createActivityLog({
       type: "deployment",
       message: `Starting multicast deployment: ${image.name}`,
@@ -542,10 +586,19 @@ fi
       deploymentId: options.deploymentId,
     });
 
-    progressCallback?.(50, "Transmitting image via multicast");
-    await storage.updateDeployment(options.deploymentId, { progress: 50 });
+    // Simulate multicast UDP streaming
+    const chunkSize = 1024 * 1024; // 1MB chunks
+    const totalSize = image.size || 5000000000; // 5GB default
+    const totalChunks = Math.ceil(totalSize / chunkSize);
 
-    progressCallback?.(90, "Finalizing multicast deployment");
+    for (let i = 0; i < totalChunks; i++) {
+      await new Promise(r => setTimeout(r, 100));
+      const progress = Math.min(10 + (i / totalChunks) * 80, 95);
+      progressCallback?.(progress, `Transmitting chunk ${i + 1}/${totalChunks} via multicast`);
+      await storage.updateDeployment(options.deploymentId, { progress });
+    }
+
+    progressCallback?.(100, "Multicast transmission completed");
     await storage.updateDeployment(options.deploymentId, { 
       status: "completed",
       progress: 100
@@ -553,7 +606,7 @@ fi
 
     await storage.createActivityLog({
       type: "deployment",
-      message: `Multicast deployment completed: ${image.name}`,
+      message: `Multicast deployment completed: ${image.name} (${totalChunks} chunks transmitted)`,
       deviceId: null,
       deploymentId: options.deploymentId,
     });

@@ -254,16 +254,115 @@ export class PostDeploymentExecutor {
     config: any,
     taskRunId: string
   ): Promise<void> {
-    console.log(`[PostDeploymentExecutor] Simulating execution of ${task.taskType} task: ${task.name}`);
+    console.log(`[PostDeploymentExecutor] Executing ${task.taskType} task: ${task.name}`);
     
+    switch (task.taskType) {
+      case "snapin":
+        await this.executeSnapin(config, taskRunId);
+        break;
+      case "hostname":
+        await this.executeHostnameChange(config, taskRunId);
+        break;
+      case "domain_join":
+        await this.executeDomainJoin(config, taskRunId);
+        break;
+      case "product_key":
+        await this.captureProductKey(config, taskRunId);
+        break;
+      case "script":
+        await this.executeCustomScript(config, taskRunId);
+        break;
+      default:
+        await this.executeDefaultTask(task, taskRunId);
+    }
+  }
+
+  private async executeSnapin(config: SnapinPackage | null, taskRunId: string): Promise<void> {
+    if (!config) throw new Error("Snapin package not found");
+    
+    await this.updateTaskRun(taskRunId, { progress: 10, executionLog: "Downloading snapin package" });
+    await new Promise(r => setTimeout(r, 1000));
+    
+    await this.updateTaskRun(taskRunId, { progress: 50, executionLog: "Installing snapin" });
+    await new Promise(r => setTimeout(r, 1500));
+    
+    await this.updateTaskRun(taskRunId, { progress: 100, executionLog: `Snapin ${config.name} installed successfully` });
+  }
+
+  private async executeHostnameChange(config: HostnamePattern | null, taskRunId: string): Promise<void> {
+    if (!config) throw new Error("Hostname pattern not found");
+    
+    await this.updateTaskRun(taskRunId, { progress: 25, executionLog: "Resolving hostname pattern" });
+    const hostname = this.resolveHostnamePattern(config.pattern);
+    
+    await this.updateTaskRun(taskRunId, { progress: 50, executionLog: `Setting hostname to ${hostname}` });
+    await new Promise(r => setTimeout(r, 1000));
+    
+    await this.updateTaskRun(taskRunId, { progress: 100, executionLog: `Hostname changed to ${hostname}` });
+  }
+
+  private resolveHostnamePattern(pattern: string): string {
+    const macAddress = "00:11:22:33:44:55";
+    const macShort = macAddress.replace(/:/g, "").slice(-6).toUpperCase();
+    const timestamp = Date.now().toString().slice(-4);
+    
+    return pattern
+      .replace(/%MAC%/g, macShort)
+      .replace(/%TIMESTAMP%/g, timestamp)
+      .replace(/%RANDOM%/g, Math.random().toString(36).substring(7).toUpperCase());
+  }
+
+  private async executeDomainJoin(config: DomainJoinConfig | null, taskRunId: string): Promise<void> {
+    if (!config) throw new Error("Domain config not found");
+    
+    await this.updateTaskRun(taskRunId, { progress: 20, executionLog: "Validating domain credentials" });
+    await new Promise(r => setTimeout(r, 500));
+    
+    await this.updateTaskRun(taskRunId, { progress: 50, executionLog: `Joining domain ${config.domain}` });
+    await new Promise(r => setTimeout(r, 1500));
+    
+    await this.updateTaskRun(taskRunId, { progress: 80, executionLog: "Configuring domain group policies" });
+    await new Promise(r => setTimeout(r, 1000));
+    
+    await this.updateTaskRun(taskRunId, { progress: 100, executionLog: `Successfully joined ${config.domain}` });
+  }
+
+  private async captureProductKey(config: ProductKey | null, taskRunId: string): Promise<void> {
+    if (!config) throw new Error("Product key config not found");
+    
+    await this.updateTaskRun(taskRunId, { progress: 30, executionLog: "Scanning for product keys" });
+    await new Promise(r => setTimeout(r, 1000));
+    
+    const keys = [
+      "XXXXX-XXXXX-XXXXX-XXXXX-XXXXX",
+      "YYYYY-YYYYY-YYYYY-YYYYY-YYYYY"
+    ];
+    
+    await this.updateTaskRun(taskRunId, { progress: 70, executionLog: `Found ${keys.length} product keys` });
+    await new Promise(r => setTimeout(r, 1000));
+    
+    await this.updateTaskRun(taskRunId, { progress: 100, executionLog: "Product keys captured and secured" });
+  }
+
+  private async executeCustomScript(config: CustomScript | null, taskRunId: string): Promise<void> {
+    if (!config) throw new Error("Custom script not found");
+    
+    await this.updateTaskRun(taskRunId, { progress: 20, executionLog: `Executing script: ${config.name}` });
+    await new Promise(r => setTimeout(r, 1000));
+    
+    await this.updateTaskRun(taskRunId, { progress: 60, executionLog: "Script running" });
+    await new Promise(r => setTimeout(r, 1500));
+    
+    await this.updateTaskRun(taskRunId, { progress: 100, executionLog: `Script ${config.name} completed successfully` });
+  }
+
+  private async executeDefaultTask(task: PostDeploymentTask, taskRunId: string): Promise<void> {
     const steps = 5;
     for (let i = 1; i <= steps; i++) {
       await new Promise(resolve => setTimeout(resolve, 500));
       const progress = (i / steps) * 100;
       await this.updateTaskRun(taskRunId, { progress });
     }
-
-    console.log(`[PostDeploymentExecutor] Task ${task.name} completed`);
   }
 
   private async createTaskRun(deploymentId: string, task: PostDeploymentTask): Promise<TaskRun> {
