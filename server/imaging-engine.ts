@@ -317,16 +317,15 @@ fi
             const stats = fs.statSync(outputPath);
             await storage.createImage({
               name: options.imageName,
+              filename: `${options.imageName}.img`,
               description: options.description || "",
-              osType: "unknown", // Will be detected later
+              osType: "unknown",
               version: "1.0",
               architecture: "x86_64",
               size: stats.size,
-              format: "raw",
-              compression: options.compression,
-              checksum: "", // Will be calculated later
-              isVerified: false,
-              path: outputPath
+              compressionType: options.compression,
+              checksum: "",
+              isValidated: false,
             });
 
             // Update device status
@@ -438,8 +437,7 @@ fi
             // Update deployment as completed
             await storage.updateDeployment(options.deploymentId, { 
               status: "completed",
-              progress: 100,
-              completedAt: new Date()
+              progress: 100
             });
 
             // Log completion
@@ -455,7 +453,7 @@ fi
             // Update deployment as failed
             await storage.updateDeployment(options.deploymentId, { 
               status: "failed",
-              error: `Deployment failed with code ${code}`
+              errorMessage: `Deployment failed with code ${code}`
             });
 
             await storage.createActivityLog({
