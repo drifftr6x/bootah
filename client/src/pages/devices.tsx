@@ -8,7 +8,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { Device } from "@shared/schema";
-import { Plus, Search, Monitor, Trash2, Download } from "lucide-react";
+import { Plus, Search, Monitor, Trash2, Download, Network } from "lucide-react";
 import { cn } from "@/lib/utils";
 import AddDeviceDialog from "@/components/dialogs/add-device-dialog";
 import StartDeploymentDialog from "@/components/dialogs/start-deployment-dialog";
@@ -166,9 +166,13 @@ export default function Devices() {
       placeholder: "e.g., Dell, HP, Lenovo",
     },
     {
-      key: "lastSeen",
-      label: "Last Seen",
-      type: "date",
+      key: "discovery",
+      label: "Discovery Method",
+      type: "select",
+      options: [
+        { value: "auto", label: "Auto-Discovered" },
+        { value: "manual", label: "Manually Added" },
+      ],
     },
   ];
 
@@ -188,13 +192,8 @@ export default function Devices() {
           return device.status === filter.value;
         case "manufacturer":
           return device.manufacturer?.toLowerCase().includes(filter.value.toLowerCase());
-        case "lastSeen":
-          if (!device.lastSeen) return false;
-          const [fromStr, toStr] = filter.value.split("|");
-          const from = new Date(fromStr);
-          const to = new Date(toStr);
-          const lastSeen = new Date(device.lastSeen);
-          return lastSeen >= from && lastSeen <= to;
+        case "discovery":
+          return (device as any).isAutoDiscovered === (filter.value === "auto");
         default:
           return true;
       }

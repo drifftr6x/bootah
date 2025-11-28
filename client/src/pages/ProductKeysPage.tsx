@@ -13,7 +13,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { insertProductKeySchema, type ProductKey } from "@shared/schema";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Trash2, Pencil, Key, Eye, EyeOff } from "lucide-react";
+import { Plus, Trash2, Pencil, Key, Eye, EyeOff, Download } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { z } from "zod";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -135,6 +135,57 @@ export default function ProductKeysPage() {
     }
   };
 
+  const exportProductKeys = (format: 'csv' | 'json') => {
+    if (!productKeys || productKeys.length === 0) {
+      toast({ title: "No Data", description: "No product keys to export", variant: "destructive" });
+      return;
+    }
+
+    let content: string;
+    let filename: string;
+    let mimeType: string;
+
+    if (format === 'csv') {
+      const headers = ["Name", "Product Name", "Key Type", "OS Type", "Version", "Status", "Activations"];
+      const rows = productKeys.map(k => [
+        k.name,
+        k.productName,
+        k.keyType,
+        k.osType,
+        k.version || "-",
+        k.isActive ? "Active" : "Inactive",
+        k.maxActivations ? `${k.currentActivations || 0}/${k.maxActivations}` : "-"
+      ]);
+      content = [headers, ...rows].map(row => row.map(f => `"${f}"`).join(",")).join("\n");
+      filename = `bootah-product-keys-${new Date().toISOString().split('T')[0]}.csv`;
+      mimeType = "text/csv";
+    } else {
+      content = JSON.stringify(productKeys.map(k => ({
+        name: k.name,
+        productName: k.productName,
+        keyType: k.keyType,
+        osType: k.osType,
+        version: k.version,
+        status: k.isActive ? "active" : "inactive",
+        currentActivations: k.currentActivations,
+        maxActivations: k.maxActivations
+      })), null, 2);
+      filename = `bootah-product-keys-${new Date().toISOString().split('T')[0]}.json`;
+      mimeType = "application/json";
+    }
+
+    const blob = new Blob([content], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    toast({ title: "Export Complete", description: `Exported ${productKeys.length} product keys` });
+  };
+
   const onSubmit = (data: FormData) => {
     const payload = { ...data };
     
@@ -155,14 +206,32 @@ export default function ProductKeysPage() {
           <h1 className="text-3xl font-bold">Product Keys</h1>
           <p className="text-muted-foreground">Manage Windows, Office, and software product keys for automatic activation</p>
         </div>
-        <Dialog open={isDialogOpen} onOpenChange={handleDialogOpenChange}>
+        <div className="flex gap-2">
+          {productKeys && productKeys.length > 0 && (
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={() => exportProductKeys('csv')} data-testid="button-export-csv">
+                <Download className="h-4 w-4 mr-2" />
+                CSV
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => exportProductKeys('json')} data-testid="button-export-json">
+                <Download className="h-4 w-4 mr-2" />
+                JSON
+              </Button>
+            </div>
+          )}
+          <Dialog open={isDialogOpen} onOpenChange={handleDialogOpenChange}>
           <DialogTrigger asChild>
             <Button data-testid="button-create-product-key">
               <Plus className="h-4 w-4 mr-2" />
               Add Product Key
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          </Dialog>
+        </div>
+      </div>
+
+      <Dialog open={isDialogOpen} onOpenChange={handleDialogOpenChange}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>{editingKey ? "Edit Product Key" : "Create Product Key"}</DialogTitle>
               <DialogDescription>
