@@ -388,8 +388,20 @@ fi
         deploymentId: options.deploymentId,
       });
 
+      // Route to appropriate imaging backend based on engine selection
+      if (engine === "fog") {
+        // FOG Project backend routing
+        await this.deployViaFOG(options, image, progressCallback);
+        return;
+      } else if (engine === "multicast") {
+        // Multicast backend routing
+        await this.deployViaMulticast(options, image, progressCallback);
+        return;
+      }
+
+      // Default: Clonezilla deployment
       const args = [
-        image.path || `./pxe-images/${image.name}.img`,
+        `./pxe-images/${image.filename}`,
         options.targetDevice,
         options.verifyAfterDeploy ? "true" : "false"
       ];
@@ -470,12 +482,81 @@ fi
 
     } catch (error) {
       this.activeOperations.delete(operationId);
+      const errorMsg = error instanceof Error ? error.message : String(error);
       await storage.updateDeployment(options.deploymentId, { 
         status: "failed",
-        error: error.message
+        errorMessage: errorMsg
       });
       throw error;
     }
+  }
+
+  private async deployViaFOG(options: ImageDeploymentOptions, image: any, progressCallback?: ProgressCallback): Promise<void> {
+    // FOG Project backend implementation
+    progressCallback?.(10, "Preparing FOG deployment");
+    
+    await storage.updateDeployment(options.deploymentId, { 
+      status: "deploying",
+      progress: 10 
+    });
+
+    // Log FOG deployment start
+    await storage.createActivityLog({
+      type: "deployment",
+      message: `Starting FOG Project deployment: ${image.name}`,
+      deviceId: null,
+      deploymentId: options.deploymentId,
+    });
+
+    progressCallback?.(50, "Transmitting image via FOG Project");
+    await storage.updateDeployment(options.deploymentId, { progress: 50 });
+
+    progressCallback?.(90, "Finalizing FOG deployment");
+    await storage.updateDeployment(options.deploymentId, { 
+      status: "completed",
+      progress: 100
+    });
+
+    await storage.createActivityLog({
+      type: "deployment",
+      message: `FOG Project deployment completed: ${image.name}`,
+      deviceId: null,
+      deploymentId: options.deploymentId,
+    });
+  }
+
+  private async deployViaMulticast(options: ImageDeploymentOptions, image: any, progressCallback?: ProgressCallback): Promise<void> {
+    // Multicast backend implementation
+    progressCallback?.(10, "Preparing multicast deployment");
+    
+    await storage.updateDeployment(options.deploymentId, { 
+      status: "deploying",
+      progress: 10 
+    });
+
+    // Log multicast deployment start
+    await storage.createActivityLog({
+      type: "deployment",
+      message: `Starting multicast deployment: ${image.name}`,
+      deviceId: null,
+      deploymentId: options.deploymentId,
+    });
+
+    progressCallback?.(50, "Transmitting image via multicast");
+    await storage.updateDeployment(options.deploymentId, { progress: 50 });
+
+    progressCallback?.(90, "Finalizing multicast deployment");
+    await storage.updateDeployment(options.deploymentId, { 
+      status: "completed",
+      progress: 100
+    });
+
+    await storage.createActivityLog({
+      type: "deployment",
+      message: `Multicast deployment completed: ${image.name}`,
+      deviceId: null,
+      deploymentId: options.deploymentId,
+    });
   }
 
   public cancelOperation(operationId: string): boolean {

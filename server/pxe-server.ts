@@ -254,10 +254,21 @@ export class PXEHTTPServer {
 
   // This integrates with the existing Express server
   public setupRoutes(app: any): void {
-    // Serve PXE boot files with proper MIME types
+    // Serve PXE boot files with proper MIME types and bootloader selection
     app.get("/pxe-files/:filename(*)", (req: any, res: any) => {
       const filename = req.params.filename;
-      const filePath = path.join("./pxe-files", filename);
+      const bootMode = req.query.bootMode as string || "bios";
+      let filePath = path.join("./pxe-files", filename);
+      
+      // Route to correct bootloader based on boot mode
+      if (filename === "bootloader") {
+        if (bootMode === "uefi" || bootMode === "uefi-secure") {
+          filePath = path.join("./pxe-files", "efi", "grubx64.efi");
+        } else {
+          // Default to BIOS bootloader
+          filePath = path.join("./pxe-files", "bios", "pxelinux.0");
+        }
+      }
       
       if (!fs.existsSync(filePath) || !filePath.startsWith(path.resolve("./pxe-files"))) {
         return res.status(404).send("File not found");

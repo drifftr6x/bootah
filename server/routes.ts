@@ -245,15 +245,17 @@ export async function registerRoutes(app: Express): Promise<{
       }
 
       // Start deployment process with imaging engine and boot mode from deployment record
-      const deploymentPromise = imagingEngine.deployImage({
+      const deploymentPayload = {
         deploymentId,
         imageId,
         targetDevice,
         targetMacAddress: targetMacAddress || "",
         verifyAfterDeploy: verifyAfterDeploy || false,
-        imagingEngine: deployment.imagingEngine as "clonezilla" | "fog" | "multicast",
+        imagingEngine: (deployment as any).imagingEngine as "clonezilla" | "fog" | "multicast",
         bootMode: deployment.bootMode as "bios" | "uefi" | "uefi-secure"
-      }, (progress, message) => {
+      };
+
+      const deploymentPromise = imagingEngine.deployImage(deploymentPayload, (progress, message) => {
         // Broadcast progress via WebSocket
         wss.clients.forEach((client: WebSocket) => {
           if (client.readyState === WebSocket.OPEN) {
