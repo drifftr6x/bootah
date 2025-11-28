@@ -7,10 +7,46 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { DeploymentWithDetails } from "@shared/schema";
-import { Zap, StopCircle, Plus, Calendar, Clock, Repeat, X } from "lucide-react";
+import { Zap, StopCircle, Plus, Calendar, Clock, Repeat, X, Cpu, Disc3 } from "lucide-react";
 import { useState } from "react";
 import StartDeploymentDialog from "@/components/dialogs/start-deployment-dialog";
 import { formatScheduledTime, formatRelativeTime } from "@/lib/scheduling";
+
+function getBootModeLabel(bootMode: string | null): string {
+  switch(bootMode) {
+    case 'bios': return 'BIOS/MBR';
+    case 'uefi': return 'UEFI/GPT';
+    case 'uefi-secure': return 'UEFI Secure Boot';
+    default: return 'Default';
+  }
+}
+
+function getBootModeColor(bootMode: string | null) {
+  switch(bootMode) {
+    case 'bios': return 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20';
+    case 'uefi': return 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20';
+    case 'uefi-secure': return 'bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20';
+    default: return 'bg-gray-500/10 text-gray-600 dark:text-gray-400 border-gray-500/20';
+  }
+}
+
+function getImagingEngineLabel(engine: string | null): string {
+  switch(engine) {
+    case 'clonezilla': return 'Clonezilla';
+    case 'fog': return 'FOG Project';
+    case 'multicast': return 'Multicast';
+    default: return 'Default';
+  }
+}
+
+function getImagingEngineColor(engine: string | null) {
+  switch(engine) {
+    case 'clonezilla': return 'bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/20';
+    case 'fog': return 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border-cyan-500/20';
+    case 'multicast': return 'bg-pink-500/10 text-pink-600 dark:text-pink-400 border-pink-500/20';
+    default: return 'bg-gray-500/10 text-gray-600 dark:text-gray-400 border-gray-500/20';
+  }
+}
 
 function getStatusColor(status: string) {
   switch (status) {
@@ -138,6 +174,8 @@ export default function Deployments() {
                     <tr>
                       <th className="text-left p-4 text-sm font-medium text-muted-foreground">Device</th>
                       <th className="text-left p-4 text-sm font-medium text-muted-foreground">Image</th>
+                      <th className="text-left p-4 text-sm font-medium text-muted-foreground">Boot Mode</th>
+                      <th className="text-left p-4 text-sm font-medium text-muted-foreground">Imaging Engine</th>
                       <th className="text-left p-4 text-sm font-medium text-muted-foreground">Progress</th>
                       <th className="text-left p-4 text-sm font-medium text-muted-foreground">Status</th>
                       <th className="text-left p-4 text-sm font-medium text-muted-foreground">Duration</th>
@@ -165,6 +203,26 @@ export default function Deployments() {
                           <div className="text-sm text-foreground">
                             {deployment.image.name}
                           </div>
+                        </td>
+                        <td className="p-4">
+                          <Badge 
+                            variant="outline" 
+                            className={getBootModeColor(deployment.bootMode)}
+                            data-testid={`badge-boot-mode-${deployment.id}`}
+                          >
+                            <Cpu className="w-3 h-3 mr-1" />
+                            {getBootModeLabel(deployment.bootMode)}
+                          </Badge>
+                        </td>
+                        <td className="p-4">
+                          <Badge 
+                            variant="outline" 
+                            className={getImagingEngineColor(deployment.imagingEngine)}
+                            data-testid={`badge-imaging-engine-${deployment.id}`}
+                          >
+                            <Disc3 className="w-3 h-3 mr-1" />
+                            {getImagingEngineLabel(deployment.imagingEngine)}
+                          </Badge>
                         </td>
                         <td className="p-4">
                           <div className="flex items-center space-x-2">
