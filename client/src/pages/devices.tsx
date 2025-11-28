@@ -165,15 +165,6 @@ export default function Devices() {
       type: "text",
       placeholder: "e.g., Dell, HP, Lenovo",
     },
-    {
-      key: "discovery",
-      label: "Discovery Method",
-      type: "select",
-      options: [
-        { value: "auto", label: "Auto-Discovered" },
-        { value: "manual", label: "Manually Added" },
-      ],
-    },
   ];
 
   const filteredDevices = devices?.filter(device => {
@@ -192,8 +183,6 @@ export default function Devices() {
           return device.status === filter.value;
         case "manufacturer":
           return device.manufacturer?.toLowerCase().includes(filter.value.toLowerCase());
-        case "discovery":
-          return (device as any).isAutoDiscovered === (filter.value === "auto");
         default:
           return true;
       }

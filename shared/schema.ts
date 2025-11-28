@@ -23,7 +23,6 @@ export const devices = pgTable("devices", {
   model: text("model"),
   tags: text("tags").array().default(sql`'{}'`),
   groupId: varchar("group_id").references(() => deviceGroups.id),
-  isAutoDiscovered: boolean("is_auto_discovered").default(false), // true if discovered via network scan
 });
 
 export const images = pgTable("images", {
