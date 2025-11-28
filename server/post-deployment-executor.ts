@@ -318,13 +318,13 @@ export class PostDeploymentExecutor {
     await this.updateTaskRun(taskRunId, { progress: 20, executionLog: "Validating domain credentials" });
     await new Promise(r => setTimeout(r, 500));
     
-    await this.updateTaskRun(taskRunId, { progress: 50, executionLog: `Joining domain ${config.domain}` });
+    await this.updateTaskRun(taskRunId, { progress: 50, executionLog: `Joining domain ${config.domainName}` });
     await new Promise(r => setTimeout(r, 1500));
     
     await this.updateTaskRun(taskRunId, { progress: 80, executionLog: "Configuring domain group policies" });
     await new Promise(r => setTimeout(r, 1000));
     
-    await this.updateTaskRun(taskRunId, { progress: 100, executionLog: `Successfully joined ${config.domain}` });
+    await this.updateTaskRun(taskRunId, { progress: 100, executionLog: `Successfully joined ${config.domainName}` });
   }
 
   private async captureProductKey(config: ProductKey | null, taskRunId: string): Promise<void> {
