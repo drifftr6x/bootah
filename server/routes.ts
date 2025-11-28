@@ -3468,6 +3468,197 @@ export async function registerRoutes(app: Express): Promise<{
     }
   });
 
+  // Analytics Endpoint
+  app.get("/api/analytics/deployments", isAuthenticated, requirePermission("deployments", "read"), async (req, res) => {
+    try {
+      const deployments = await storage.getDeployments();
+      const now = new Date();
+      
+      const completed = deployments.filter(d => d.status === "completed").length;
+      const failed = deployments.filter(d => d.status === "failed").length;
+      const total = deployments.length;
+      const successRate = total > 0 ? (completed / total) * 100 : 0;
+      
+      const durations = deployments
+        .filter(d => d.startedAt && d.completedAt)
+        .map(d => (new Date(d.completedAt!).getTime() - new Date(d.startedAt!).getTime()) / 1000);
+      const avgDuration = durations.length > 0 ? durations.reduce((a, b) => a + b) / durations.length : 0;
+      
+      const deploymentsByStatus = [
+        { status: "completed", count: completed },
+        { status: "failed", count: failed },
+        { status: "pending", count: deployments.filter(d => d.status === "pending").length },
+        { status: "deploying", count: deployments.filter(d => d.status === "deploying").length }
+      ];
+      
+      const deploymentsByOS = Array.from(new Set(deployments.map(d => d.image?.osType || "unknown")))
+        .map(os => ({ os, count: deployments.filter(d => d.image?.osType === os).length }));
+      
+      const deploymentsByEngine = Array.from(new Set(deployments.map(d => (d as any).imagingEngine || "default")))
+        .map(engine => ({ engine, count: deployments.filter(d => (d as any).imagingEngine === engine).length }));
+      
+      const hourlyDeployments = Array.from({ length: 24 }, (_, i) => {
+        const hour = String(i).padStart(2, '0');
+        const count = deployments.filter(d => {
+          if (!d.startedAt) return false;
+          const deployHour = new Date(d.startedAt).getHours();
+          return deployHour === i;
+        }).length;
+        return { hour: `${hour}:00`, count };
+      });
+      
+      res.json({
+        totalDeployments: total,
+        successCount: completed,
+        failureCount: failed,
+        averageDuration: avgDuration,
+        successRate,
+        deploymentsByStatus,
+        deploymentsByOS,
+        deploymentsByEngine,
+        hourlyDeployments
+      });
+    } catch (error) {
+      console.error("Analytics error:", error);
+      res.status(500).json({ message: "Failed to fetch analytics" });
+    }
+  });
+
+  // Swagger/OpenAPI Documentation
+  app.get("/api/docs/swagger.json", (req, res) => {
+    const swaggerDoc = {
+      openapi: "3.0.0",
+      info: {
+        title: "Bootah PXE & OS Imaging API",
+        version: "1.0.0",
+        description: "API documentation for Bootah PXE boot and OS imaging platform"
+      },
+      servers: [
+        {
+          url: `http://localhost:${process.env.PORT || 5000}`,
+          description: "Development server"
+        }
+      ],
+      paths: {
+        "/api/devices": {
+          get: {
+            summary: "List all devices",
+            tags: ["Devices"],
+            security: [{ bearerAuth: [] }],
+            responses: {
+              200: { description: "List of devices" },
+              401: { description: "Unauthorized" }
+            }
+          }
+        },
+        "/api/images": {
+          get: {
+            summary: "List all OS images",
+            tags: ["Images"],
+            security: [{ bearerAuth: [] }],
+            responses: {
+              200: { description: "List of images" },
+              401: { description: "Unauthorized" }
+            }
+          }
+        },
+        "/api/deployments": {
+          get: {
+            summary: "List all deployments",
+            tags: ["Deployments"],
+            security: [{ bearerAuth: [] }],
+            responses: {
+              200: { description: "List of deployments" },
+              401: { description: "Unauthorized" }
+            }
+          }
+        },
+        "/api/deployments/execute": {
+          post: {
+            summary: "Execute a new deployment",
+            tags: ["Deployments"],
+            security: [{ bearerAuth: [] }],
+            requestBody: {
+              required: true,
+              content: {
+                "application/json": {
+                  schema: {
+                    type: "object",
+                    properties: {
+                      deviceId: { type: "string" },
+                      imageId: { type: "string" },
+                      bootMode: { type: "string", enum: ["bios", "uefi", "uefi-secure"] },
+                      imagingEngine: { type: "string", enum: ["clonezilla", "fog", "multicast"] }
+                    }
+                  }
+                }
+              }
+            },
+            responses: {
+              200: { description: "Deployment started" },
+              400: { description: "Bad request" },
+              401: { description: "Unauthorized" }
+            }
+          }
+        },
+        "/api/analytics/deployments": {
+          get: {
+            summary: "Get deployment analytics and metrics",
+            tags: ["Analytics"],
+            security: [{ bearerAuth: [] }],
+            responses: {
+              200: { description: "Deployment metrics" },
+              401: { description: "Unauthorized" }
+            }
+          }
+        }
+      },
+      components: {
+        securitySchemes: {
+          bearerAuth: {
+            type: "http",
+            scheme: "bearer"
+          }
+        }
+      }
+    };
+    res.json(swaggerDoc);
+  });
+
+  // Serve Swagger UI
+  app.get("/api/docs", (req, res) => {
+    res.send(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Bootah API Documentation</title>
+        <meta charset="utf-8"/>
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/5.0.0/swagger-ui.min.css">
+      </head>
+      <body>
+        <div id="swagger-ui"></div>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/5.0.0/swagger-ui.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/5.0.0/swagger-ui-bundle.min.js"></script>
+        <script>
+          window.onload = function() {
+            window.ui = SwaggerUIBundle({
+              url: "/api/docs/swagger.json",
+              dom_id: '#swagger-ui',
+              presets: [
+                SwaggerUIBundle.presets.apis,
+                SwaggerUIBundle.SwaggerUIStandalonePreset
+              ],
+              layout: "BaseLayout",
+              deepLinking: true
+            });
+          };
+        </script>
+      </body>
+      </html>
+    `);
+  });
+
   // Placeholder functions - import from FOG_STORAGE_INTEGRATION.ts in production
   async function syncFOGImages() { return []; }
   async function syncFOGHosts() { return []; }
