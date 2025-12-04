@@ -106,6 +106,48 @@ export async function registerRoutes(app: Express): Promise<{
   } catch (error) {
     console.error("Failed to start deployment scheduler:", error);
   }
+  // Wake-on-LAN endpoint
+  app.post("/api/devices/:id/wake", isAuthenticated, requirePermission("devices", "write"), async (req, res) => {
+    try {
+      const device = await storage.getDevice(req.params.id);
+      if (!device) {
+        return res.status(404).json({ message: "Device not found" });
+      }
+      
+      if (!device.macAddress) {
+        return res.status(400).json({ message: "Device has no MAC address" });
+      }
+
+      // Send WoL magic packet
+      const dgram = await import("dgram");
+      const socket = dgram.createSocket("udp4");
+      const mac = device.macAddress.replace(/:/g, "").replace(/-/g, "");
+      
+      // Create magic packet: FF FF FF FF FF FF + 16x MAC address
+      const magicPacket = Buffer.alloc(102);
+      for (let i = 0; i < 6; i++) {
+        magicPacket[i] = 0xff;
+      }
+      for (let i = 0; i < 16; i++) {
+        for (let j = 0; j < 6; j++) {
+          magicPacket[6 + i * 6 + j] = parseInt(mac.substr(j * 2, 2), 16);
+        }
+      }
+
+      socket.send(magicPacket, 0, magicPacket.length, 9, "255.255.255.255", (err) => {
+        socket.close();
+        if (err) {
+          console.error("WoL error:", err);
+          return res.status(500).json({ message: "Failed to send WoL packet" });
+        }
+        res.json({ message: "WoL packet sent", mac: device.macAddress });
+      });
+    } catch (error) {
+      console.error("WoL error:", error);
+      res.status(500).json({ message: "Failed to send wake-on-LAN" });
+    }
+  });
+
   // Devices endpoints
   // GET is read-only, requires devices:read permission
   app.get("/api/devices", isAuthenticated, requirePermission("devices", "read"), async (req, res) => {

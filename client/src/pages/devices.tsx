@@ -8,7 +8,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { Device } from "@shared/schema";
-import { Plus, Search, Monitor, Trash2, Download, Network } from "lucide-react";
+import { Plus, Search, Monitor, Trash2, Download, Network, Power } from "lucide-react";
 import { cn } from "@/lib/utils";
 import AddDeviceDialog from "@/components/dialogs/add-device-dialog";
 import StartDeploymentDialog from "@/components/dialogs/start-deployment-dialog";
@@ -38,6 +38,7 @@ export default function Devices() {
   const [selectedDeviceId, setSelectedDeviceId] = useState<string>("");
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [deviceToDelete, setDeviceToDelete] = useState<Device | null>(null);
+  const [wolDeviceId, setWolDeviceId] = useState<string | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -100,6 +101,26 @@ export default function Devices() {
   const { data: devices, isLoading } = useQuery<Device[]>({
     queryKey: ["/api/devices"],
     refetchInterval: 10000, // Refresh every 10 seconds
+  });
+
+  const wolMutation = useMutation({
+    mutationFn: (deviceId: string) =>
+      apiRequest("POST", `/api/devices/${deviceId}/wake`),
+    onSuccess: () => {
+      toast({
+        title: "Success",
+        description: "Wake-on-LAN packet sent",
+      });
+      setWolDeviceId(null);
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to send WoL packet",
+        variant: "destructive",
+      });
+      setWolDeviceId(null);
+    },
   });
 
   const deleteDeviceMutation = useMutation({
@@ -335,6 +356,16 @@ export default function Devices() {
                       data-testid={`button-deploy-${device.id}`}
                     >
                       Deploy
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => wolMutation.mutate(device.id)}
+                      disabled={wolMutation.isPending || device.status === "online"}
+                      title="Send wake-on-LAN packet"
+                      data-testid={`button-wake-${device.id}`}
+                    >
+                      <Power className="w-4 h-4" />
                     </Button>
                     <Button 
                       variant="outline" 
