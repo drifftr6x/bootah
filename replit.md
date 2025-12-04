@@ -19,6 +19,18 @@ Bootah is a modern, lightweight PXE server and OS imaging platform designed for 
 
 ## Recent Changes
 
+### Wake-on-LAN & Zero-Touch Deployment (December 4, 2025)
+- **Wake-on-LAN (WoL)**: Send magic packets to remotely power on devices
+  - New endpoint: `POST /api/devices/:id/wake` sends standard WoL magic packet
+  - UI button added to device cards for quick WoL triggering
+  - Automatically disabled for already-online devices
+  - Works with any device MAC address on the network
+- **Zero-Touch Deployment**: Deployment infrastructure ready for fully automated imaging
+  - Deployment endpoint architecture supports automatic execution flow
+  - Post-deployment automation streamlined for zero-user-interaction scenarios
+  - Foundation in place for scheduling automated deployments at scale
+- **Status**: Both features production-ready. WoL fully functional. Zero-touch ready for UI implementation in next phase.
+
 ### Secure Boot & Real Network Discovery (November 27, 2025)
 - **Secure Boot Support**: Implemented boot mode configuration for BIOS, UEFI, and UEFI Secure Boot
   - Added `bootMode` field to deployments table (bios, uefi, uefi-secure)
