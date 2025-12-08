@@ -4,11 +4,60 @@
 
 This comprehensive guide covers multiple deployment methods for self-hosting Bootah. Choose the method that best fits your infrastructure:
 
-- **[Quick Start with Docker](#quick-start-docker)** ⭐ Recommended for most users
+- **[Automated Installation Scripts](#automated-installation)** ⭐ Fastest way to get started
+- **[Quick Start with Docker](#quick-start-docker)** - Manual Docker setup
 - **[Docker Deployment](#docker-deployment)** - Complete containerized setup
 - **[Linux Bare Metal](#linux-bare-metal-installation)** - Direct Ubuntu/Debian installation
 - **[Proxmox LXC](#proxmox-lxc-container)** - See PROXMOX_INSTALLATION_GUIDE.md
 - **[Kubernetes](#kubernetes-deployment-advanced)** - Enterprise deployments
+
+---
+
+## 🚀 Automated Installation
+
+### One-Line Docker Install
+
+```bash
+curl -sSL https://raw.githubusercontent.com/yourusername/bootah/main/scripts/install-docker.sh | bash
+```
+
+This interactive script will:
+- Check Docker prerequisites
+- Prompt for configuration (IP, ports, email settings)
+- Generate secure passwords and secrets
+- Create docker-compose.yml and .env files
+- Start all services
+- Provide access instructions
+
+### One-Line Linux Install (Ubuntu/Debian)
+
+```bash
+curl -sSL https://raw.githubusercontent.com/yourusername/bootah/main/scripts/install-linux.sh | sudo bash
+```
+
+This script will:
+- Install Node.js 20 and PostgreSQL
+- Create a dedicated `bootah` system user
+- Clone and build the application
+- Configure the database
+- Create a systemd service
+- Configure the firewall
+- Start Bootah automatically
+
+### Configuration Wizard
+
+After installation, use the configuration wizard to modify settings:
+
+```bash
+cd ~/bootah  # or /opt/bootah for Linux install
+./scripts/configure.sh
+```
+
+The wizard provides an interactive menu to configure:
+- Server settings (port, IP)
+- Authentication (local/OAuth, registration)
+- Email (SMTP, SendGrid)
+- Session secrets
 
 ---
 

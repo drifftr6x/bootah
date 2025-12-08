@@ -24,13 +24,21 @@ Bootah is a modern, lightweight PXE server and OS imaging platform designed for 
   - `AUTH_MODE` environment variable toggles between 'replit' (OAuth) and 'local' (password)
   - Full password management: bcrypt hashing, password history, expiry, complexity validation
   - Account security: 5-attempt lockout (30 minutes), login history tracking
-  - Password reset: Token-based reset system with one-time codes
+  - Password reset: Token-based reset with email delivery (SMTP/SendGrid support)
   - Initial setup wizard: Creates first admin account on fresh installations
+- **Email Service**: Complete email delivery for password resets
+  - Three providers: console (dev), SMTP (self-hosted), SendGrid (cloud)
+  - Professional HTML email templates
+  - Environment-based configuration
+- **Installation Scripts**: Automated deployment scripts
+  - `scripts/install-docker.sh` - One-line Docker deployment
+  - `scripts/install-linux.sh` - Ubuntu/Debian bare metal install
+  - `scripts/configure.sh` - Interactive configuration wizard
 - **UI Pages**: Created login, register, forgot-password, reset-password, and setup pages
 - **Password Policy**: 12+ chars, uppercase, lowercase, numbers, special characters, no reuse of last 5
-- **Files**: `server/authConfig.ts`, `server/localAuth.ts`, `client/src/pages/login.tsx`, `client/src/pages/register.tsx`, `client/src/pages/setup.tsx`
-- **Environment Variables**: `AUTH_MODE`, `ALLOW_REGISTRATION`, `SESSION_SECRET`
-- **Status**: Production-ready for self-hosted/air-gapped deployments
+- **Files**: `server/authConfig.ts`, `server/localAuth.ts`, `server/emailService.ts`, `client/src/pages/login.tsx`, `client/src/pages/register.tsx`, `client/src/pages/setup.tsx`
+- **Environment Variables**: `AUTH_MODE`, `ALLOW_REGISTRATION`, `SESSION_SECRET`, `EMAIL_PROVIDER`, `SMTP_*`, `SENDGRID_API_KEY`
+- **Status**: Production-ready for self-hosted/air-gapped deployments with automated installation
 
 ### Wake-on-LAN & Zero-Touch Deployment (December 4, 2025)
 - **Wake-on-LAN (WoL)**: Send magic packets to remotely power on devices

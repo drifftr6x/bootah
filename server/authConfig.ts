@@ -412,6 +412,93 @@ export async function setupLocalAuth(app: Express) {
           : `Email provider ${info.provider} is not fully configured`,
     });
   });
+
+  app.post("/api/auth/test-email", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "Authentication required" });
+    }
+    
+    try {
+      const { email } = req.body;
+      
+      if (!email) {
+        return res.status(400).json({ message: "Email address is required" });
+      }
+
+      const info = emailService.getProviderInfo();
+      const appUrl = process.env.APP_URL || `${req.protocol}://${req.get("host")}`;
+      
+      const subject = "Bootah - Email Configuration Test";
+      const text = `
+This is a test email from Bootah.
+
+If you received this email, your email configuration is working correctly!
+
+Provider: ${info.provider}
+Server: ${appUrl}
+Sent at: ${new Date().toISOString()}
+
+- The Bootah Team
+      `.trim();
+
+      const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Email Test</title>
+</head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+  <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; border-radius: 10px 10px 0 0; text-align: center;">
+    <h1 style="color: white; margin: 0; font-size: 28px;">Bootah</h1>
+    <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0 0;">Email Configuration Test</p>
+  </div>
+  
+  <div style="background: #f9f9f9; padding: 30px; border: 1px solid #e0e0e0; border-top: none;">
+    <p style="font-size: 18px; color: #28a745;">✓ Email is working correctly!</p>
+    <p>If you received this email, your Bootah email configuration is set up properly.</p>
+    
+    <div style="background: white; border: 1px solid #e0e0e0; border-radius: 8px; padding: 15px; margin: 20px 0;">
+      <p style="margin: 5px 0;"><strong>Provider:</strong> ${info.provider}</p>
+      <p style="margin: 5px 0;"><strong>Server:</strong> ${appUrl}</p>
+      <p style="margin: 5px 0;"><strong>Sent at:</strong> ${new Date().toISOString()}</p>
+    </div>
+  </div>
+  
+  <div style="text-align: center; padding: 20px; color: #999; font-size: 12px;">
+    <p>&copy; ${new Date().getFullYear()} Bootah - PXE Boot and OS Imaging Platform</p>
+  </div>
+</body>
+</html>
+      `.trim();
+
+      const sent = await emailService.sendEmail({
+        to: email,
+        subject,
+        text,
+        html,
+      });
+
+      if (sent) {
+        res.json({ 
+          success: true, 
+          message: info.provider === "console" 
+            ? "Test email logged to console (console mode active)"
+            : `Test email sent successfully to ${email}`,
+          provider: info.provider,
+        });
+      } else {
+        res.status(500).json({ 
+          success: false, 
+          message: "Failed to send test email. Check server logs for details.",
+          provider: info.provider,
+        });
+      }
+    } catch (error) {
+      console.error("[Auth] Test email error:", error);
+      res.status(500).json({ message: "Failed to send test email" });
+    }
+  });
 }
 
 export const isAuthenticatedLocal: RequestHandler = (req, res, next) => {
