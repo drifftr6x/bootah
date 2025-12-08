@@ -4,7 +4,8 @@ import { WebSocketServer, WebSocket } from "ws";
 import { storage, scheduler } from "./storage";
 import { TFTPServer, PXEHTTPServer, DHCPProxy } from "./pxe-server";
 import { imagingEngine } from "./imaging-engine";
-import { setupAuth, isAuthenticated } from "./replitAuth";
+import { setupAuth, isAuthenticated as isAuthenticatedReplit } from "./replitAuth";
+import { setupLocalAuth, isAuthenticatedLocal, getAuthMode } from "./authConfig";
 import { initializeRbacDefaults } from "./rbacSeed";
 import { requireRole, requirePermission, requireAnyPermission } from "./authMiddleware";
 import { maskSecret } from "./encryption";
@@ -49,14 +50,36 @@ export async function registerRoutes(app: Express): Promise<{
   httpServer: Server;
   cleanup: () => Promise<void>;
 }> {
-  // Setup Authentication - must be before other routes
-  await setupAuth(app);
+  // Determine auth mode and setup appropriate authentication
+  const authMode = getAuthMode();
+  console.log(`[Auth] Using authentication mode: ${authMode}`);
+  
+  if (authMode === "local") {
+    await setupLocalAuth(app);
+  } else {
+    await setupAuth(app);
+  }
+  
+  // Create unified isAuthenticated middleware
+  const isAuthenticated = authMode === "local" ? isAuthenticatedLocal : isAuthenticatedReplit;
   
   // Initialize RBAC defaults (roles, permissions, and first user assignment)
   try {
     await initializeRbacDefaults();
   } catch (error) {
     console.error("Failed to initialize RBAC defaults:", error);
+  }
+
+  // Auth config endpoint - returns auth mode for frontend
+  app.get('/api/auth/config', (req, res) => {
+    res.json({ authMode });
+  });
+
+  // Setup required endpoint for Replit mode (always returns false)
+  if (authMode === "replit") {
+    app.get('/api/auth/setup-required', (req, res) => {
+      res.json({ setupRequired: false });
+    });
   }
 
   // Auth endpoint for user info

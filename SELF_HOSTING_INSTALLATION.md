@@ -26,6 +26,8 @@ PORT=5000
 HOST=0.0.0.0
 DATABASE_URL=postgresql://bootah:bootah_secure_pass@postgres:5432/bootah
 SESSION_SECRET=$(openssl rand -base64 32)
+AUTH_MODE=local           # Use 'local' for username/password auth, 'replit' for OAuth
+ALLOW_REGISTRATION=true   # Allow new user registrations
 DEFAULT_USER_ROLE=admin
 PXE_SERVER_IP=192.168.1.50
 TFTP_PORT=6969
@@ -121,6 +123,8 @@ services:
       HOST: 0.0.0.0
       DATABASE_URL: postgresql://bootah:bootah_secure_pass@postgres:5432/bootah
       SESSION_SECRET: ${SESSION_SECRET}
+      AUTH_MODE: local              # Use 'local' for username/password, 'replit' for OAuth
+      ALLOW_REGISTRATION: "true"    # Allow new user registrations
       DEFAULT_USER_ROLE: admin
       PXE_SERVER_IP: 192.168.1.50
       TFTP_PORT: 6969
@@ -689,6 +693,98 @@ kubectl port-forward -n bootah svc/bootah-service 5000:5000
 
 ---
 
+## 🔐 Authentication Configuration
+
+Bootah supports two authentication modes for flexible deployment scenarios:
+
+### Authentication Modes
+
+| Mode | Use Case | Description |
+|------|----------|-------------|
+| `replit` | Cloud/Replit deployments | OAuth-based authentication using Replit identity |
+| `local` | Self-hosted/Air-gapped | Traditional username/password authentication |
+
+### Choosing Your Authentication Mode
+
+**Replit Mode (Default)** - Best for:
+- Deployments on Replit platform
+- Cloud environments with OAuth capabilities
+- Organizations using Replit for identity management
+
+**Local Mode** - Best for:
+- Self-hosted installations
+- Air-gapped networks without internet access
+- Organizations with existing user directories
+- Environments requiring local password management
+
+### Configuring Local Authentication
+
+To enable local authentication, set the `AUTH_MODE` environment variable:
+
+```env
+# .env file for local authentication
+AUTH_MODE=local
+
+# Required for local auth
+SESSION_SECRET=YOUR_SECURE_RANDOM_STRING_32_CHARS_MINIMUM
+
+# Optional: Allow new user registrations (default: true)
+ALLOW_REGISTRATION=true
+
+# Optional: Default role for new users (default: viewer)
+DEFAULT_USER_ROLE=viewer
+```
+
+### Initial Setup (Local Mode)
+
+When using local authentication for the first time:
+
+1. Start the application with `AUTH_MODE=local`
+2. Navigate to the web interface
+3. You'll be prompted to create the initial administrator account
+4. Enter username, email, and a strong password (12+ characters)
+5. The first user is automatically assigned the `admin` role
+
+### Password Policy (Local Mode)
+
+Local authentication enforces strong password requirements:
+
+- Minimum 12 characters
+- At least one uppercase letter (A-Z)
+- At least one lowercase letter (a-z)
+- At least one number (0-9)
+- At least one special character (!@#$%^&*...)
+- Cannot reuse the last 5 passwords
+- Passwords expire after 90 days (configurable)
+
+### Account Security Features (Local Mode)
+
+- **Account Lockout**: 5 failed login attempts = 30-minute lockout
+- **Login History**: All login attempts are logged with IP and timestamp
+- **Password Reset**: Self-service password reset via email token
+- **Session Management**: Secure session handling with configurable TTL
+
+### Environment Variables Reference
+
+```env
+# Authentication mode: 'replit' (default) or 'local'
+AUTH_MODE=local
+
+# Session secret (required for both modes)
+SESSION_SECRET=YOUR_SECURE_RANDOM_STRING_32_CHARS_MINIMUM
+
+# Allow new user self-registration (local mode only)
+ALLOW_REGISTRATION=true
+
+# Default role for new users: viewer, operator, or admin
+DEFAULT_USER_ROLE=viewer
+
+# Password expiry in days (local mode only, default: 90)
+PASSWORD_EXPIRY_DAYS=90
+```
+
+---
+
 ## 🔒 Production Hardening
 
 ### Security Checklist
@@ -718,7 +814,9 @@ HOST=0.0.0.0
 # Database - use strong password
 DATABASE_URL=postgresql://bootah:STRONG_PASSWORD_HERE@db-host:5432/bootah
 
-# Security - 32+ random characters
+# Authentication - see Authentication Configuration section
+AUTH_MODE=local                     # 'local' for self-hosted, 'replit' for cloud
+ALLOW_REGISTRATION=false            # Disable registration in production
 SESSION_SECRET=YOUR_SECURE_RANDOM_STRING_32_CHARS_MINIMUM
 
 # RBAC

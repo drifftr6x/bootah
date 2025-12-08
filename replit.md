@@ -19,6 +19,19 @@ Bootah is a modern, lightweight PXE server and OS imaging platform designed for 
 
 ## Recent Changes
 
+### Dual Authentication System (December 8, 2025)
+- **Local Authentication Mode**: Added complete username/password authentication for self-hosted deployments
+  - `AUTH_MODE` environment variable toggles between 'replit' (OAuth) and 'local' (password)
+  - Full password management: bcrypt hashing, password history, expiry, complexity validation
+  - Account security: 5-attempt lockout (30 minutes), login history tracking
+  - Password reset: Token-based reset system with one-time codes
+  - Initial setup wizard: Creates first admin account on fresh installations
+- **UI Pages**: Created login, register, forgot-password, reset-password, and setup pages
+- **Password Policy**: 12+ chars, uppercase, lowercase, numbers, special characters, no reuse of last 5
+- **Files**: `server/authConfig.ts`, `server/localAuth.ts`, `client/src/pages/login.tsx`, `client/src/pages/register.tsx`, `client/src/pages/setup.tsx`
+- **Environment Variables**: `AUTH_MODE`, `ALLOW_REGISTRATION`, `SESSION_SECRET`
+- **Status**: Production-ready for self-hosted/air-gapped deployments
+
 ### Wake-on-LAN & Zero-Touch Deployment (December 4, 2025)
 - **Wake-on-LAN (WoL)**: Send magic packets to remotely power on devices
   - New endpoint: `POST /api/devices/:id/wake` sends standard WoL magic packet

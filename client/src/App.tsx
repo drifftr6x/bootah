@@ -1,6 +1,6 @@
-import { Switch, Route } from "wouter";
+import { Switch, Route, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
-import { QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useWebSocket } from "@/hooks/useWebSocket";
@@ -8,6 +8,11 @@ import { useAuth } from "@/hooks/useAuth";
 import Sidebar from "@/components/layout/sidebar";
 import Dashboard from "@/pages/dashboard";
 import Landing from "@/pages/landing";
+import Login from "@/pages/login";
+import Register from "@/pages/register";
+import ForgotPassword from "@/pages/forgot-password";
+import ResetPassword from "@/pages/reset-password";
+import Setup from "@/pages/setup";
 import Devices from "@/pages/devices";
 import Images from "@/pages/images";
 import Capture from "@/pages/capture";
@@ -36,10 +41,19 @@ import ApiDocumentation from "@/pages/api-documentation";
 import Analytics from "@/pages/analytics";
 
 function AuthenticatedApp() {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, authMode } = useAuth();
   const { isConnected } = useWebSocket();
+  const [location] = useLocation();
 
-  // Show loading state while checking auth
+  const publicAuthPaths = ['/login', '/register', '/forgot-password', '/reset-password', '/setup'];
+  const isPublicAuthPath = publicAuthPaths.some(path => location.startsWith(path));
+
+  const { data: setupStatus } = useQuery<{ setupRequired: boolean }>({
+    queryKey: ["/api/auth/setup-required"],
+    enabled: authMode === "local",
+    retry: false,
+  });
+
   if (isLoading) {
     return (
       <div className="flex h-screen items-center justify-center bg-background">
@@ -51,17 +65,30 @@ function AuthenticatedApp() {
     );
   }
 
-  // Show landing page if not authenticated
-  if (!isAuthenticated) {
-    return <Landing />;
+  if (authMode === "local" && setupStatus?.setupRequired && location !== "/setup") {
+    return <Setup />;
   }
 
-  // Show main app if authenticated
+  if (isPublicAuthPath && authMode === "local") {
+    return (
+      <Switch>
+        <Route path="/login" component={Login} />
+        <Route path="/register" component={Register} />
+        <Route path="/forgot-password" component={ForgotPassword} />
+        <Route path="/reset-password" component={ResetPassword} />
+        <Route path="/setup" component={Setup} />
+      </Switch>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return authMode === "local" ? <Login /> : <Landing />;
+  }
+
   return (
     <div className="flex h-screen overflow-hidden bg-background">
       <Sidebar />
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* WebSocket status indicator */}
         {!isConnected && (
           <div className="bg-orange-500 text-white text-center py-1 text-sm">
             Reconnecting to real-time updates...
