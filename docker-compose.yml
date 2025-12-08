@@ -1,29 +1,65 @@
 version: '3.8'
+
 services:
-  bootah:
-    build: .
-    container_name: bootah
-    network_mode: host
+  postgres:
+    image: postgres:15-alpine
+    container_name: bootah-postgres
     environment:
-      - BOOTAH_HTTP_PORT=8080
-      - BOOTAH_WEB_ROOT=/app/webui
-      - BOOTAH_DB_PATH=/app/data/bootah.db
-      - BOOTAH_IMAGES_DIR=/app/data/images
-      - BOOTAH_JWT_SECRET=change-me
-      # Storage: local (default) or s3
-      # - BOOTAH_STORAGE=s3
-      # - BOOTAH_S3_ENDPOINT=play.min.io:9000
-      # - BOOTAH_S3_BUCKET=bootah
-      # - BOOTAH_S3_ACCESS_KEY=...
-      # - BOOTAH_S3_SECRET_KEY=...
-      # - BOOTAH_S3_REGION=us-east-1
-      # - BOOTAH_S3_USE_SSL=true
-      # OIDC (optional)
-      # - BOOTAH_OIDC_ISSUER=https://accounts.google.com
-      # - BOOTAH_OIDC_CLIENT_ID=...
-      # - BOOTAH_OIDC_CLIENT_SECRET=...
-      # - BOOTAH_OIDC_REDIRECT_URL=http://localhost:8080/api/auth/oidc/callback
+      POSTGRES_USER: bootah
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-bootah_secure_pass}
+      POSTGRES_DB: bootah
     volumes:
-      - ./data:/app/data
-      - ./webui:/app/webui:ro
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bootah -d bootah"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     restart: unless-stopped
+
+  bootah:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: bootah-app
+    environment:
+      NODE_ENV: production
+      PORT: "5000"
+      HOST: "0.0.0.0"
+      DATABASE_URL: postgresql://bootah:${POSTGRES_PASSWORD:-bootah_secure_pass}@postgres:5432/bootah
+      SESSION_SECRET: ${SESSION_SECRET}
+      # Authentication: 'local' for username/password, 'replit' for OAuth
+      AUTH_MODE: ${AUTH_MODE:-local}
+      # Allow new user self-registration (local mode only)
+      ALLOW_REGISTRATION: ${ALLOW_REGISTRATION:-true}
+      # Default role for new users: viewer, operator, or admin
+      DEFAULT_USER_ROLE: ${DEFAULT_USER_ROLE:-viewer}
+      # PXE Configuration
+      PXE_SERVER_IP: ${PXE_SERVER_IP:-192.168.1.50}
+      TFTP_PORT: "6969"
+      DHCP_PORT: "4067"
+      # Image storage path
+      IMAGE_STORAGE_PATH: /app/images
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "5000:5000"       # HTTP/Web UI
+      - "6969:6969/udp"   # TFTP
+      - "4067:4067/udp"   # DHCP Proxy
+    volumes:
+      - bootah_images:/app/images
+      - bootah_logs:/app/logs
+      - ./pxe-files:/app/pxe-files:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:5000/api/server-status"]
+      interval: 30s
+      timeout: 10s
+      start_period: 30s
+      retries: 3
+
+volumes:
+  postgres_data:
+  bootah_images:
+  bootah_logs:

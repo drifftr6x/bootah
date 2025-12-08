@@ -1,20 +1,55 @@
 # Build stage
-FROM golang:1.22 AS build
-WORKDIR /src
-COPY src/server /src
-RUN --mount=type=cache,target=/go/pkg/mod \
-    --mount=type=cache,target=/root/.cache/go-build \
-    go mod download && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/bootah-server .
+FROM node:20-alpine AS builder
 
-# Runtime
-FROM gcr.io/distroless/base-debian12
 WORKDIR /app
-COPY --from=build /out/bootah-server /app/bootah-server
-COPY webui /app/webui
-VOLUME ["/app/data"]
-ENV BOOTAH_WEB_ROOT=/app/webui
-ENV BOOTAH_DB_PATH=/app/data/bootah.db
-ENV BOOTAH_IMAGES_DIR=/app/data/images
-EXPOSE 8080
-USER nonroot:nonroot
-ENTRYPOINT ["/app/bootah-server"]
+
+# Copy package files
+COPY package*.json ./
+
+# Install dependencies
+RUN npm ci
+
+# Copy source code
+COPY . .
+
+# Build the application
+RUN npm run build
+
+# Production stage
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Install dumb-init for proper signal handling
+RUN apk add --no-cache dumb-init
+
+# Copy built application
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/package*.json ./
+COPY --from=builder /app/migrations ./migrations
+COPY --from=builder /app/drizzle.config.ts ./
+
+# Copy PXE files if they exist
+COPY --from=builder /app/pxe-files ./pxe-files
+
+# Create non-root user
+RUN addgroup -g 1000 bootah && \
+    adduser -D -u 1000 -G bootah bootah && \
+    mkdir -p /app/images /app/logs /app/data && \
+    chown -R bootah:bootah /app
+
+USER bootah
+
+# Expose ports
+# 5000 - HTTP/Web UI
+# 6969 - TFTP (UDP)
+# 4067 - DHCP Proxy (UDP)
+EXPOSE 5000 6969/udp 4067/udp
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:5000/api/server-status || exit 1
+
+ENTRYPOINT ["/usr/bin/dumb-init", "--"]
+CMD ["node", "dist/index.js"]
