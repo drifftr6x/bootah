@@ -761,8 +761,66 @@ Local authentication enforces strong password requirements:
 
 - **Account Lockout**: 5 failed login attempts = 30-minute lockout
 - **Login History**: All login attempts are logged with IP and timestamp
-- **Password Reset**: Self-service password reset via email token
+- **Password Reset**: Self-service password reset via email
 - **Session Management**: Secure session handling with configurable TTL
+
+### Email Configuration (for Password Reset)
+
+Bootah supports three email providers for sending password reset emails:
+
+| Provider | Use Case | Configuration |
+|----------|----------|---------------|
+| `console` | Development/Testing | Emails logged to console (default) |
+| `smtp` | Self-hosted SMTP server | Configure SMTP settings |
+| `sendgrid` | SendGrid cloud service | Provide API key |
+
+#### Console Mode (Default)
+In console mode, password reset emails are logged to the server console. Use this for development or when email isn't needed.
+
+```env
+EMAIL_PROVIDER=console
+```
+
+#### SMTP Configuration
+For organizations with their own mail server:
+
+```env
+EMAIL_PROVIDER=smtp
+EMAIL_FROM=Bootah <noreply@yourdomain.com>
+SMTP_HOST=smtp.yourdomain.com
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USER=your-smtp-username
+SMTP_PASS=your-smtp-password
+APP_URL=https://bootah.yourdomain.com
+```
+
+#### SendGrid Configuration
+For cloud-based email delivery:
+
+```env
+EMAIL_PROVIDER=sendgrid
+EMAIL_FROM=Bootah <noreply@yourdomain.com>
+SENDGRID_API_KEY=SG.your-api-key-here
+APP_URL=https://bootah.yourdomain.com
+```
+
+#### Gmail SMTP Example
+To use Gmail as your SMTP provider:
+
+1. Enable 2-factor authentication on your Google account
+2. Generate an App Password at https://myaccount.google.com/apppasswords
+3. Configure:
+
+```env
+EMAIL_PROVIDER=smtp
+EMAIL_FROM=Your Name <your-email@gmail.com>
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USER=your-email@gmail.com
+SMTP_PASS=your-16-char-app-password
+```
 
 ### Environment Variables Reference
 
@@ -781,6 +839,25 @@ DEFAULT_USER_ROLE=viewer
 
 # Password expiry in days (local mode only, default: 90)
 PASSWORD_EXPIRY_DAYS=90
+
+# Email provider: 'console' (default), 'smtp', or 'sendgrid'
+EMAIL_PROVIDER=smtp
+
+# Email sender address
+EMAIL_FROM=Bootah <noreply@yourdomain.com>
+
+# Application URL for email links
+APP_URL=https://bootah.yourdomain.com
+
+# SMTP settings (when EMAIL_PROVIDER=smtp)
+SMTP_HOST=smtp.yourdomain.com
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USER=username
+SMTP_PASS=password
+
+# SendGrid API key (when EMAIL_PROVIDER=sendgrid)
+# SENDGRID_API_KEY=SG.your-api-key
 ```
 
 ---

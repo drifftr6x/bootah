@@ -9,6 +9,7 @@ import { authenticateUser, hashPassword, validatePassword, createPasswordResetTo
 import { db } from "./db";
 import { users, roles, userRoles } from "../shared/schema";
 import { eq, sql } from "drizzle-orm";
+import { emailService } from "./emailService";
 
 export type AuthMode = "replit" | "local";
 
@@ -307,15 +308,31 @@ export async function setupLocalAuth(app: Express) {
       const resetData = await createPasswordResetToken(user.id, null, ipAddress);
 
       console.log(`[Auth] Password reset token generated for user: ${user.email}`);
-      console.log(`[Auth] Reset token (for local testing): ${resetData.token}`);
-      console.log(`[Auth] One-time code: ${resetData.oneTimeCode}`);
 
-      res.json({ 
+      const appUrl = process.env.APP_URL || `${req.protocol}://${req.get("host")}`;
+      const emailSent = await emailService.sendPasswordResetEmail(
+        user.email || email,
+        resetData.token,
+        resetData.oneTimeCode,
+        appUrl
+      );
+
+      if (!emailSent) {
+        console.error("[Auth] Failed to send password reset email");
+      }
+
+      const response: any = { 
         success: true, 
         message: "If an account exists with that email, a reset link has been sent.",
-        token: process.env.NODE_ENV === "development" ? resetData.token : undefined,
-        oneTimeCode: process.env.NODE_ENV === "development" ? resetData.oneTimeCode : undefined,
-      });
+      };
+
+      if (process.env.NODE_ENV === "development") {
+        response.token = resetData.token;
+        response.oneTimeCode = resetData.oneTimeCode;
+        response.note = "Token shown in development mode only";
+      }
+
+      res.json(response);
     } catch (error) {
       console.error("[Auth] Forgot password error:", error);
       res.status(500).json({ message: "Failed to process request" });
@@ -380,6 +397,19 @@ export async function setupLocalAuth(app: Express) {
       requireNumbers: true,
       requireSpecialChars: true,
       expiryDays: 90,
+    });
+  });
+
+  app.get("/api/auth/email-status", (req, res) => {
+    const info = emailService.getProviderInfo();
+    res.json({
+      provider: info.provider,
+      configured: info.configured,
+      message: info.provider === "console" 
+        ? "Email is in console mode - emails are logged but not sent"
+        : info.configured 
+          ? `Email configured via ${info.provider.toUpperCase()}`
+          : `Email provider ${info.provider} is not fully configured`,
     });
   });
 }

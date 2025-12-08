@@ -40,6 +40,16 @@ services:
       DHCP_PORT: "4067"
       # Image storage path
       IMAGE_STORAGE_PATH: /app/images
+      # Email Configuration (for password reset)
+      EMAIL_PROVIDER: ${EMAIL_PROVIDER:-console}
+      EMAIL_FROM: ${EMAIL_FROM:-Bootah <noreply@bootah.local>}
+      APP_URL: ${APP_URL:-}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SENDGRID_API_KEY: ${SENDGRID_API_KEY:-}
     depends_on:
       postgres:
         condition: service_healthy
