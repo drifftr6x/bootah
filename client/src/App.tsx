@@ -39,6 +39,7 @@ import CustomScriptsPage from "@/pages/CustomScriptsPage";
 import PostDeploymentProfilesPage from "@/pages/PostDeploymentProfilesPage";
 import ApiDocumentation from "@/pages/api-documentation";
 import Analytics from "@/pages/analytics";
+import WebhooksPage from "@/pages/webhooks";
 
 function AuthenticatedApp() {
   const { isAuthenticated, isLoading, authMode } = useAuth();
@@ -122,6 +123,7 @@ function AuthenticatedApp() {
           <Route path="/post-deployment-profiles" component={PostDeploymentProfilesPage} />
           <Route path="/api-documentation" component={ApiDocumentation} />
           <Route path="/analytics" component={Analytics} />
+          <Route path="/webhooks" component={WebhooksPage} />
           <Route component={NotFound} />
         </Switch>
       </div>

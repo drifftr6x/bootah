@@ -31,6 +31,7 @@ import {
   FileCode,
   Layers,
   BookOpen,
+  Webhook,
 } from "lucide-react";
 
 const navigationGroups = [
@@ -83,6 +84,7 @@ const navigationGroups = [
       { name: "Security", href: "/security", icon: Shield },
       { name: "Users", href: "/users", icon: Users },
       { name: "Configuration", href: "/configuration", icon: Settings },
+      { name: "Webhooks", href: "/webhooks", icon: Webhook },
       { name: "Logs", href: "/logs", icon: FileText },
       { name: "API Documentation", href: "/api-documentation", icon: BookOpen },
       { name: "Help", href: "/help", icon: HelpCircle },

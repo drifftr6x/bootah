@@ -4,11 +4,12 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { Device } from "@shared/schema";
-import { Plus, Search, Monitor, Trash2, Download, Network, Power } from "lucide-react";
+import { Plus, Search, Monitor, Trash2, Download, Network, Power, X, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import AddDeviceDialog from "@/components/dialogs/add-device-dialog";
 import StartDeploymentDialog from "@/components/dialogs/start-deployment-dialog";
@@ -39,8 +40,62 @@ export default function Devices() {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [deviceToDelete, setDeviceToDelete] = useState<Device | null>(null);
   const [wolDeviceId, setWolDeviceId] = useState<string | null>(null);
+  const [selectedDevices, setSelectedDevices] = useState<Set<string>>(new Set());
+  const [showBulkDeleteDialog, setShowBulkDeleteDialog] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  const toggleDeviceSelection = (deviceId: string) => {
+    setSelectedDevices(prev => {
+      const next = new Set(prev);
+      if (next.has(deviceId)) {
+        next.delete(deviceId);
+      } else {
+        next.add(deviceId);
+      }
+      return next;
+    });
+  };
+
+  const selectAllDevices = () => {
+    if (filteredDevices.length === selectedDevices.size) {
+      setSelectedDevices(new Set());
+    } else {
+      setSelectedDevices(new Set(filteredDevices.map(d => d.id)));
+    }
+  };
+
+  const clearSelection = () => setSelectedDevices(new Set());
+
+  const bulkOperationMutation = useMutation({
+    mutationFn: async ({ operationType, deviceIds }: { operationType: string; deviceIds: string[] }) => {
+      return apiRequest("POST", "/api/bulk-operations", { operationType, deviceIds });
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/devices"] });
+      clearSelection();
+      toast({
+        title: "Bulk Operation Started",
+        description: `${variables.operationType} operation started for ${variables.deviceIds.length} device(s).`,
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to start bulk operation.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleBulkWake = () => {
+    bulkOperationMutation.mutate({ operationType: "wake", deviceIds: Array.from(selectedDevices) });
+  };
+
+  const handleBulkDelete = () => {
+    bulkOperationMutation.mutate({ operationType: "delete", deviceIds: Array.from(selectedDevices) });
+    setShowBulkDeleteDialog(false);
+  };
 
   const exportDevices = () => {
     if (!devices || devices.length === 0) {
@@ -223,7 +278,19 @@ export default function Devices() {
         {/* Advanced Search and Actions */}
         <div className="space-y-4 mb-6">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold">Device Management</h2>
+            <div className="flex items-center gap-3">
+              <h2 className="text-lg font-semibold">Device Management</h2>
+              {filteredDevices.length > 0 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={selectAllDevices}
+                  data-testid="button-select-all"
+                >
+                  {selectedDevices.size === filteredDevices.length ? "Deselect All" : "Select All"}
+                </Button>
+              )}
+            </div>
             <div className="flex gap-2">
               <Button 
                 variant="outline"
@@ -252,6 +319,42 @@ export default function Devices() {
             onFilterChange={setActiveFilters}
             placeholder="Search devices by name, MAC, IP, manufacturer..."
           />
+
+          {selectedDevices.size > 0 && (
+            <div className="flex items-center justify-between bg-muted/50 border rounded-lg p-3" data-testid="bulk-actions-toolbar">
+              <div className="flex items-center gap-3">
+                <span className="text-sm font-medium" data-testid="text-selected-count">
+                  {selectedDevices.size} device(s) selected
+                </span>
+                <Button variant="ghost" size="sm" onClick={clearSelection} data-testid="button-clear-selection">
+                  <X className="h-4 w-4 mr-1" />
+                  Clear
+                </Button>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={handleBulkWake}
+                  disabled={bulkOperationMutation.isPending}
+                  data-testid="button-bulk-wake"
+                >
+                  {bulkOperationMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Power className="h-4 w-4 mr-1" />}
+                  Wake All
+                </Button>
+                <Button 
+                  variant="destructive" 
+                  size="sm" 
+                  onClick={() => setShowBulkDeleteDialog(true)}
+                  disabled={bulkOperationMutation.isPending}
+                  data-testid="button-bulk-delete"
+                >
+                  <Trash2 className="h-4 w-4 mr-1" />
+                  Delete All
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Devices Grid */}
@@ -278,12 +381,19 @@ export default function Devices() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredDevices.map((device) => (
-              <Card key={device.id} className="hover:shadow-lg transition-shadow">
+              <Card key={device.id} className={cn("hover:shadow-lg transition-shadow", selectedDevices.has(device.id) && "ring-2 ring-primary")}>
                 <CardHeader className="p-4 pb-2">
                   <div className="flex items-center justify-between">
-                    <h3 className="font-semibold text-foreground" data-testid={`text-device-name-${device.id}`}>
-                      {device.name}
-                    </h3>
+                    <div className="flex items-center gap-2">
+                      <Checkbox
+                        checked={selectedDevices.has(device.id)}
+                        onCheckedChange={() => toggleDeviceSelection(device.id)}
+                        data-testid={`checkbox-device-${device.id}`}
+                      />
+                      <h3 className="font-semibold text-foreground" data-testid={`text-device-name-${device.id}`}>
+                        {device.name}
+                      </h3>
+                    </div>
                     <Badge 
                       variant="outline" 
                       className={getStatusColor(device.status)}
@@ -405,6 +515,18 @@ export default function Devices() {
           title="Delete Device"
           description={`Are you sure you want to delete "${deviceToDelete?.name}"? This action cannot be undone.`}
           confirmText="Delete"
+          cancelText="Cancel"
+          variant="destructive"
+        />
+
+        {/* Bulk Delete Confirmation Dialog */}
+        <ConfirmDialog
+          open={showBulkDeleteDialog}
+          onOpenChange={setShowBulkDeleteDialog}
+          onConfirm={handleBulkDelete}
+          title="Delete Multiple Devices"
+          description={`Are you sure you want to delete ${selectedDevices.size} device(s)? This action cannot be undone.`}
+          confirmText="Delete All"
           cancelText="Cancel"
           variant="destructive"
         />

@@ -12,6 +12,7 @@ import { maskSecret } from "./encryption";
 import { PostDeploymentExecutor } from "./post-deployment-executor";
 import { DeploymentSimulator } from "./deploymentSimulator";
 import { NetworkScanner } from "./network-scanner";
+import { triggerWebhook, webhookEvents } from "./webhookService";
 import { pxeTrafficSniffer } from "./pxe-traffic-sniffer";
 import { 
   insertDeviceSchema, 
@@ -677,6 +678,15 @@ export async function registerRoutes(app: Express): Promise<{
             deviceId: device.id,
             deploymentId: deployment.id,
           });
+          
+          triggerWebhook(webhookEvents.DEPLOYMENT_STARTED, {
+            deploymentId: deployment.id,
+            deviceId: device.id,
+            deviceName: device.name,
+            deviceMac: device.macAddress,
+            imageId: image.id,
+            imageName: image.name,
+          });
         }
       } else {
         // Log scheduled deployment creation
@@ -735,6 +745,16 @@ export async function registerRoutes(app: Express): Promise<{
                   deviceId: device.id,
                   deploymentId: deployment.id,
                 });
+                
+                triggerWebhook(webhookEvents.DEPLOYMENT_COMPLETED, {
+                  deploymentId: deployment.id,
+                  deviceId: device.id,
+                  deviceName: device.name,
+                  deviceMac: device.macAddress,
+                  imageId: image.id,
+                  imageName: image.name,
+                  withPostDeployment: true,
+                });
               }
               
               console.log(`[Deployment] Post-deployment automation completed for deployment ${deployment.id}`);
@@ -758,6 +778,17 @@ export async function registerRoutes(app: Express): Promise<{
                   deviceId: device.id,
                   deploymentId: deployment.id,
                 });
+                
+                const img = await storage.getImage(deployment.imageId);
+                triggerWebhook(webhookEvents.DEPLOYMENT_FAILED, {
+                  deploymentId: deployment.id,
+                  deviceId: device.id,
+                  deviceName: device.name,
+                  deviceMac: device.macAddress,
+                  imageId: deployment.imageId,
+                  imageName: img?.name,
+                  error: `Post-deployment automation failed: ${error.message}`,
+                });
               }
             });
           
@@ -777,6 +808,16 @@ export async function registerRoutes(app: Express): Promise<{
               deviceId: device.id,
               deploymentId: deployment.id,
             });
+            
+            triggerWebhook(webhookEvents.DEPLOYMENT_COMPLETED, {
+              deploymentId: deployment.id,
+              deviceId: device.id,
+              deviceName: device.name,
+              deviceMac: device.macAddress,
+              imageId: image.id,
+              imageName: image.name,
+              withPostDeployment: false,
+            });
           }
         }
       } else if (deployment.status === "failed") {
@@ -790,6 +831,17 @@ export async function registerRoutes(app: Express): Promise<{
             message: `${device.name} deployment failed: ${deployment.errorMessage || "Unknown error"}`,
             deviceId: device.id,
             deploymentId: deployment.id,
+          });
+          
+          const img = await storage.getImage(deployment.imageId);
+          triggerWebhook(webhookEvents.DEPLOYMENT_FAILED, {
+            deploymentId: deployment.id,
+            deviceId: device.id,
+            deviceName: device.name,
+            deviceMac: device.macAddress,
+            imageId: deployment.imageId,
+            imageName: img?.name,
+            error: deployment.errorMessage || "Unknown error",
           });
         }
       }
@@ -3536,7 +3588,8 @@ export async function registerRoutes(app: Express): Promise<{
   });
 
   // Webhook Subscriptions API
-  app.get("/api/webhooks", isAuthenticated, requirePermission("configuration", "read"), async (req, res) => {
+  // Note: Using "templates" permissions since webhooks are automation configuration that operators manage
+  app.get("/api/webhooks", isAuthenticated, requirePermission("templates", "read"), async (req, res) => {
     try {
       const subscriptions = await storage.getWebhookSubscriptions();
       res.json(subscriptions);
@@ -3545,7 +3598,7 @@ export async function registerRoutes(app: Express): Promise<{
     }
   });
 
-  app.get("/api/webhooks/:id", isAuthenticated, requirePermission("configuration", "read"), async (req, res) => {
+  app.get("/api/webhooks/:id", isAuthenticated, requirePermission("templates", "read"), async (req, res) => {
     try {
       const subscription = await storage.getWebhookSubscription(req.params.id);
       if (!subscription) {
@@ -3557,17 +3610,30 @@ export async function registerRoutes(app: Express): Promise<{
     }
   });
 
-  app.post("/api/webhooks", isAuthenticated, requirePermission("configuration", "create"), async (req, res) => {
+  app.post("/api/webhooks", isAuthenticated, requirePermission("templates", "create"), async (req: any, res) => {
     try {
-      const data = insertWebhookSubscriptionSchema.parse(req.body);
+      // Transform empty strings to null for optional fields
+      // Add createdBy from authenticated user
+      const body = {
+        name: req.body.name,
+        url: req.body.url,
+        events: req.body.events,
+        description: req.body.description || null,
+        secret: req.body.secret || null,
+        headers: Object.keys(req.body.headers || {}).length > 0 ? req.body.headers : null,
+        isEnabled: req.body.isEnabled ?? true,
+        createdBy: req.user?.claims?.sub || null,
+      };
+      const data = insertWebhookSubscriptionSchema.parse(body);
       const subscription = await storage.createWebhookSubscription(data);
       res.status(201).json(subscription);
-    } catch (error) {
-      res.status(400).json({ message: "Invalid webhook subscription data" });
+    } catch (error: any) {
+      console.error("[Webhook Create] Validation error:", error?.issues || error?.message || error);
+      res.status(400).json({ message: "Invalid webhook subscription data", details: error?.issues });
     }
   });
 
-  app.put("/api/webhooks/:id", isAuthenticated, requirePermission("configuration", "update"), async (req, res) => {
+  app.put("/api/webhooks/:id", isAuthenticated, requirePermission("templates", "update"), async (req, res) => {
     try {
       const data = insertWebhookSubscriptionSchema.partial().parse(req.body);
       const subscription = await storage.updateWebhookSubscription(req.params.id, data);
@@ -3580,7 +3646,7 @@ export async function registerRoutes(app: Express): Promise<{
     }
   });
 
-  app.delete("/api/webhooks/:id", isAuthenticated, requirePermission("configuration", "delete"), async (req, res) => {
+  app.delete("/api/webhooks/:id", isAuthenticated, requirePermission("templates", "delete"), async (req, res) => {
     try {
       const deleted = await storage.deleteWebhookSubscription(req.params.id);
       if (!deleted) {
@@ -3592,7 +3658,7 @@ export async function registerRoutes(app: Express): Promise<{
     }
   });
 
-  app.post("/api/webhooks/:id/test", isAuthenticated, requirePermission("configuration", "update"), async (req, res) => {
+  app.post("/api/webhooks/:id/test", isAuthenticated, requirePermission("templates", "update"), async (req, res) => {
     try {
       const subscription = await storage.getWebhookSubscription(req.params.id);
       if (!subscription) {
@@ -3668,7 +3734,7 @@ export async function registerRoutes(app: Express): Promise<{
     }
   });
 
-  app.get("/api/webhooks/:id/deliveries", isAuthenticated, requirePermission("configuration", "read"), async (req, res) => {
+  app.get("/api/webhooks/:id/deliveries", isAuthenticated, requirePermission("templates", "read"), async (req, res) => {
     try {
       const limit = parseInt(req.query.limit as string) || 50;
       const deliveries = await storage.getWebhookDeliveries(req.params.id, limit);
@@ -3700,7 +3766,7 @@ export async function registerRoutes(app: Express): Promise<{
     }
   });
 
-  app.post("/api/bulk-operations", isAuthenticated, requirePermission("devices", "write"), async (req, res) => {
+  app.post("/api/bulk-operations", isAuthenticated, requirePermission("devices", "delete"), async (req, res) => {
     try {
       const { operationType, deviceIds, parameters } = req.body;
       
