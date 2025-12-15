@@ -44,6 +44,21 @@ This script will:
 - Configure the firewall
 - Start Bootah automatically
 
+### One-Line Proxmox LXC Install
+
+```bash
+# Inside your Proxmox LXC container:
+curl -sSL https://raw.githubusercontent.com/yourusername/bootah/main/scripts/install-proxmox.sh | bash
+```
+
+This script will:
+- Detect if running inside LXC container
+- Install Node.js 20 and PostgreSQL (or use external DB)
+- Configure for standard or alternative ports
+- Create systemd service or init script (works with/without systemd)
+- Provide network configuration guidance for PXE
+- Start Bootah automatically
+
 ### Configuration Wizard
 
 After installation, use the configuration wizard to modify settings:

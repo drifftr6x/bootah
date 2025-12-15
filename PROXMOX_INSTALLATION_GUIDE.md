@@ -1,5 +1,28 @@
 # Bootah - Complete Proxmox Installation Guide
 
+## 🚀 Quick Start - Automated Installation
+
+The fastest way to install Bootah in a Proxmox LXC container:
+
+```bash
+# 1. Create Ubuntu 24.04 LXC container in Proxmox (see Part 1 below)
+# 2. Enter the container
+pct enter <CTID>
+
+# 3. Run the automated installer
+curl -sSL https://raw.githubusercontent.com/yourusername/bootah/main/scripts/install-proxmox.sh | bash
+```
+
+The script will:
+- Detect if running inside LXC container
+- Install Node.js 20 and PostgreSQL
+- Prompt for configuration (IP, ports, email)
+- Build and deploy the application
+- Create systemd service (or init script)
+- Start Bootah automatically
+
+---
+
 ## 📖 Table of Contents
 
 1. [Architecture Overview](#architecture-overview)

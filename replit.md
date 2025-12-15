@@ -33,6 +33,7 @@ Bootah is a modern, lightweight PXE server and OS imaging platform designed for 
 - **Installation Scripts**: Automated deployment scripts
   - `scripts/install-docker.sh` - One-line Docker deployment
   - `scripts/install-linux.sh` - Ubuntu/Debian bare metal install
+  - `scripts/install-proxmox.sh` - Proxmox LXC container install
   - `scripts/configure.sh` - Interactive configuration wizard
 - **UI Pages**: Created login, register, forgot-password, reset-password, and setup pages
 - **Password Policy**: 12+ chars, uppercase, lowercase, numbers, special characters, no reuse of last 5
