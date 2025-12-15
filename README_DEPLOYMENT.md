@@ -8,15 +8,8 @@ Welcome to Bootah! This guide helps you get started with deploying the PXE boot 
 Best for: Most users, development, small to medium deployments
 
 ```bash
-git clone https://github.com/yourusername/bootah.git && cd bootah
-cat > .env << 'EOF'
-NODE_ENV=production
-PORT=5000
-HOST=0.0.0.0
-DATABASE_URL=postgresql://bootah:bootah@postgres:5432/bootah
-SESSION_SECRET=$(openssl rand -base64 32)
-EOF
-docker-compose up -d
+# One-line automated install:
+curl -sSL https://raw.githubusercontent.com/yourusername/bootah/main/scripts/install-docker.sh | bash
 ```
 
 **Access**: http://localhost:5000
@@ -28,12 +21,17 @@ docker-compose up -d
 ### 2. **Linux Bare Metal** (Ubuntu/Debian)
 Best for: Production environments, high performance, custom control
 
+```bash
+# One-line automated install:
+curl -sSL https://raw.githubusercontent.com/yourusername/bootah/main/scripts/install-linux.sh | sudo bash
+```
+
 **Requirements**:
 - Ubuntu 22.04 LTS or Debian 12
 - 2GB+ RAM, 2+ CPU cores
 - Root or sudo access
 
-**Time**: ~20 minutes
+**Time**: ~15 minutes
 
 **See also**: [SELF_HOSTING_INSTALLATION.md - Linux Section](#linux-bare-metal-installation)
 
@@ -42,12 +40,17 @@ Best for: Production environments, high performance, custom control
 ### 3. **Proxmox LXC Container**
 Best for: Proxmox environments, laboratory setups, resource efficiency
 
+```bash
+# Inside your LXC container:
+curl -sSL https://raw.githubusercontent.com/yourusername/bootah/main/scripts/install-proxmox.sh | bash
+```
+
 **Requirements**:
 - Proxmox VE 8.x
 - Ubuntu 24.04 LTS template
 - Network bridge configured
 
-**Time**: ~30 minutes
+**Time**: ~20 minutes
 
 **See also**: [PROXMOX_INSTALLATION_GUIDE.md](PROXMOX_INSTALLATION_GUIDE.md)
 

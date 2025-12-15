@@ -1,4 +1,4 @@
-# Bootah64x Quick Start Guide
+# Bootah Quick Start Guide
 
 Fast-track installation for both Replit cloud and local server deployments.
 
@@ -30,11 +30,35 @@ DEFAULT_USER_ROLE=viewer  # or operator, or admin
 
 ---
 
-## 🖥️ Local Server Installation
+## 🖥️ One-Line Installers (Self-Hosted)
+
+Choose your deployment method:
+
+### Docker (Recommended - 5 minutes) ⭐
+```bash
+curl -sSL https://raw.githubusercontent.com/yourusername/bootah/main/scripts/install-docker.sh | bash
+```
+
+### Linux Bare Metal (15 minutes)
+```bash
+curl -sSL https://raw.githubusercontent.com/yourusername/bootah/main/scripts/install-linux.sh | sudo bash
+```
+
+### Proxmox LXC Container (20 minutes)
+```bash
+# Run inside your Proxmox LXC container:
+curl -sSL https://raw.githubusercontent.com/yourusername/bootah/main/scripts/install-proxmox.sh | bash
+```
+
+All scripts are interactive and will prompt for configuration (IP address, ports, email settings).
+
+---
+
+## 🖥️ Manual Server Installation
 
 **Requirements:** Ubuntu 22.04 LTS, sudo access, 8GB RAM, static IP
 
-### One-Command Install Script
+### Manual Install Script
 
 Save this as `install.sh` and run with `sudo bash install.sh`:
 

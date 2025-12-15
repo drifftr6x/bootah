@@ -20,11 +20,24 @@ This guide provides step-by-step instructions to install and run Bootah as a sta
 | Method | Difficulty | Setup Time | Best For | Requirements |
 |--------|-----------|-----------|---------|--------------|
 | **Docker** ⭐ | Easy | 5 min | Most users, development | Docker, Docker Compose |
-| **Linux** | Medium | 20 min | Production, single host | Ubuntu 22.04/Debian 12 |
-| **Proxmox LXC** | Advanced | 30 min | Proxmox environments | Proxmox VE 8.x |
+| **Linux** | Medium | 15 min | Production, single host | Ubuntu 22.04/Debian 12 |
+| **Proxmox LXC** | Medium | 20 min | Proxmox environments | Proxmox VE 8.x |
 | **Kubernetes** | Expert | 45 min | Enterprise, cloud | Kubernetes 1.20+ |
 
 **For first-time users: Use Docker Installation** ✅
+
+### One-Line Installers (Automated)
+
+```bash
+# Docker (easiest)
+curl -sSL https://raw.githubusercontent.com/yourusername/bootah/main/scripts/install-docker.sh | bash
+
+# Linux bare metal
+curl -sSL https://raw.githubusercontent.com/yourusername/bootah/main/scripts/install-linux.sh | sudo bash
+
+# Proxmox LXC container
+curl -sSL https://raw.githubusercontent.com/yourusername/bootah/main/scripts/install-proxmox.sh | bash
+```
 
 ---
 
