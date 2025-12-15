@@ -43,7 +43,9 @@ import {
   insertPostDeploymentTaskSchema,
   insertTaskRunSchema,
   insertProfileDeploymentBindingSchema,
-  insertDeviceGroupSchema
+  insertDeviceGroupSchema,
+  insertWebhookSubscriptionSchema,
+  insertBulkOperationSchema
 } from "@shared/schema";
 
 export async function registerRoutes(app: Express): Promise<{
@@ -3530,6 +3532,272 @@ export async function registerRoutes(app: Express): Promise<{
       res.json({ message: "FOG task monitoring started", taskId });
     } catch (error) {
       res.status(500).json({ message: "Failed to start monitoring" });
+    }
+  });
+
+  // Webhook Subscriptions API
+  app.get("/api/webhooks", isAuthenticated, requirePermission("configuration", "read"), async (req, res) => {
+    try {
+      const subscriptions = await storage.getWebhookSubscriptions();
+      res.json(subscriptions);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch webhook subscriptions" });
+    }
+  });
+
+  app.get("/api/webhooks/:id", isAuthenticated, requirePermission("configuration", "read"), async (req, res) => {
+    try {
+      const subscription = await storage.getWebhookSubscription(req.params.id);
+      if (!subscription) {
+        return res.status(404).json({ message: "Webhook subscription not found" });
+      }
+      res.json(subscription);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch webhook subscription" });
+    }
+  });
+
+  app.post("/api/webhooks", isAuthenticated, requirePermission("configuration", "create"), async (req, res) => {
+    try {
+      const data = insertWebhookSubscriptionSchema.parse(req.body);
+      const subscription = await storage.createWebhookSubscription(data);
+      res.status(201).json(subscription);
+    } catch (error) {
+      res.status(400).json({ message: "Invalid webhook subscription data" });
+    }
+  });
+
+  app.put("/api/webhooks/:id", isAuthenticated, requirePermission("configuration", "update"), async (req, res) => {
+    try {
+      const data = insertWebhookSubscriptionSchema.partial().parse(req.body);
+      const subscription = await storage.updateWebhookSubscription(req.params.id, data);
+      if (!subscription) {
+        return res.status(404).json({ message: "Webhook subscription not found" });
+      }
+      res.json(subscription);
+    } catch (error) {
+      res.status(400).json({ message: "Invalid webhook subscription data" });
+    }
+  });
+
+  app.delete("/api/webhooks/:id", isAuthenticated, requirePermission("configuration", "delete"), async (req, res) => {
+    try {
+      const deleted = await storage.deleteWebhookSubscription(req.params.id);
+      if (!deleted) {
+        return res.status(404).json({ message: "Webhook subscription not found" });
+      }
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ message: "Failed to delete webhook subscription" });
+    }
+  });
+
+  app.post("/api/webhooks/:id/test", isAuthenticated, requirePermission("configuration", "update"), async (req, res) => {
+    try {
+      const subscription = await storage.getWebhookSubscription(req.params.id);
+      if (!subscription) {
+        return res.status(404).json({ message: "Webhook subscription not found" });
+      }
+
+      const crypto = await import("crypto");
+      const testPayload = {
+        event: "test",
+        timestamp: new Date().toISOString(),
+        data: { message: "This is a test webhook from Bootah" }
+      };
+
+      const payloadString = JSON.stringify(testPayload);
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+        "User-Agent": "Bootah-Webhook/1.0",
+        "X-Webhook-Event": "test"
+      };
+
+      if (subscription.secret) {
+        const signature = crypto.createHmac("sha256", subscription.secret)
+          .update(payloadString)
+          .digest("hex");
+        headers["X-Webhook-Signature"] = `sha256=${signature}`;
+      }
+
+      if (subscription.headers) {
+        Object.assign(headers, subscription.headers);
+      }
+
+      try {
+        const response = await fetch(subscription.url, {
+          method: "POST",
+          headers,
+          body: payloadString,
+          signal: AbortSignal.timeout(10000)
+        });
+
+        const delivery = await storage.createWebhookDelivery({
+          subscriptionId: subscription.id,
+          event: "test",
+          payload: testPayload,
+          status: response.ok ? "delivered" : "failed",
+          httpStatus: response.status,
+          responseBody: await response.text().catch(() => null),
+          attempts: 1
+        });
+
+        res.json({ 
+          success: response.ok,
+          httpStatus: response.status,
+          deliveryId: delivery.id
+        });
+      } catch (fetchError: any) {
+        const delivery = await storage.createWebhookDelivery({
+          subscriptionId: subscription.id,
+          event: "test",
+          payload: testPayload,
+          status: "failed",
+          attempts: 1,
+          responseBody: fetchError.message
+        });
+
+        res.json({ 
+          success: false,
+          error: fetchError.message,
+          deliveryId: delivery.id
+        });
+      }
+    } catch (error) {
+      res.status(500).json({ message: "Failed to send test webhook" });
+    }
+  });
+
+  app.get("/api/webhooks/:id/deliveries", isAuthenticated, requirePermission("configuration", "read"), async (req, res) => {
+    try {
+      const limit = parseInt(req.query.limit as string) || 50;
+      const deliveries = await storage.getWebhookDeliveries(req.params.id, limit);
+      res.json(deliveries);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch webhook deliveries" });
+    }
+  });
+
+  // Bulk Operations API
+  app.get("/api/bulk-operations", isAuthenticated, requirePermission("devices", "read"), async (req, res) => {
+    try {
+      const operations = await storage.getBulkOperations();
+      res.json(operations);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch bulk operations" });
+    }
+  });
+
+  app.get("/api/bulk-operations/:id", isAuthenticated, requirePermission("devices", "read"), async (req, res) => {
+    try {
+      const operation = await storage.getBulkOperation(req.params.id);
+      if (!operation) {
+        return res.status(404).json({ message: "Bulk operation not found" });
+      }
+      res.json(operation);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch bulk operation" });
+    }
+  });
+
+  app.post("/api/bulk-operations", isAuthenticated, requirePermission("devices", "write"), async (req, res) => {
+    try {
+      const { operationType, deviceIds, parameters } = req.body;
+      
+      if (!operationType || !deviceIds || !Array.isArray(deviceIds) || deviceIds.length === 0) {
+        return res.status(400).json({ message: "operationType and deviceIds array required" });
+      }
+
+      const operation = await storage.createBulkOperation({
+        operationType,
+        deviceIds,
+        totalCount: deviceIds.length,
+        parameters,
+        startedBy: (req as any).user?.claims?.sub
+      });
+
+      await storage.updateBulkOperation(operation.id, { status: "running" });
+
+      let successCount = 0;
+      let failureCount = 0;
+      const errors: Record<string, string> = {};
+
+      for (const deviceId of deviceIds) {
+        try {
+          switch (operationType) {
+            case "wake":
+              const device = await storage.getDevice(deviceId);
+              if (device?.macAddress) {
+                const dgram = await import("dgram");
+                const socket = dgram.createSocket("udp4");
+                const mac = device.macAddress.replace(/:/g, "").replace(/-/g, "");
+                const magicPacket = Buffer.alloc(102);
+                for (let i = 0; i < 6; i++) magicPacket[i] = 0xff;
+                for (let i = 0; i < 16; i++) {
+                  for (let j = 0; j < 6; j++) {
+                    magicPacket[6 + i * 6 + j] = parseInt(mac.substr(j * 2, 2), 16);
+                  }
+                }
+                await new Promise<void>((resolve, reject) => {
+                  socket.send(magicPacket, 0, magicPacket.length, 9, "255.255.255.255", (err) => {
+                    socket.close();
+                    err ? reject(err) : resolve();
+                  });
+                });
+                successCount++;
+              } else {
+                errors[deviceId] = "No MAC address";
+                failureCount++;
+              }
+              break;
+
+            case "delete":
+              const deleted = await storage.deleteDevice(deviceId);
+              if (deleted) {
+                successCount++;
+              } else {
+                errors[deviceId] = "Device not found";
+                failureCount++;
+              }
+              break;
+
+            case "add_to_group":
+              if (parameters?.groupId) {
+                await storage.updateDevice(deviceId, { groupId: parameters.groupId });
+                successCount++;
+              } else {
+                errors[deviceId] = "No groupId provided";
+                failureCount++;
+              }
+              break;
+
+            case "remove_from_group":
+              await storage.updateDevice(deviceId, { groupId: null });
+              successCount++;
+              break;
+
+            default:
+              errors[deviceId] = `Unknown operation: ${operationType}`;
+              failureCount++;
+          }
+        } catch (err: any) {
+          errors[deviceId] = err.message;
+          failureCount++;
+        }
+      }
+
+      const status = failureCount === 0 ? "completed" : (successCount > 0 ? "partial" : "failed");
+      const finalOperation = await storage.updateBulkOperation(operation.id, {
+        successCount,
+        failureCount,
+        status,
+        errors: Object.keys(errors).length > 0 ? errors : null,
+        completedAt: new Date()
+      });
+
+      res.json(finalOperation);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to execute bulk operation" });
     }
   });
 
