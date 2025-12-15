@@ -84,11 +84,17 @@ import {
   type InsertTaskRun,
   type TaskRunWithDetails,
   type ProfileDeploymentBinding,
-  type InsertProfileDeploymentBinding
+  type InsertProfileDeploymentBinding,
+  type WebhookSubscription,
+  type InsertWebhookSubscription,
+  type WebhookDelivery,
+  type InsertWebhookDelivery,
+  type BulkOperation,
+  type InsertBulkOperation
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
-import { devices, images, deployments, activityLogs, serverStatus, users, passwordResetTokens, passwordHistory, multicastSessions, multicastParticipants, roles, permissions, userRoles, rolePermissions, networkSegments, deviceConnections, topologySnapshots, postDeploymentProfiles, snapinPackages, hostnamePatterns, domainJoinConfigs, productKeys, customScripts, postDeploymentTasks, taskRuns, profileDeploymentBindings, fogDeploymentMappings } from "@shared/schema";
+import { devices, images, deployments, activityLogs, serverStatus, users, passwordResetTokens, passwordHistory, multicastSessions, multicastParticipants, roles, permissions, userRoles, rolePermissions, networkSegments, deviceConnections, topologySnapshots, postDeploymentProfiles, snapinPackages, hostnamePatterns, domainJoinConfigs, productKeys, customScripts, postDeploymentTasks, taskRuns, profileDeploymentBindings, fogDeploymentMappings, webhookSubscriptions, webhookDeliveries, bulkOperations } from "@shared/schema";
 import { eq, desc, and, or, count, sql, inArray } from "drizzle-orm";
 import { DeploymentScheduler } from "./scheduler";
 import { encrypt, decrypt } from "./encryption";
@@ -365,6 +371,28 @@ export interface IStorage {
   getProfileDeploymentBindings(deploymentId: string): Promise<ProfileDeploymentBinding[]>;
   createProfileDeploymentBinding(binding: InsertProfileDeploymentBinding): Promise<ProfileDeploymentBinding>;
   updateProfileDeploymentBinding(id: string, binding: Partial<InsertProfileDeploymentBinding>): Promise<ProfileDeploymentBinding | undefined>;
+
+  // Webhooks
+  getWebhookSubscriptions(): Promise<WebhookSubscription[]>;
+  getWebhookSubscription(id: string): Promise<WebhookSubscription | undefined>;
+  getEnabledWebhookSubscriptions(): Promise<WebhookSubscription[]>;
+  getWebhookSubscriptionsByEvent(event: string): Promise<WebhookSubscription[]>;
+  createWebhookSubscription(subscription: InsertWebhookSubscription): Promise<WebhookSubscription>;
+  updateWebhookSubscription(id: string, subscription: Partial<InsertWebhookSubscription>): Promise<WebhookSubscription | undefined>;
+  deleteWebhookSubscription(id: string): Promise<boolean>;
+
+  // Webhook Deliveries
+  getWebhookDeliveries(subscriptionId: string, limit?: number): Promise<WebhookDelivery[]>;
+  getWebhookDelivery(id: string): Promise<WebhookDelivery | undefined>;
+  getPendingWebhookDeliveries(): Promise<WebhookDelivery[]>;
+  createWebhookDelivery(delivery: InsertWebhookDelivery): Promise<WebhookDelivery>;
+  updateWebhookDelivery(id: string, delivery: Partial<InsertWebhookDelivery>): Promise<WebhookDelivery | undefined>;
+
+  // Bulk Operations
+  getBulkOperations(): Promise<BulkOperation[]>;
+  getBulkOperation(id: string): Promise<BulkOperation | undefined>;
+  createBulkOperation(operation: InsertBulkOperation): Promise<BulkOperation>;
+  updateBulkOperation(id: string, operation: Partial<InsertBulkOperation>): Promise<BulkOperation | undefined>;
 }
 
 export class MemStorage implements IStorage {
@@ -3833,6 +3861,104 @@ export class DatabaseStorage implements IStorage {
   async updateComplianceReport(id: string, report: Partial<InsertComplianceReport>): Promise<ComplianceReport | undefined> { return undefined; }
   async deleteComplianceReport(id: string): Promise<boolean> { return false; }
   async approveComplianceReport(id: string, approvedBy: string): Promise<ComplianceReport | undefined> { return undefined; }
+
+  // Webhook Subscriptions
+  async getWebhookSubscriptions(): Promise<WebhookSubscription[]> {
+    return await db.select().from(webhookSubscriptions).orderBy(desc(webhookSubscriptions.createdAt));
+  }
+
+  async getWebhookSubscription(id: string): Promise<WebhookSubscription | undefined> {
+    const [subscription] = await db.select().from(webhookSubscriptions).where(eq(webhookSubscriptions.id, id));
+    return subscription;
+  }
+
+  async getEnabledWebhookSubscriptions(): Promise<WebhookSubscription[]> {
+    return await db.select().from(webhookSubscriptions).where(eq(webhookSubscriptions.isEnabled, true));
+  }
+
+  async getWebhookSubscriptionsByEvent(event: string): Promise<WebhookSubscription[]> {
+    const allEnabled = await this.getEnabledWebhookSubscriptions();
+    return allEnabled.filter(s => s.events && s.events.includes(event));
+  }
+
+  async createWebhookSubscription(subscription: InsertWebhookSubscription): Promise<WebhookSubscription> {
+    const [created] = await db.insert(webhookSubscriptions).values(subscription).returning();
+    return created;
+  }
+
+  async updateWebhookSubscription(id: string, subscription: Partial<InsertWebhookSubscription>): Promise<WebhookSubscription | undefined> {
+    const [updated] = await db.update(webhookSubscriptions)
+      .set({ ...subscription, updatedAt: new Date() })
+      .where(eq(webhookSubscriptions.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteWebhookSubscription(id: string): Promise<boolean> {
+    const result = await db.delete(webhookSubscriptions).where(eq(webhookSubscriptions.id, id)).returning();
+    return result.length > 0;
+  }
+
+  // Webhook Deliveries
+  async getWebhookDeliveries(subscriptionId: string, limit: number = 100): Promise<WebhookDelivery[]> {
+    return await db.select().from(webhookDeliveries)
+      .where(eq(webhookDeliveries.subscriptionId, subscriptionId))
+      .orderBy(desc(webhookDeliveries.createdAt))
+      .limit(limit);
+  }
+
+  async getWebhookDelivery(id: string): Promise<WebhookDelivery | undefined> {
+    const [delivery] = await db.select().from(webhookDeliveries).where(eq(webhookDeliveries.id, id));
+    return delivery;
+  }
+
+  async getPendingWebhookDeliveries(): Promise<WebhookDelivery[]> {
+    return await db.select().from(webhookDeliveries)
+      .where(or(
+        eq(webhookDeliveries.status, "pending"),
+        and(
+          eq(webhookDeliveries.status, "failed"),
+          sql`${webhookDeliveries.nextRetryAt} <= NOW()`
+        )
+      ))
+      .orderBy(webhookDeliveries.createdAt);
+  }
+
+  async createWebhookDelivery(delivery: InsertWebhookDelivery): Promise<WebhookDelivery> {
+    const [created] = await db.insert(webhookDeliveries).values(delivery).returning();
+    return created;
+  }
+
+  async updateWebhookDelivery(id: string, delivery: Partial<InsertWebhookDelivery>): Promise<WebhookDelivery | undefined> {
+    const [updated] = await db.update(webhookDeliveries)
+      .set(delivery)
+      .where(eq(webhookDeliveries.id, id))
+      .returning();
+    return updated;
+  }
+
+  // Bulk Operations
+  async getBulkOperations(): Promise<BulkOperation[]> {
+    return await db.select().from(bulkOperations).orderBy(desc(bulkOperations.startedAt));
+  }
+
+  async getBulkOperation(id: string): Promise<BulkOperation | undefined> {
+    const [operation] = await db.select().from(bulkOperations).where(eq(bulkOperations.id, id));
+    return operation;
+  }
+
+  async createBulkOperation(operation: InsertBulkOperation): Promise<BulkOperation> {
+    const [created] = await db.insert(bulkOperations).values(operation).returning();
+    return created;
+  }
+
+  async updateBulkOperation(id: string, operation: Partial<InsertBulkOperation>): Promise<BulkOperation | undefined> {
+    const [updated] = await db.update(bulkOperations)
+      .set(operation)
+      .where(eq(bulkOperations.id, id))
+      .returning();
+    return updated;
+  }
 }
 
 export const storage = new DatabaseStorage();

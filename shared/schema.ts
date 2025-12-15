@@ -685,6 +685,54 @@ export const complianceReports = pgTable("compliance_reports", {
   approvedAt: timestamp("approved_at"),
 });
 
+// Webhook Subscriptions for event notifications
+export const webhookSubscriptions = pgTable("webhook_subscriptions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  description: text("description"),
+  url: text("url").notNull(),
+  secret: text("secret"), // For HMAC signing
+  events: text("events").array().notNull(), // deployment_completed, device_discovered, etc.
+  isEnabled: boolean("is_enabled").default(true),
+  headers: jsonb("headers"), // Custom headers
+  createdBy: varchar("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Webhook delivery tracking
+export const webhookDeliveries = pgTable("webhook_deliveries", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  subscriptionId: varchar("subscription_id").notNull().references(() => webhookSubscriptions.id, { onDelete: 'cascade' }),
+  event: text("event").notNull(),
+  payload: jsonb("payload").notNull(),
+  status: text("status").notNull().default("pending"), // pending, delivered, failed
+  httpStatus: integer("http_status"),
+  responseBody: text("response_body"),
+  attempts: integer("attempts").default(0),
+  nextRetryAt: timestamp("next_retry_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  subscriptionIdx: index("webhook_deliveries_subscription_idx").on(table.subscriptionId),
+  statusIdx: index("webhook_deliveries_status_idx").on(table.status),
+}));
+
+// Bulk Operations tracking
+export const bulkOperations = pgTable("bulk_operations", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  operationType: text("operation_type").notNull(), // deploy, delete, wake, update, add_to_group
+  deviceIds: text("device_ids").array().notNull(),
+  totalCount: integer("total_count").notNull(),
+  successCount: integer("success_count").default(0),
+  failureCount: integer("failure_count").default(0),
+  status: text("status").notNull().default("pending"), // pending, running, completed, partial
+  errors: jsonb("errors"), // Per-device errors
+  parameters: jsonb("parameters"), // Additional params like imageId, groupId
+  startedBy: varchar("started_by").references(() => users.id),
+  startedAt: timestamp("started_at").defaultNow(),
+  completedAt: timestamp("completed_at"),
+});
+
 // Device Groups Insert Schema
 export const insertDeviceGroupSchema = createInsertSchema(deviceGroups).omit({
   id: true,
@@ -954,6 +1002,25 @@ export const insertTopologySnapshotSchema = createInsertSchema(topologySnapshots
   createdAt: true,
 });
 
+// Webhook Insert Schemas
+export const insertWebhookSubscriptionSchema = createInsertSchema(webhookSubscriptions).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertWebhookDeliverySchema = createInsertSchema(webhookDeliveries).omit({
+  id: true,
+  createdAt: true,
+});
+
+// Bulk Operations Insert Schema
+export const insertBulkOperationSchema = createInsertSchema(bulkOperations).omit({
+  id: true,
+  startedAt: true,
+  completedAt: true,
+});
+
 // Types
 export type DeviceGroup = typeof deviceGroups.$inferSelect;
 export type InsertDeviceGroup = z.infer<typeof insertDeviceGroupSchema>;
@@ -1086,6 +1153,17 @@ export type InsertDeviceConnection = z.infer<typeof insertDeviceConnectionSchema
 
 export type TopologySnapshot = typeof topologySnapshots.$inferSelect;
 export type InsertTopologySnapshot = z.infer<typeof insertTopologySnapshotSchema>;
+
+// Webhook Types
+export type WebhookSubscription = typeof webhookSubscriptions.$inferSelect;
+export type InsertWebhookSubscription = z.infer<typeof insertWebhookSubscriptionSchema>;
+
+export type WebhookDelivery = typeof webhookDeliveries.$inferSelect;
+export type InsertWebhookDelivery = z.infer<typeof insertWebhookDeliverySchema>;
+
+// Bulk Operations Types
+export type BulkOperation = typeof bulkOperations.$inferSelect;
+export type InsertBulkOperation = z.infer<typeof insertBulkOperationSchema>;
 
 // Extended types for API responses
 export type TopologyData = {
