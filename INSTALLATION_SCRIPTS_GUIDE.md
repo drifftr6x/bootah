@@ -2,14 +2,97 @@
 
 This guide explains how to use the automated installation scripts for deploying Bootah to different environments.
 
-## 📦 Available Installation Scripts
+## 📦 Available Scripts
 
-| Script | Environment | Best For | Installation Time |
-|--------|-------------|----------|-------------------|
-| `install-docker.sh` | Docker | Most users, easy setup | 5 minutes |
-| `install-linux.sh` | Linux (Ubuntu/Debian) | Production, bare metal | 15 minutes |
-| `install-proxmox.sh` | Proxmox LXC | Proxmox environments | 20 minutes |
-| `install-kubernetes.sh` | Kubernetes | Cloud, enterprise | 25 minutes |
+### Installation Scripts (Choose ONE)
+
+| Script | Environment | Best For | Time |
+|--------|-------------|----------|------|
+| `install-docker.sh` | Docker | Most users, easy setup | 5 min |
+| `install-linux.sh` | Linux (Ubuntu/Debian) | Production, bare metal | 15 min |
+| `install-proxmox.sh` | Proxmox LXC | Proxmox environments | 20 min |
+
+### Post-Installation Scripts (Optional)
+
+| Script | Purpose | When to Use |
+|--------|---------|-------------|
+| `configure.sh` | Change settings after install | Modify IP, ports, email, auth |
+| `configure-pxe-server.sh` | Configure PXE/TFTP/DHCP | Set up network boot services |
+| `create-boot-environment.sh` | Create PXE boot files | Download bootloaders (syslinux, grub) |
+| `setup-clonezilla.sh` | Install Clonezilla | Add disk imaging with Clonezilla |
+
+---
+
+## 🎯 Installation Scenarios
+
+### Scenario 1: Basic Web UI Only
+Just want the Bootah dashboard without PXE boot services:
+
+```bash
+# Choose your platform:
+./scripts/install-docker.sh    # OR
+./scripts/install-linux.sh     # OR  
+./scripts/install-proxmox.sh
+```
+**Result:** Web UI running, device management, no network boot
+
+---
+
+### Scenario 2: Full PXE Boot Server
+Complete PXE boot infrastructure for network imaging:
+
+```bash
+# Step 1: Install Bootah
+./scripts/install-linux.sh     # or install-proxmox.sh
+
+# Step 2: Configure PXE networking
+./scripts/configure-pxe-server.sh
+
+# Step 3: Download boot files
+./scripts/create-boot-environment.sh
+```
+**Result:** Full PXE boot server ready for network imaging
+
+---
+
+### Scenario 3: PXE + Clonezilla Imaging
+Complete solution with Clonezilla disk imaging:
+
+```bash
+# Step 1: Install Bootah
+./scripts/install-linux.sh     # or install-proxmox.sh
+
+# Step 2: Configure PXE networking  
+./scripts/configure-pxe-server.sh
+
+# Step 3: Download boot files
+./scripts/create-boot-environment.sh
+
+# Step 4: Add Clonezilla integration
+./scripts/setup-clonezilla.sh
+```
+**Result:** Complete PXE boot + Clonezilla disk cloning
+
+---
+
+### Scenario 4: Docker Development/Testing
+Quick setup for testing or development:
+
+```bash
+./scripts/install-docker.sh
+```
+**Result:** Containerized Bootah for testing (PXE requires additional network config)
+
+---
+
+### Scenario 5: Reconfigure Existing Installation
+Change settings on an already-installed system:
+
+```bash
+cd /opt/bootah   # or your install directory
+./scripts/configure.sh
+```
+**Result:** Interactive menu to change IP, ports, email, authentication
 
 ---
 
