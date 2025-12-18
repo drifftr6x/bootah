@@ -291,6 +291,20 @@ Contributions welcome! Areas of interest:
 - Performance optimizations
 - Documentation improvements
 
+## 🙏 Acknowledgments
+
+Bootah stands on the shoulders of giants. We gratefully acknowledge these foundational open-source projects that inspired and enabled our work:
+
+### [FOG Project](https://fogproject.org)
+FOG (Free Open-source Ghost) is a free, open-source network computer cloning and management solution. FOG has been the gold standard for enterprise imaging for over a decade, providing comprehensive features for OS deployment, inventory management, and network boot services. Bootah integrates directly with FOG as a backend imaging engine, leveraging its proven reliability for production deployments.
+
+### [Clonezilla](https://clonezilla.org)
+Clonezilla is a partition and disk imaging/cloning program similar to True Image or Norton Ghost. Created by the NCHC Free Software Labs in Taiwan, Clonezilla has been a cornerstone of the open-source imaging community since 2004. Its efficient block-level imaging and multicast capabilities have influenced imaging tools worldwide. Bootah supports Clonezilla as an imaging backend for its excellent compression and cross-platform compatibility.
+
+---
+
+These projects have collectively served millions of IT administrators, educators, and system builders. We encourage users to support these projects and contribute to their continued development.
+
 ## 📜 License
 
 [Add your license here]
