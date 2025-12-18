@@ -297,7 +297,7 @@ Contributions welcome! Areas of interest:
 
 ## 🔗 Resources
 
-- **Official Website**: https://bootah.example.com (coming soon)
+- **Official Website**: https://bootah64x.com 
 - **GitHub Repository**: https://github.com/drifftr6x/bootah
 - **Issue Tracker**: https://github.com/drifftr6x/bootah/issues
 - **FOG Project**: https://fogproject.org
@@ -305,7 +305,7 @@ Contributions welcome! Areas of interest:
 
 ## 👥 Support
 
-- 📧 **Email**: support@bootah.example.com
+- 📧 **Email**: support@bootah64x.com
 - 💬 **GitHub Discussions**: Coming soon
 - 🐛 **Report Bugs**: GitHub Issues
 
