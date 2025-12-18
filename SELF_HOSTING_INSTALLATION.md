@@ -83,17 +83,18 @@ The wizard provides an interactive menu to configure:
 git clone https://github.com/drifftr6x/bootah.git
 cd bootah
 
-# 2. Create environment file
-cat > .env << 'EOF'
+# 2. Create environment file (generates secure secrets automatically)
+cat > .env << EOF
 NODE_ENV=production
 PORT=5000
 HOST=0.0.0.0
-DATABASE_URL=postgresql://bootah:bootah_secure_pass@postgres:5432/bootah
+POSTGRES_PASSWORD=$(openssl rand -base64 24 | tr -dc 'a-zA-Z0-9' | head -c 24)
+DATABASE_URL=postgresql://bootah:\${POSTGRES_PASSWORD}@postgres:5432/bootah
 SESSION_SECRET=$(openssl rand -base64 32)
-AUTH_MODE=local           # Use 'local' for username/password auth, 'replit' for OAuth
-ALLOW_REGISTRATION=true   # Allow new user registrations
+AUTH_MODE=local
+ALLOW_REGISTRATION=true
 DEFAULT_USER_ROLE=admin
-PXE_SERVER_IP=192.168.1.50
+PXE_SERVER_IP=$(hostname -I 2>/dev/null | awk '{print $1}' || echo "192.168.1.50")
 TFTP_PORT=6969
 DHCP_PORT=4067
 EOF
@@ -102,6 +103,7 @@ EOF
 docker-compose up -d
 
 # 4. Access at http://localhost:5000
+# First user to register becomes admin
 ```
 
 **That's it!** The application is now running with PostgreSQL database included.

@@ -102,23 +102,29 @@ drwxr-xr-x   4 user  staff    128  Nov 27  2024 shared
 ### Step 2: Create Environment Configuration
 
 ```bash
-$ cat > .env << 'EOF'
+# Generate secure passwords automatically
+$ POSTGRES_PASSWORD=$(openssl rand -base64 24 | tr -dc 'a-zA-Z0-9' | head -c 24)
+$ SESSION_SECRET=$(openssl rand -base64 32)
+$ SERVER_IP=$(hostname -I 2>/dev/null | awk '{print $1}' || echo "192.168.1.50")
+
+$ cat > .env << EOF
 # Application Settings
 NODE_ENV=production
 PORT=5000
 HOST=0.0.0.0
 
 # Database
-DATABASE_URL=postgresql://bootah:bootah_password@postgres:5432/bootah
+POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+DATABASE_URL=postgresql://bootah:${POSTGRES_PASSWORD}@postgres:5432/bootah
 
-# Security - Generate new one each time
-SESSION_SECRET=$(openssl rand -base64 32)
+# Security
+SESSION_SECRET=${SESSION_SECRET}
 
 # Default user role
 DEFAULT_USER_ROLE=admin
 
-# PXE Configuration - CHANGE THIS TO YOUR IP
-PXE_SERVER_IP=192.168.1.50
+# PXE Configuration
+PXE_SERVER_IP=${SERVER_IP}
 TFTP_PORT=6969
 DHCP_PORT=4067
 EOF
@@ -127,19 +133,20 @@ $ cat .env
 NODE_ENV=production
 PORT=5000
 HOST=0.0.0.0
-DATABASE_URL=postgresql://bootah:bootah_password@postgres:5432/bootah
+POSTGRES_PASSWORD=aBcDeFgHiJkLmNoPqRsT123
+DATABASE_URL=postgresql://bootah:aBcDeFgHiJkLmNoPqRsT123@postgres:5432/bootah
 SESSION_SECRET=aBcDeFgHiJkLmNoPqRsTuVwXyZ1234567890ABC=
 DEFAULT_USER_ROLE=admin
-PXE_SERVER_IP=192.168.1.50
+PXE_SERVER_IP=192.168.1.42
 TFTP_PORT=6969
 DHCP_PORT=4067
 ```
 
-**What you should see:** `.env` file created with all variables.
+**What you should see:** `.env` file created with all variables and auto-detected IP.
 
 **⚠️ IMPORTANT:** 
-- Replace `192.168.1.50` with YOUR actual server IP address on your network
-- To find your IP: `hostname -I` (Linux) or `ifconfig` (Mac)
+- Verify `PXE_SERVER_IP` shows YOUR actual server IP address
+- To manually find your IP: `hostname -I` (Linux) or `ifconfig` (Mac)
 
 **Example of finding your real IP:**
 ```bash

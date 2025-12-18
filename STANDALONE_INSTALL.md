@@ -80,105 +80,58 @@ cd bootah
 
 ### Step 3: Create Environment File
 
-Create `.env` file in the Bootah directory:
+Create `.env` file in the Bootah directory (this generates secure secrets automatically):
 
 ```bash
-cat > .env << 'EOF'
+# Generate secure passwords and create .env file
+POSTGRES_PASSWORD=$(openssl rand -base64 24 | tr -dc 'a-zA-Z0-9' | head -c 24)
+SESSION_SECRET=$(openssl rand -base64 32)
+SERVER_IP=$(hostname -I 2>/dev/null | awk '{print $1}' || echo "192.168.1.50")
+
+cat > .env << EOF
 # Application Settings
 NODE_ENV=production
 PORT=5000
 HOST=0.0.0.0
 
-# Database (use this exact URL for Docker setup)
-DATABASE_URL=postgresql://bootah:bootah_secure_password@postgres:5432/bootah
+# Database
+POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+DATABASE_URL=postgresql://bootah:${POSTGRES_PASSWORD}@postgres:5432/bootah
 
 # Security
-SESSION_SECRET=$(openssl rand -base64 32)
+SESSION_SECRET=${SESSION_SECRET}
 
 # Role Configuration (options: admin, operator, viewer)
 DEFAULT_USER_ROLE=admin
 
-# PXE Configuration (change to your server's IP)
-PXE_SERVER_IP=192.168.1.50
+# PXE Configuration
+PXE_SERVER_IP=${SERVER_IP}
 TFTP_PORT=6969
 DHCP_PORT=4067
-HTTP_PORT=80
 EOF
+
+echo "Generated .env with SERVER_IP=${SERVER_IP}"
 ```
 
-**Important:** Replace `192.168.1.50` with your server's actual IP address on the network.
+**Important:** Verify the `PXE_SERVER_IP` matches your server's actual IP address on the network where PXE clients will boot from.
 
-### Step 4: Create Docker Compose File
+### Step 4: Use the Included Docker Compose
 
-If `docker-compose.yml` doesn't exist, create it:
+The repository includes a pre-configured `docker-compose.yml` that uses environment variables from your `.env` file. Simply run:
 
 ```bash
-cat > docker-compose.yml << 'EOF'
-version: '3.8'
+# Build and start all services
+docker-compose up -d --build
 
-services:
-  postgres:
-    image: postgres:15-alpine
-    container_name: bootah-postgres
-    environment:
-      POSTGRES_USER: bootah
-      POSTGRES_PASSWORD: bootah_secure_password
-      POSTGRES_DB: bootah
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U bootah"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    networks:
-      - bootah-network
-    restart: unless-stopped
-
-  bootah:
-    build:
-      context: .
-      dockerfile: Dockerfile.prod
-    container_name: bootah-app
-    environment:
-      NODE_ENV: production
-      PORT: 5000
-      HOST: 0.0.0.0
-      DATABASE_URL: postgresql://bootah:bootah_secure_password@postgres:5432/bootah
-      SESSION_SECRET: ${SESSION_SECRET}
-      DEFAULT_USER_ROLE: ${DEFAULT_USER_ROLE:-admin}
-      PXE_SERVER_IP: ${PXE_SERVER_IP}
-      TFTP_PORT: ${TFTP_PORT}
-      DHCP_PORT: ${DHCP_PORT}
-    ports:
-      - "5000:5000"
-      - "${TFTP_PORT}:${TFTP_PORT}/udp"
-      - "${DHCP_PORT}:${DHCP_PORT}/udp"
-    depends_on:
-      postgres:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5000/api/auth/user"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
-    networks:
-      - bootah-network
-    restart: unless-stopped
-    volumes:
-      - ./images:/app/images  # Persist OS images
-
-volumes:
-  postgres_data:
-
-networks:
-  bootah-network:
-    driver: bridge
-EOF
+# View logs
+docker-compose logs -f
 ```
+
+The included `docker-compose.yml` will:
+- Start PostgreSQL with your generated password
+- Build and run the Bootah application
+- Configure all ports (web UI, TFTP, DHCP proxy)
+- Persist data in Docker volumes
 
 ### Step 5: Build and Start
 
