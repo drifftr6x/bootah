@@ -1,19 +1,63 @@
 # Bootah - Complete Proxmox Installation Guide
 
-## 🚀 Quick Start - Automated Installation
+## 🚀 Quick Start - Installation Options
 
-The fastest way to install Bootah in a Proxmox LXC container:
+Choose the installation method that works for your situation:
+
+### Option A: Download & Run Locally (Recommended for Testing)
 
 ```bash
 # 1. Create Ubuntu 24.04 LXC container in Proxmox (see Part 1 below)
 # 2. Enter the container
 pct enter <CTID>
+```
 
-# 3. Run the automated installer
+**Get Bootah files (choose one method):**
+
+**Method 1: Download from Replit (Current)**
+1. Open Bootah project in Replit
+2. Click three-dot menu > "Download as zip"
+3. Extract on your local machine
+4. Transfer to container:
+```bash
+# First, create the directory on the container:
+ssh root@<container-ip> "mkdir -p /root/bootah"
+# Then transfer files (use /. to include hidden files):
+scp -r ~/Downloads/bootah-main/. root@<container-ip>:/root/bootah/
+```
+
+**Method 2: Git Clone (Once Repository is Public)**
+```bash
+git clone https://github.com/drifftr6x/bootah.git
+cd bootah
+```
+
+**Method 3: Copy from Local Machine**
+```bash
+scp -r /path/to/bootah root@<container-ip>:/root/
+```
+
+**Run the installer:**
+```bash
+cd /root/bootah
+chmod +x scripts/install-proxmox.sh
+./scripts/install-proxmox.sh
+```
+
+### Option B: One-Line Remote Install (Once Repository is Public)
+
+```bash
+# After the GitHub repository is public:
 curl -sSL https://raw.githubusercontent.com/drifftr6x/bootah/main/scripts/install-proxmox.sh | bash
 ```
 
-The script will:
+### Option C: Manual Installation (Copy/Paste Steps Below)
+
+See [Part 3: Install Dependencies](#part-3-install-dependencies) for complete manual steps.
+
+---
+
+The install script will:
 - Detect if running inside LXC container
 - Install Node.js 20 and PostgreSQL
 - Prompt for configuration (IP, ports, email)
@@ -148,7 +192,7 @@ pct enter 100
 
 ```bash
 apt update && apt upgrade -y
-apt install -y curl git wget nano htop net-tools sudo openssh-server
+apt install -y curl git wget nano htop net-tools sudo openssh-server unzip
 ```
 
 ### Step 2.3: Create Application User
@@ -232,19 +276,35 @@ pm2 --version
 
 ## 📦 Part 4: Deploy Bootah Application
 
-### Step 4.1: Clone Repository
+### Step 4.1: Get Bootah Files
 
 ```bash
 # As bootah user
 cd /home/bootah
+```
 
-# Clone your Bootah repository
-# Replace with your actual repository URL
+**Option A: Download from Replit (Current)**
+1. Download zip from Replit (three-dot menu > "Download as zip")
+2. Create directory and transfer to container:
+```bash
+# Create directory on container first:
+ssh bootah@<container-ip> "mkdir -p /home/bootah/bootah"
+# Transfer files (use /. to include hidden files):
+scp -r ~/Downloads/bootah-main/. bootah@<container-ip>:/home/bootah/bootah/
+# Navigate to directory:
+ssh bootah@<container-ip>
+cd /home/bootah/bootah
+```
+
+**Option B: Git Clone (Once Repository is Public)**
+```bash
 git clone https://github.com/drifftr6x/bootah.git
 cd bootah
+```
 
-# Or if developing locally, you can scp files:
-# scp -r /path/to/bootah bootah@192.168.1.50:/home/bootah/
+**Option C: Copy from Local Machine**
+```bash
+scp -r /path/to/bootah bootah@<container-ip>:/home/bootah/
 ```
 
 ### Step 4.2: Configure Environment Variables

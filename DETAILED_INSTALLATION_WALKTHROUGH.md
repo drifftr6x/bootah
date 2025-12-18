@@ -59,32 +59,43 @@ brew install docker docker-compose
 
 # Ubuntu/Debian
 sudo apt-get update
-sudo apt-get install -y docker.io docker-compose
+sudo apt-get install -y docker.io docker-compose unzip
 sudo usermod -aG docker $USER
 newgrp docker
 ```
 
+> **Note for Linux users:** The `unzip` package is needed to extract downloaded zip files.
+
 ---
 
-### Step 1: Clone Bootah Repository
+### Step 1: Get Bootah Files
 
+Choose one method to get the Bootah files:
+
+**Option A: Download from Replit (Current)**
+1. Open Bootah project in Replit
+2. Click three-dot menu > "Download as zip"
+3. Extract to your Projects folder:
+```bash
+$ cd ~/Projects
+$ unzip ~/Downloads/bootah-main.zip
+$ mv bootah-main bootah
+$ cd bootah
+```
+
+**Option B: Git Clone (Once Repository is Public)**
 ```bash
 $ cd ~/Projects  # Or wherever you want to install
 $ git clone https://github.com/drifftr6x/bootah.git
-Cloning into 'bootah'...
-remote: Enumerating objects: 1250, done.
-remote: Counting objects: 100% (1250/1250), done.
-remote: Compressing objects: 100% (890/1250), done.
-remote: Receiving objects: 100% (1250/1250), done.
-Resolving deltas: 100% (580/580), done.
-
 $ cd bootah
+```
+
+**Verify the files are in place:**
+```bash
 $ ls -la
 total 248
 drwxr-xr-x  15 user  staff    480 Nov 27 10:30 .
 drwxr-xr-x  25 user  staff    800 Nov 27 10:15 ..
--rw-r--r--   1 user  staff   1234  Nov 27  2024 .env.example
--rw-r--r--   1 user  staff   2048  Nov 27  2024 .gitignore
 -rw-r--r--   1 user  staff   5678  Nov 27  2024 Dockerfile.prod
 -rw-r--r--   1 user  staff   4567  Nov 27  2024 docker-compose.yml
 drwxr-xr-x   8 user  staff    256  Nov 27  2024 client
@@ -94,8 +105,6 @@ drwxr-xr-x   4 user  staff    128  Nov 27  2024 shared
 ```
 
 **What you should see:** A bootah directory with client, server, shared folders.
-
-**If you get "repository not found":** Make sure you've uploaded the code to your GitHub repository first.
 
 ---
 
@@ -364,12 +373,30 @@ $ PGPASSWORD=bootah_password psql -h localhost -U bootah -d bootah -c "SELECT ve
 
 ---
 
-### Step 4: Clone and Setup Bootah
+### Step 4: Get and Setup Bootah
 
+**Option A: Download from Replit (Current)**
+1. Download zip from Replit (three-dot menu > "Download as zip")
+2. Transfer to server and extract:
+```bash
+$ scp ~/Downloads/bootah-main.zip user@server:/tmp/
+$ ssh user@server
+$ sudo unzip /tmp/bootah-main.zip -d /opt
+$ sudo mv /opt/bootah-main /opt/bootah
+$ sudo chown -R $USER:$USER /opt/bootah
+$ cd /opt/bootah
+```
+
+**Option B: Git Clone (Once Repository is Public)**
 ```bash
 $ cd /opt
 $ sudo git clone https://github.com/drifftr6x/bootah.git bootah
 $ sudo chown -R $USER:$USER /opt/bootah
+$ cd /opt/bootah
+```
+
+**Create environment file:**
+```bash
 $ cd /opt/bootah
 
 $ cat > .env << 'EOF'

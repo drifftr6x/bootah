@@ -26,16 +26,51 @@ This guide provides step-by-step instructions to install and run Bootah as a sta
 
 **For first-time users: Use Docker Installation** ✅
 
-### One-Line Installers (Automated)
+### Automated Installers
 
+**Step 1: Get the files first:**
+
+**Option A: Download from Replit (Current)**
+1. Open Bootah project in Replit
+2. Click three-dot menu > "Download as zip"
+3. Extract and transfer to server:
+```bash
+# Create directory and transfer (use /. to include hidden files):
+ssh user@server "mkdir -p ~/bootah"
+scp -r ~/Downloads/bootah-main/. user@server:~/bootah/
+ssh user@server
+cd ~/bootah
+```
+
+**Option B: Git Clone (Once Repository is Public)**
+```bash
+git clone https://github.com/drifftr6x/bootah.git
+cd bootah
+```
+
+**Option C: Download Archive (Once Repository is Public)**
+```bash
+wget https://github.com/drifftr6x/bootah/archive/refs/heads/main.zip
+unzip main.zip && cd bootah-main
+```
+
+**Step 2: Run the installer:**
 ```bash
 # Docker (easiest)
-curl -sSL https://raw.githubusercontent.com/drifftr6x/bootah/main/scripts/install-docker.sh | bash
+./scripts/install-docker.sh
 
 # Linux bare metal
-curl -sSL https://raw.githubusercontent.com/drifftr6x/bootah/main/scripts/install-linux.sh | sudo bash
+sudo ./scripts/install-linux.sh
 
 # Proxmox LXC container
+./scripts/install-proxmox.sh
+```
+
+**Alternative: One-Line Install (Once Repository is Public)**
+```bash
+# These work after the GitHub repository is made public:
+curl -sSL https://raw.githubusercontent.com/drifftr6x/bootah/main/scripts/install-docker.sh | bash
+curl -sSL https://raw.githubusercontent.com/drifftr6x/bootah/main/scripts/install-linux.sh | sudo bash
 curl -sSL https://raw.githubusercontent.com/drifftr6x/bootah/main/scripts/install-proxmox.sh | bash
 ```
 
@@ -71,11 +106,30 @@ brew install docker docker-compose
 - Download and install Docker Desktop from https://www.docker.com/products/docker-desktop
 - Enable WSL 2 if prompted
 
-### Step 2: Clone Bootah
+### Step 2: Get Bootah Files
 
+**Option A: Download from Replit (Current)**
+1. Open Bootah project in Replit
+2. Click three-dot menu > "Download as zip"
+3. Extract and transfer to server:
+```bash
+# Create directory and transfer (use /. to include hidden files):
+ssh user@server "mkdir -p ~/bootah"
+scp -r ~/Downloads/bootah-main/. user@server:~/bootah/
+ssh user@server
+cd ~/bootah
+```
+
+**Option B: Git Clone (Once Repository is Public)**
 ```bash
 git clone https://github.com/drifftr6x/bootah.git
 cd bootah
+```
+
+**Option C: Download Archive (Once Repository is Public)**
+```bash
+wget https://github.com/drifftr6x/bootah/archive/refs/heads/main.zip
+unzip main.zip && cd bootah-main
 ```
 
 ### Step 3: Create Environment File
@@ -216,8 +270,20 @@ node --version  # Should be 18.x or higher
 npm --version   # Should be 8.x or higher
 ```
 
-### Step 4: Clone Bootah
+### Step 4: Get Bootah Files
 
+**Option A: Download from Replit (Current)**
+1. Download zip from Replit (three-dot menu > "Download as zip")
+2. Extract and transfer to server:
+```bash
+scp -r ~/Downloads/bootah-main user@server:/tmp/
+ssh user@server
+sudo mv /tmp/bootah-main /opt/bootah
+sudo chown -R $USER:$USER /opt/bootah
+cd /opt/bootah
+```
+
+**Option B: Git Clone (Once Repository is Public)**
 ```bash
 cd /opt
 sudo git clone https://github.com/drifftr6x/bootah.git bootah

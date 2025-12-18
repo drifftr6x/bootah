@@ -15,13 +15,73 @@ This comprehensive guide covers multiple deployment methods for self-hosting Boo
 
 ## 🚀 Automated Installation
 
-### One-Line Docker Install
+### Step 1: Get Bootah Files
 
+Choose one method to download Bootah:
+
+**Method 1: Download from Replit (Current)**
+1. Open Bootah project in Replit
+2. Click three-dot menu (top-left) > "Download as zip"
+3. Extract on your local machine
+4. Transfer to your server:
 ```bash
-curl -sSL https://raw.githubusercontent.com/drifftr6x/bootah/main/scripts/install-docker.sh | bash
+# Create directory and transfer (use /. to include hidden files):
+ssh user@server "mkdir -p ~/bootah"
+scp -r ~/Downloads/bootah-main/. user@server:~/bootah/
+ssh user@server
+cd ~/bootah
 ```
 
-This interactive script will:
+**Method 2: Git Clone (Once Repository is Public)**
+```bash
+git clone https://github.com/drifftr6x/bootah.git
+cd bootah
+```
+
+**Method 3: Download Archive (Once Repository is Public)**
+```bash
+wget https://github.com/drifftr6x/bootah/archive/refs/heads/main.zip
+unzip main.zip && cd bootah-main
+```
+
+### Step 2: Run the Appropriate Installer
+
+**Docker Install:**
+```bash
+chmod +x scripts/install-docker.sh
+./scripts/install-docker.sh
+```
+
+**Linux Bare Metal (Ubuntu/Debian):**
+```bash
+chmod +x scripts/install-linux.sh
+sudo ./scripts/install-linux.sh
+```
+
+**Proxmox LXC Container:**
+```bash
+chmod +x scripts/install-proxmox.sh
+./scripts/install-proxmox.sh
+```
+
+### Alternative: One-Line Remote Install (Once Repository is Public)
+
+```bash
+# Docker
+curl -sSL https://raw.githubusercontent.com/drifftr6x/bootah/main/scripts/install-docker.sh | bash
+
+# Linux bare metal
+curl -sSL https://raw.githubusercontent.com/drifftr6x/bootah/main/scripts/install-linux.sh | sudo bash
+
+# Proxmox LXC container
+curl -sSL https://raw.githubusercontent.com/drifftr6x/bootah/main/scripts/install-proxmox.sh | bash
+```
+
+---
+
+### What the Installers Do
+
+**Docker Installer:**
 - Check Docker prerequisites
 - Prompt for configuration (IP, ports, email settings)
 - Generate secure passwords and secrets
@@ -29,13 +89,7 @@ This interactive script will:
 - Start all services
 - Provide access instructions
 
-### One-Line Linux Install (Ubuntu/Debian)
-
-```bash
-curl -sSL https://raw.githubusercontent.com/drifftr6x/bootah/main/scripts/install-linux.sh | sudo bash
-```
-
-This script will:
+**Linux Installer:**
 - Install Node.js 20 and PostgreSQL
 - Create a dedicated `bootah` system user
 - Clone and build the application
@@ -44,14 +98,7 @@ This script will:
 - Configure the firewall
 - Start Bootah automatically
 
-### One-Line Proxmox LXC Install
-
-```bash
-# Inside your Proxmox LXC container:
-curl -sSL https://raw.githubusercontent.com/drifftr6x/bootah/main/scripts/install-proxmox.sh | bash
-```
-
-This script will:
+**Proxmox Installer:**
 - Detect if running inside LXC container
 - Install Node.js 20 and PostgreSQL (or use external DB)
 - Configure for standard or alternative ports
@@ -78,12 +125,13 @@ The wizard provides an interactive menu to configure:
 
 ## ⚡ Quick Start with Docker (5 Minutes)
 
+**Step 1: Get Bootah files** (see [Step 1: Get Bootah Files](#step-1-get-bootah-files) above for download options)
+
 ```bash
-# 1. Clone repository
-git clone https://github.com/drifftr6x/bootah.git
+# After downloading/extracting Bootah, navigate to the directory:
 cd bootah
 
-# 2. Create environment file (generates secure secrets automatically)
+# Create environment file (generates secure secrets automatically)
 cat > .env << EOF
 NODE_ENV=production
 PORT=5000
@@ -351,8 +399,20 @@ sudo usermod -aG sudo bootah
 # Create application directory
 sudo -u bootah mkdir -p /home/bootah/app
 cd /home/bootah/app
+```
 
-# Clone repository
+**Get Bootah files** (choose one method):
+
+**Option A: Download from Replit (Current)**
+1. Download zip from Replit (three-dot menu > "Download as zip")
+2. Transfer to server (use /. to include hidden files):
+```bash
+scp -r ~/Downloads/bootah-main/. user@server:/home/bootah/app/
+```
+3. Fix ownership: `sudo chown -R bootah:bootah /home/bootah/app`
+
+**Option B: Git Clone (Once Repository is Public)**
+```bash
 sudo -u bootah git clone https://github.com/drifftr6x/bootah.git .
 ```
 
