@@ -29,7 +29,7 @@ export const images = pgTable("images", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: text("name").notNull(),
   filename: text("filename").notNull(),
-  size: integer("size").notNull(), // in bytes
+  size: bigint("size", { mode: "number" }).notNull(), // in bytes - bigint to support >2GB images
   checksum: text("checksum"),
   osType: text("os_type").notNull(), // windows, linux, macos
   version: text("version"),
@@ -37,7 +37,7 @@ export const images = pgTable("images", {
   category: text("category").default("General"),
   tags: text("tags").array().default(sql`'{}'`),
   compressionType: text("compression_type").default("none"),
-  originalSize: integer("original_size"),
+  originalSize: bigint("original_size", { mode: "number" }), // bigint to support >2GB images
   architecture: text("architecture").default("x64"),
   isValidated: boolean("is_validated").default(false),
   validationDate: timestamp("validation_date"),

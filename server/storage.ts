@@ -392,7 +392,7 @@ export interface IStorage {
   getBulkOperations(): Promise<BulkOperation[]>;
   getBulkOperation(id: string): Promise<BulkOperation | undefined>;
   createBulkOperation(operation: InsertBulkOperation): Promise<BulkOperation>;
-  updateBulkOperation(id: string, operation: Partial<InsertBulkOperation>): Promise<BulkOperation | undefined>;
+  updateBulkOperation(id: string, operation: Partial<InsertBulkOperation> & { completedAt?: Date }): Promise<BulkOperation | undefined>;
 }
 
 export class MemStorage implements IStorage {
@@ -3954,7 +3954,7 @@ export class DatabaseStorage implements IStorage {
     return created;
   }
 
-  async updateBulkOperation(id: string, operation: Partial<InsertBulkOperation>): Promise<BulkOperation | undefined> {
+  async updateBulkOperation(id: string, operation: Partial<InsertBulkOperation> & { completedAt?: Date }): Promise<BulkOperation | undefined> {
     const [updated] = await db.update(bulkOperations)
       .set(operation)
       .where(eq(bulkOperations.id, id))

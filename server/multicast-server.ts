@@ -118,6 +118,10 @@ export class MulticastServer extends EventEmitter {
 
       this.isRunning = true;
       console.log(`[Multicast] Server started on ${this.config.multicastAddress}:${this.config.port}`);
+      
+      // Restore any sessions that were active before shutdown
+      await this.restoreSessionStates();
+      
       this.emit("started");
     } catch (error) {
       console.error("[Multicast] Failed to start server:", error);
@@ -129,6 +133,9 @@ export class MulticastServer extends EventEmitter {
   public async stop(): Promise<void> {
     if (!this.isRunning) return;
 
+    // Save active session states before stopping
+    await this.persistSessionStates();
+
     for (const sessionId of Array.from(this.activeSessions.keys())) {
       await this.cancelSession(sessionId);
     }
@@ -137,6 +144,107 @@ export class MulticastServer extends EventEmitter {
     this.isRunning = false;
     console.log("[Multicast] Server stopped");
     this.emit("stopped");
+  }
+
+  public async persistSessionStates(): Promise<void> {
+    try {
+      const sessions = Array.from(this.activeSessions.entries());
+      for (const [sessionId, state] of sessions) {
+        if (state.status === "active" || state.status === "waiting") {
+          // Store session state in database for recovery
+          await storage.updateMulticastSession(sessionId, {
+            status: state.status,
+            bytesSent: state.bytesSent,
+            clientCount: state.clients.size,
+          });
+          
+          // Update each participant's progress
+          const clients = Array.from(state.clients.entries());
+          for (const [clientId, clientState] of clients) {
+            const participants = await storage.getMulticastParticipants(sessionId);
+            const participant = participants.find(p => 
+              p.macAddress === clientState.macAddress || p.deviceId === clientState.deviceId
+            );
+            if (participant) {
+              await storage.updateMulticastParticipant(participant.id, {
+                progress: clientState.progress,
+                bytesReceived: clientState.bytesReceived,
+                status: clientState.status,
+              });
+            }
+          }
+          console.log(`[Multicast] Persisted state for session ${sessionId}`);
+        }
+      }
+    } catch (error) {
+      console.error("[Multicast] Failed to persist session states:", error);
+    }
+  }
+
+  public async restoreSessionStates(): Promise<void> {
+    try {
+      // Find sessions that were active before shutdown
+      const sessions = await storage.getMulticastSessions();
+      const activeSessions = sessions.filter(s => 
+        s.status === "active" || s.status === "waiting"
+      );
+
+      for (const session of activeSessions) {
+        const participants = await storage.getMulticastParticipants(session.id);
+        const image = await storage.getImage(session.imageId);
+        
+        if (!image) continue;
+
+        const imagePath = path.join("./pxe-images", image.filename);
+        const totalSize = image.size || 0;
+        const totalChunks = Math.ceil(totalSize / this.config.chunkSize);
+
+        // Restore session state
+        const state: MulticastSessionState = {
+          sessionId: session.id,
+          imageId: session.imageId,
+          imagePath,
+          multicastAddress: session.multicastAddress,
+          port: session.port,
+          totalSize,
+          totalChunks,
+          currentChunk: Math.floor((session.bytesSent || 0) / this.config.chunkSize),
+          bytesSent: session.bytesSent || 0,
+          startTime: session.startedAt?.getTime() || Date.now(),
+          clients: new Map(),
+          pendingRetransmits: new Map(),
+          status: session.status as "waiting" | "active",
+        };
+
+        // Restore participant states
+        for (const participant of participants) {
+          if (participant.macAddress) {
+            const clientState: ClientState = {
+              deviceId: participant.deviceId || participant.id,
+              macAddress: participant.macAddress,
+              address: participant.ipAddress || "",
+              port: 0,
+              lastAck: Date.now(),
+              receivedChunks: new Set(),
+              progress: participant.progress || 0,
+              bytesReceived: participant.bytesReceived || 0,
+              status: (participant.status as any) || "waiting",
+              joinedAt: participant.joinedAt?.getTime() || Date.now(),
+            };
+            state.clients.set(participant.macAddress, clientState);
+          }
+        }
+
+        this.activeSessions.set(session.id, state);
+        console.log(`[Multicast] Restored session ${session.id} with ${state.clients.size} clients`);
+      }
+
+      if (activeSessions.length > 0) {
+        console.log(`[Multicast] Restored ${activeSessions.length} active sessions`);
+      }
+    } catch (error) {
+      console.error("[Multicast] Failed to restore session states:", error);
+    }
   }
 
   private cleanup(): void {

@@ -7,14 +7,48 @@ async function throwIfResNotOk(res: Response) {
   }
 }
 
+let csrfToken: string | null = null;
+
+export async function fetchCsrfToken(): Promise<string | null> {
+  if (csrfToken) return csrfToken;
+  try {
+    const res = await fetch("/api/auth/csrf-token", { credentials: "include" });
+    if (res.ok) {
+      const data = await res.json();
+      csrfToken = data.csrfToken;
+      return csrfToken;
+    }
+  } catch (e) {
+    console.warn("Failed to fetch CSRF token:", e);
+  }
+  return null;
+}
+
+export function clearCsrfToken(): void {
+  csrfToken = null;
+}
+
 export async function apiRequest(
   method: string,
   url: string,
   data?: unknown | undefined,
 ): Promise<Response> {
+  const headers: Record<string, string> = {};
+  
+  if (data) {
+    headers["Content-Type"] = "application/json";
+  }
+  
+  if (method !== "GET" && method !== "HEAD") {
+    const token = await fetchCsrfToken();
+    if (token) {
+      headers["x-csrf-token"] = token;
+    }
+  }
+
   const res = await fetch(url, {
     method,
-    headers: data ? { "Content-Type": "application/json" } : {},
+    headers,
     body: data ? JSON.stringify(data) : undefined,
     credentials: "include",
   });

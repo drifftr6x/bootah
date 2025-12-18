@@ -15,6 +15,14 @@ import { NetworkScanner } from "./network-scanner";
 import { triggerWebhook, webhookEvents } from "./webhookService";
 import { pxeTrafficSniffer } from "./pxe-traffic-sniffer";
 import { 
+  csrfProtection, 
+  getCsrfToken, 
+  generatePxeToken,
+  pxeClientRateLimiter, 
+  pxeHeartbeatRateLimiter,
+  loginRateLimiter 
+} from "./security";
+import { 
   insertDeviceSchema, 
   insertImageSchema, 
   insertDeploymentSchema, 
@@ -64,7 +72,19 @@ export async function registerRoutes(app: Express): Promise<{
   }
   
   // Create unified isAuthenticated middleware
-  const isAuthenticated = authMode === "local" ? isAuthenticatedLocal : isAuthenticatedReplit;
+  const baseAuthMiddleware = authMode === "local" ? isAuthenticatedLocal : isAuthenticatedReplit;
+  
+  // Wrap authentication with CSRF protection for state-changing methods
+  const isAuthenticated: typeof baseAuthMiddleware = (req, res, next) => {
+    baseAuthMiddleware(req, res, (err?: any) => {
+      if (err) return next(err);
+      // Only apply CSRF protection to state-changing methods
+      if (["POST", "PUT", "PATCH", "DELETE"].includes(req.method)) {
+        return csrfProtection(req, res, next);
+      }
+      next();
+    });
+  };
   
   // Initialize RBAC defaults (roles, permissions, and first user assignment)
   try {
@@ -76,6 +96,12 @@ export async function registerRoutes(app: Express): Promise<{
   // Auth config endpoint - returns auth mode for frontend
   app.get('/api/auth/config', (req, res) => {
     res.json({ authMode });
+  });
+
+  // CSRF token endpoint - frontend must call this and include token in state-changing requests
+  app.get('/api/auth/csrf-token', isAuthenticated, (req, res) => {
+    const token = getCsrfToken(req);
+    res.json({ csrfToken: token });
   });
 
   // Setup required endpoint for Replit mode (always returns false)
@@ -882,7 +908,7 @@ export async function registerRoutes(app: Express): Promise<{
   });
 
   // Scheduled deployments endpoints
-  app.patch("/api/deployments/:id/cancel-schedule", async (req, res) => {
+  app.patch("/api/deployments/:id/cancel-schedule", isAuthenticated, requirePermission("deployments", "update"), async (req, res) => {
     try {
       const deployment = await storage.getDeployment(req.params.id);
       if (!deployment) {
@@ -989,7 +1015,7 @@ export async function registerRoutes(app: Express): Promise<{
     }
   });
 
-  app.patch("/api/multicast/sessions/:id", async (req, res) => {
+  app.patch("/api/multicast/sessions/:id", isAuthenticated, requirePermission("multicast", "update"), async (req, res) => {
     try {
       const session = await storage.getMulticastSession(req.params.id);
       if (!session) {
@@ -1277,8 +1303,9 @@ export async function registerRoutes(app: Express): Promise<{
   });
 
   // ====== PXE Client Endpoints (No authentication - called by booted PXE clients) ======
+  // Rate limited to prevent abuse from rogue network clients
 
-  app.post("/api/multicast/client/register", async (req, res) => {
+  app.post("/api/multicast/client/register", pxeClientRateLimiter, async (req, res) => {
     try {
       const { sessionId, macAddress, ipAddress, hostname } = req.body;
       
@@ -1346,7 +1373,7 @@ export async function registerRoutes(app: Express): Promise<{
     }
   });
 
-  app.post("/api/multicast/client/heartbeat", async (req, res) => {
+  app.post("/api/multicast/client/heartbeat", pxeHeartbeatRateLimiter, async (req, res) => {
     try {
       const { sessionId, macAddress, status, progress, bytesReceived } = req.body;
       
