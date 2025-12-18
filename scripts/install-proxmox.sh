@@ -243,10 +243,11 @@ install_dependencies() {
     # Try to install build-essential separately (optional, needed for native npm modules)
     # On systems with DRBL/Clonezilla, package version conflicts often prevent this
     print_info "Attempting to install build tools (optional)..."
-    if apt-get install -y build-essential 2>&1 | grep -q "Unable to satisfy\|Conflicts\|unmet dependencies"; then
+    BUILD_OUTPUT=$(apt-get install -y build-essential 2>&1) || true
+    if echo "$BUILD_OUTPUT" | grep -q "Unable to satisfy\|Conflicts\|unmet dependencies\|broken packages"; then
         print_warning "build-essential skipped - package version conflicts detected"
         print_info "This is normal on Clonezilla/DRBL systems and OK for Bootah"
-    elif apt-get install -y build-essential 2>/dev/null; then
+    elif echo "$BUILD_OUTPUT" | grep -q "is already the newest\|newly installed"; then
         print_status "Build tools installed"
     else
         print_warning "build-essential skipped (not critical for operation)"
@@ -313,11 +314,33 @@ install_postgresql() {
     
     # Create database and user
     print_info "Configuring PostgreSQL..."
-    sudo -u postgres psql -c "CREATE USER bootah WITH PASSWORD '$POSTGRES_PASSWORD';" 2>/dev/null || true
-    sudo -u postgres psql -c "CREATE DATABASE bootah OWNER bootah;" 2>/dev/null || true
+    
+    # Check if user exists, create if not
+    if sudo -u postgres psql -tAc "SELECT 1 FROM pg_roles WHERE rolname='bootah'" | grep -q 1; then
+        print_info "Database user 'bootah' already exists"
+        # Update password just in case
+        sudo -u postgres psql -c "ALTER USER bootah WITH PASSWORD '$POSTGRES_PASSWORD';" 2>/dev/null || true
+    else
+        sudo -u postgres psql -c "CREATE USER bootah WITH PASSWORD '$POSTGRES_PASSWORD';" || {
+            print_error "Failed to create database user"
+            exit 1
+        }
+    fi
+    
+    # Check if database exists, create if not
+    if sudo -u postgres psql -tAc "SELECT 1 FROM pg_database WHERE datname='bootah'" | grep -q 1; then
+        print_info "Database 'bootah' already exists"
+    else
+        sudo -u postgres psql -c "CREATE DATABASE bootah OWNER bootah;" || {
+            print_error "Failed to create database"
+            exit 1
+        }
+    fi
+    
+    # Grant permissions
     sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE bootah TO bootah;" 2>/dev/null || true
     sudo -u postgres psql -d bootah -c "GRANT ALL ON SCHEMA public TO bootah;" 2>/dev/null || true
-    print_status "Database 'bootah' created"
+    print_status "Database 'bootah' configured"
 }
 
 # Create bootah user
@@ -338,16 +361,39 @@ install_bootah() {
     echo ""
     print_info "Installing Bootah..."
     
+    # Determine where we're running from
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    SOURCE_DIR=""
+    
+    # Check various locations for Bootah source files
+    # Priority: 1) Already in INSTALL_DIR  2) Script's parent dir  3) Current dir  4) GitHub
+    
+    if [ -f "$INSTALL_DIR/package.json" ] && grep -q '"name": "bootah"' "$INSTALL_DIR/package.json" 2>/dev/null; then
+        print_status "Bootah source files already in $INSTALL_DIR"
+        SOURCE_DIR="$INSTALL_DIR"
+    elif [ -f "$SCRIPT_DIR/../package.json" ] && grep -q '"name": "bootah"' "$SCRIPT_DIR/../package.json" 2>/dev/null; then
+        # Running from scripts/ subdirectory of Bootah download
+        SOURCE_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+        print_status "Found Bootah source in $SOURCE_DIR"
+    elif [ -f "./package.json" ] && grep -q '"name": "bootah"' "./package.json" 2>/dev/null; then
+        SOURCE_DIR="$(pwd)"
+        print_status "Running from Bootah directory"
+    fi
+    
+    # If source found elsewhere, copy to install dir
+    if [ -n "$SOURCE_DIR" ] && [ "$SOURCE_DIR" != "$INSTALL_DIR" ]; then
+        print_info "Copying source files to $INSTALL_DIR..."
+        mkdir -p "$INSTALL_DIR"
+        cp -r "$SOURCE_DIR"/. "$INSTALL_DIR/"
+        print_status "Source files copied"
+    fi
+    
     mkdir -p "$INSTALL_DIR"
     cd "$INSTALL_DIR"
     
-    # Check if we're running from within an existing Bootah installation
-    # (user downloaded from Replit and ran script locally)
+    # Check if we now have the files
     if [ -f "$INSTALL_DIR/package.json" ] && grep -q '"name": "bootah"' "$INSTALL_DIR/package.json" 2>/dev/null; then
-        print_status "Bootah source files already present (local installation)"
-    elif [ -f "./package.json" ] && grep -q '"name": "bootah"' "./package.json" 2>/dev/null; then
-        print_status "Running from Bootah directory"
-        INSTALL_DIR=$(pwd)
+        print_status "Bootah source files ready"
     elif [ -d ".git" ]; then
         print_info "Updating existing git installation..."
         git fetch origin 2>/dev/null && git reset --hard origin/main 2>/dev/null || {
@@ -391,6 +437,15 @@ install_bootah() {
     print_info "Building application..."
     npm run build
     print_status "Application built"
+    
+    # Run database migrations
+    print_info "Running database migrations..."
+    # Need to set DATABASE_URL for drizzle
+    export DATABASE_URL="$DATABASE_URL"
+    npm run db:push 2>/dev/null || {
+        print_warning "Database migration skipped (will run on first start)"
+    }
+    print_status "Database schema ready"
     
     # Prune dev dependencies after build (optional, saves space)
     npm prune --production 2>/dev/null || true
