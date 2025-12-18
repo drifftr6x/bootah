@@ -241,11 +241,15 @@ install_dependencies() {
         }
     
     # Try to install build-essential separately (optional, needed for native npm modules)
-    if apt-get install -y build-essential 2>/dev/null; then
-        print_status "Build tools installed (native npm modules supported)"
+    # On systems with DRBL/Clonezilla, package version conflicts often prevent this
+    print_info "Attempting to install build tools (optional)..."
+    if apt-get install -y build-essential 2>&1 | grep -q "Unable to satisfy\|Conflicts\|unmet dependencies"; then
+        print_warning "build-essential skipped - package version conflicts detected"
+        print_info "This is normal on Clonezilla/DRBL systems and OK for Bootah"
+    elif apt-get install -y build-essential 2>/dev/null; then
+        print_status "Build tools installed"
     else
-        print_warning "build-essential skipped due to conflicts (native npm modules may not compile)"
-        print_info "This is OK for most Bootah functionality"
+        print_warning "build-essential skipped (not critical for operation)"
     fi
     
     # Re-enable DRBL if it was disabled
