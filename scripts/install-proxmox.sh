@@ -337,27 +337,60 @@ install_bootah() {
     mkdir -p "$INSTALL_DIR"
     cd "$INSTALL_DIR"
     
-    # Clone repository
-    if [ -d ".git" ]; then
-        print_info "Updating existing installation..."
-        git fetch origin
-        git reset --hard origin/main
+    # Check if we're running from within an existing Bootah installation
+    # (user downloaded from Replit and ran script locally)
+    if [ -f "$INSTALL_DIR/package.json" ] && grep -q '"name": "bootah"' "$INSTALL_DIR/package.json" 2>/dev/null; then
+        print_status "Bootah source files already present (local installation)"
+    elif [ -f "./package.json" ] && grep -q '"name": "bootah"' "./package.json" 2>/dev/null; then
+        print_status "Running from Bootah directory"
+        INSTALL_DIR=$(pwd)
+    elif [ -d ".git" ]; then
+        print_info "Updating existing git installation..."
+        git fetch origin 2>/dev/null && git reset --hard origin/main 2>/dev/null || {
+            print_warning "Git update failed, using existing files"
+        }
     else
-        git clone https://github.com/drifftr6x/bootah.git .
+        # Try to clone from GitHub (will work once repo is public)
+        print_info "Attempting to download from GitHub..."
+        if git clone https://github.com/drifftr6x/bootah.git . 2>/dev/null; then
+            print_status "Source code downloaded from GitHub"
+        else
+            print_error "GitHub repository not available yet."
+            echo ""
+            echo -e "${YELLOW}To install Bootah, please:${NC}"
+            echo "  1. Download from Replit (three-dot menu > 'Download as zip')"
+            echo "  2. Extract and copy files to $INSTALL_DIR"
+            echo "  3. Run this script again"
+            echo ""
+            echo "Commands to copy files:"
+            echo "  scp -r ~/Downloads/bootah-main/. root@THIS_SERVER:$INSTALL_DIR/"
+            echo ""
+            exit 1
+        fi
     fi
-    print_status "Source code downloaded"
+    
+    # Verify package.json exists
+    if [ ! -f "$INSTALL_DIR/package.json" ]; then
+        print_error "package.json not found in $INSTALL_DIR"
+        echo "Please ensure Bootah files are copied to $INSTALL_DIR first."
+        exit 1
+    fi
+    
+    print_status "Source code ready"
     
     # Install all dependencies (including dev for build)
-    npm ci
+    print_info "Installing npm dependencies (this may take a few minutes)..."
+    npm ci || npm install
     print_status "Dependencies installed"
     
     # Build application
+    print_info "Building application..."
     npm run build
     print_status "Application built"
     
-    # Prune dev dependencies after build
-    npm prune --production
-    print_status "Dev dependencies pruned"
+    # Prune dev dependencies after build (optional, saves space)
+    npm prune --production 2>/dev/null || true
+    print_status "Production dependencies ready"
     
     # Create directories
     mkdir -p images logs pxe-files/efi
