@@ -70,16 +70,48 @@ check_prerequisites() {
     fi
     print_status "Docker is installed"
     
-    # Check Docker Compose
+    # Check Docker Compose (multiple detection methods)
+    COMPOSE_CMD=""
+    
+    # Method 1: Check for standalone docker-compose binary
     if command_exists docker-compose; then
         COMPOSE_CMD="docker-compose"
         print_status "Docker Compose is installed (standalone)"
-    elif docker compose version >/dev/null 2>&1; then
-        COMPOSE_CMD="docker compose"
-        print_status "Docker Compose is installed (plugin)"
-    else
-        print_error "Docker Compose is not installed."
+    fi
+    
+    # Method 2: Check for Docker Compose plugin (v2)
+    if [ -z "$COMPOSE_CMD" ]; then
+        if docker compose version >/dev/null 2>&1; then
+            COMPOSE_CMD="docker compose"
+            print_status "Docker Compose is installed (plugin)"
+        fi
+    fi
+    
+    # Method 3: Check if compose is available via docker CLI
+    if [ -z "$COMPOSE_CMD" ]; then
+        if docker --help 2>&1 | grep -q "compose"; then
+            COMPOSE_CMD="docker compose"
+            print_status "Docker Compose is installed (via docker CLI)"
+        fi
+    fi
+    
+    # Method 4: Check common installation paths
+    if [ -z "$COMPOSE_CMD" ]; then
+        for path in /usr/local/bin/docker-compose /usr/bin/docker-compose ~/.docker/cli-plugins/docker-compose; do
+            if [ -x "$path" ]; then
+                COMPOSE_CMD="$path"
+                print_status "Docker Compose found at $path"
+                break
+            fi
+        done
+    fi
+    
+    if [ -z "$COMPOSE_CMD" ]; then
+        print_error "Docker Compose is not installed or not detected."
+        echo "    Checked: docker-compose, docker compose, docker CLI, common paths"
         echo "    Please install Docker Compose: https://docs.docker.com/compose/install/"
+        echo ""
+        echo "    To verify your installation, run: docker compose version"
         exit 1
     fi
     
