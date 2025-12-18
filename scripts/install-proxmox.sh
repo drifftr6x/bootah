@@ -300,7 +300,7 @@ install_bootah() {
         git fetch origin
         git reset --hard origin/main
     else
-        git clone https://github.com/yourusername/bootah.git .
+        git clone https://github.com/drifftr6x/bootah.git .
     fi
     print_status "Source code downloaded"
     

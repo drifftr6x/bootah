@@ -18,7 +18,7 @@ This comprehensive guide covers multiple deployment methods for self-hosting Boo
 ### One-Line Docker Install
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/yourusername/bootah/main/scripts/install-docker.sh | bash
+curl -sSL https://raw.githubusercontent.com/drifftr6x/bootah/main/scripts/install-docker.sh | bash
 ```
 
 This interactive script will:
@@ -32,7 +32,7 @@ This interactive script will:
 ### One-Line Linux Install (Ubuntu/Debian)
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/yourusername/bootah/main/scripts/install-linux.sh | sudo bash
+curl -sSL https://raw.githubusercontent.com/drifftr6x/bootah/main/scripts/install-linux.sh | sudo bash
 ```
 
 This script will:
@@ -48,7 +48,7 @@ This script will:
 
 ```bash
 # Inside your Proxmox LXC container:
-curl -sSL https://raw.githubusercontent.com/yourusername/bootah/main/scripts/install-proxmox.sh | bash
+curl -sSL https://raw.githubusercontent.com/drifftr6x/bootah/main/scripts/install-proxmox.sh | bash
 ```
 
 This script will:
@@ -80,7 +80,7 @@ The wizard provides an interactive menu to configure:
 
 ```bash
 # 1. Clone repository
-git clone https://github.com/yourusername/bootah.git
+git clone https://github.com/drifftr6x/bootah.git
 cd bootah
 
 # 2. Create environment file
@@ -351,7 +351,7 @@ sudo -u bootah mkdir -p /home/bootah/app
 cd /home/bootah/app
 
 # Clone repository
-sudo -u bootah git clone https://github.com/yourusername/bootah.git .
+sudo -u bootah git clone https://github.com/drifftr6x/bootah.git .
 ```
 
 ### Step 5: Configure Environment
@@ -1081,7 +1081,7 @@ sudo rm -rf /home/bootah/images/old_*
 
 ## 📞 Support Resources
 
-- **GitHub Issues**: https://github.com/yourusername/bootah/issues
+- **GitHub Issues**: https://github.com/drifftr6x/bootah/issues
 - **Documentation**: See PROXMOX_INSTALLATION_GUIDE.md for Proxmox setup
 - **Configuration**: See replit.md for detailed architecture
 

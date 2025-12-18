@@ -3,7 +3,7 @@
 # Bootah - Docker Installation Script
 # This script automates the setup of Bootah using Docker Compose
 #
-# Usage: curl -sSL https://raw.githubusercontent.com/yourusername/bootah/main/scripts/install-docker.sh | bash
+# Usage: curl -sSL https://raw.githubusercontent.com/drifftr6x/bootah/main/scripts/install-docker.sh | bash
 #        Or: ./install-docker.sh
 #
 
@@ -176,7 +176,7 @@ create_installation() {
     # Clone repository first if not already present
     if [ ! -f "package.json" ]; then
         print_info "Cloning Bootah repository..."
-        git clone https://github.com/yourusername/bootah.git temp_clone
+        git clone https://github.com/drifftr6x/bootah.git temp_clone
         # Move all files including hidden ones (excluding . and ..)
         shopt -s dotglob
         mv temp_clone/* . 2>/dev/null

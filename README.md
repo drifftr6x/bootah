@@ -38,20 +38,20 @@ Bootah is a modern, lightweight PXE server and OS imaging platform designed for 
 
 ### Docker (Recommended)
 ```bash
-curl -sSL https://raw.githubusercontent.com/yourusername/bootah/main/scripts/install-docker.sh | bash
+curl -sSL https://raw.githubusercontent.com/drifftr6x/bootah/main/scripts/install-docker.sh | bash
 # Access at http://localhost:5000
 ```
 
 ### Linux (Ubuntu/Debian)
 ```bash
-curl -sSL https://raw.githubusercontent.com/yourusername/bootah/main/scripts/install-linux.sh | sudo bash
+curl -sSL https://raw.githubusercontent.com/drifftr6x/bootah/main/scripts/install-linux.sh | sudo bash
 # Access at http://your-server-ip:5000
 ```
 
 ### Proxmox LXC
 ```bash
 # Inside your Proxmox LXC container:
-curl -sSL https://raw.githubusercontent.com/yourusername/bootah/main/scripts/install-proxmox.sh | bash
+curl -sSL https://raw.githubusercontent.com/drifftr6x/bootah/main/scripts/install-proxmox.sh | bash
 # Access at http://container-ip:5000
 ```
 

@@ -10,7 +10,7 @@ The fastest way to install Bootah in a Proxmox LXC container:
 pct enter <CTID>
 
 # 3. Run the automated installer
-curl -sSL https://raw.githubusercontent.com/yourusername/bootah/main/scripts/install-proxmox.sh | bash
+curl -sSL https://raw.githubusercontent.com/drifftr6x/bootah/main/scripts/install-proxmox.sh | bash
 ```
 
 The script will:
@@ -240,7 +240,7 @@ cd /home/bootah
 
 # Clone your Bootah repository
 # Replace with your actual repository URL
-git clone https://github.com/yourusername/bootah.git
+git clone https://github.com/drifftr6x/bootah.git
 cd bootah
 
 # Or if developing locally, you can scp files:

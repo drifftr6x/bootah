@@ -30,13 +30,13 @@ This guide provides step-by-step instructions to install and run Bootah as a sta
 
 ```bash
 # Docker (easiest)
-curl -sSL https://raw.githubusercontent.com/yourusername/bootah/main/scripts/install-docker.sh | bash
+curl -sSL https://raw.githubusercontent.com/drifftr6x/bootah/main/scripts/install-docker.sh | bash
 
 # Linux bare metal
-curl -sSL https://raw.githubusercontent.com/yourusername/bootah/main/scripts/install-linux.sh | sudo bash
+curl -sSL https://raw.githubusercontent.com/drifftr6x/bootah/main/scripts/install-linux.sh | sudo bash
 
 # Proxmox LXC container
-curl -sSL https://raw.githubusercontent.com/yourusername/bootah/main/scripts/install-proxmox.sh | bash
+curl -sSL https://raw.githubusercontent.com/drifftr6x/bootah/main/scripts/install-proxmox.sh | bash
 ```
 
 ---
@@ -74,7 +74,7 @@ brew install docker docker-compose
 ### Step 2: Clone Bootah
 
 ```bash
-git clone https://github.com/yourusername/bootah.git
+git clone https://github.com/drifftr6x/bootah.git
 cd bootah
 ```
 
@@ -267,7 +267,7 @@ npm --version   # Should be 8.x or higher
 
 ```bash
 cd /opt
-sudo git clone https://github.com/yourusername/bootah.git bootah
+sudo git clone https://github.com/drifftr6x/bootah.git bootah
 sudo chown -R $USER:$USER /opt/bootah
 cd /opt/bootah
 ```

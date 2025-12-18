@@ -36,18 +36,18 @@ Choose your deployment method:
 
 ### Docker (Recommended - 5 minutes) ⭐
 ```bash
-curl -sSL https://raw.githubusercontent.com/yourusername/bootah/main/scripts/install-docker.sh | bash
+curl -sSL https://raw.githubusercontent.com/drifftr6x/bootah/main/scripts/install-docker.sh | bash
 ```
 
 ### Linux Bare Metal (15 minutes)
 ```bash
-curl -sSL https://raw.githubusercontent.com/yourusername/bootah/main/scripts/install-linux.sh | sudo bash
+curl -sSL https://raw.githubusercontent.com/drifftr6x/bootah/main/scripts/install-linux.sh | sudo bash
 ```
 
 ### Proxmox LXC Container (20 minutes)
 ```bash
 # Run inside your Proxmox LXC container:
-curl -sSL https://raw.githubusercontent.com/yourusername/bootah/main/scripts/install-proxmox.sh | bash
+curl -sSL https://raw.githubusercontent.com/drifftr6x/bootah/main/scripts/install-proxmox.sh | bash
 ```
 
 All scripts are interactive and will prompt for configuration (IP address, ports, email settings).

@@ -102,7 +102,7 @@ cd /opt/bootah   # or your install directory
 
 ```bash
 # Download the script
-curl -O https://raw.githubusercontent.com/yourusername/bootah/main/install-docker.sh
+curl -O https://raw.githubusercontent.com/drifftr6x/bootah/main/install-docker.sh
 chmod +x install-docker.sh
 
 # Run the installation
@@ -128,7 +128,7 @@ chmod +x install-docker.sh
 
 ```bash
 # Download the script
-curl -O https://raw.githubusercontent.com/yourusername/bootah/main/install-linux.sh
+curl -O https://raw.githubusercontent.com/drifftr6x/bootah/main/install-linux.sh
 chmod +x install-linux.sh
 
 # Run with sudo
@@ -169,7 +169,7 @@ sudo ./install-linux.sh
 # - Storage: 30GB+
 
 # Inside the container:
-curl -O https://raw.githubusercontent.com/yourusername/bootah/main/install-proxmox.sh
+curl -O https://raw.githubusercontent.com/drifftr6x/bootah/main/install-proxmox.sh
 chmod +x install-proxmox.sh
 sudo ./install-proxmox.sh
 ```
@@ -203,7 +203,7 @@ sudo ./install-proxmox.sh
 kubectl version --short  # Verify kubectl connection
 
 # Download the script
-curl -O https://raw.githubusercontent.com/yourusername/bootah/main/install-kubernetes.sh
+curl -O https://raw.githubusercontent.com/drifftr6x/bootah/main/install-kubernetes.sh
 chmod +x install-kubernetes.sh
 
 # Run the installation

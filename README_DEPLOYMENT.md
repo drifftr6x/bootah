@@ -9,7 +9,7 @@ Best for: Most users, development, small to medium deployments
 
 ```bash
 # One-line automated install:
-curl -sSL https://raw.githubusercontent.com/yourusername/bootah/main/scripts/install-docker.sh | bash
+curl -sSL https://raw.githubusercontent.com/drifftr6x/bootah/main/scripts/install-docker.sh | bash
 ```
 
 **Access**: http://localhost:5000
@@ -23,7 +23,7 @@ Best for: Production environments, high performance, custom control
 
 ```bash
 # One-line automated install:
-curl -sSL https://raw.githubusercontent.com/yourusername/bootah/main/scripts/install-linux.sh | sudo bash
+curl -sSL https://raw.githubusercontent.com/drifftr6x/bootah/main/scripts/install-linux.sh | sudo bash
 ```
 
 **Requirements**:
@@ -42,7 +42,7 @@ Best for: Proxmox environments, laboratory setups, resource efficiency
 
 ```bash
 # Inside your LXC container:
-curl -sSL https://raw.githubusercontent.com/yourusername/bootah/main/scripts/install-proxmox.sh | bash
+curl -sSL https://raw.githubusercontent.com/drifftr6x/bootah/main/scripts/install-proxmox.sh | bash
 ```
 
 **Requirements**:

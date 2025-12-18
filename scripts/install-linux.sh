@@ -212,7 +212,7 @@ install_bootah() {
     if [ -d ".git" ]; then
         git pull
     else
-        git clone https://github.com/yourusername/bootah.git .
+        git clone https://github.com/drifftr6x/bootah.git .
     fi
     print_status "Source code downloaded"
     
