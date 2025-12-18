@@ -1,0 +1,53 @@
+#!ipxe
+set server-ip ${next-server}
+set boot-url http://${server-ip}:5000
+
+:start
+menu Bootah64x - PXE Boot Menu
+item --gap --             ----------------------- Deployment Options -----------------------
+item multicast            Boot into Multicast Receiver (UDP)
+item unicast              Boot into Unicast Deployment
+item --gap --             ----------------------- Tools & Recovery -------------------------
+item clonezilla           Boot Clonezilla Live
+item memtest              Memory Test (Memtest86+)
+item --gap --             ----------------------- Other Options ----------------------------
+item shell                iPXE Shell
+item exit                 Exit to BIOS/UEFI
+choose --timeout 30000 --default multicast selected || goto shell
+goto ${selected}
+
+:multicast
+echo Booting Bootah Multicast Receiver...
+set kernel-params bootah.mode=multicast bootah.server=${server-ip} bootah.port=5000
+kernel ${boot-url}/pxe-files/vmlinuz ${kernel-params}
+initrd ${boot-url}/pxe-files/initrd.img
+boot || goto failed
+
+:unicast
+echo Booting Bootah Unicast Deployment...
+set kernel-params bootah.mode=unicast bootah.server=${server-ip} bootah.port=5000
+kernel ${boot-url}/pxe-files/vmlinuz ${kernel-params}
+initrd ${boot-url}/pxe-files/initrd.img
+boot || goto failed
+
+:clonezilla
+echo Booting Clonezilla Live...
+kernel ${boot-url}/pxe-files/clonezilla/vmlinuz boot=live union=overlay username=user config components noswap edd=on nomodeset nodmraid locales= keyboard-layouts= ocs_live_run="ocs-live-general" ocs_live_extra_param="" ocs_live_batch=no net.ifnames=0 nosplash noprompt fetch=${boot-url}/pxe-files/clonezilla/filesystem.squashfs
+initrd ${boot-url}/pxe-files/clonezilla/initrd.img
+boot || goto failed
+
+:memtest
+kernel ${boot-url}/pxe-files/memtest86+.bin
+boot || goto failed
+
+:shell
+echo Entering iPXE shell...
+shell
+
+:exit
+exit
+
+:failed
+echo Boot failed. Press any key to return to menu.
+prompt
+goto start

@@ -92,16 +92,18 @@ export const multicastSessions = pgTable("multicast_sessions", {
 export const multicastParticipants = pgTable("multicast_participants", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   sessionId: varchar("session_id").notNull().references(() => multicastSessions.id, { onDelete: 'cascade' }),
-  deviceId: varchar("device_id").notNull().references(() => devices.id),
-  status: text("status").notNull().default("waiting"), // waiting, downloading, completed, failed
-  progress: real("progress").default(0), // 0-100
-  bytesReceived: bigint("bytes_received", { mode: "number" }).default(0), // Bytes received by this participant
+  deviceId: varchar("device_id").references(() => devices.id),
+  macAddress: varchar("mac_address", { length: 17 }),
+  ipAddress: varchar("ip_address", { length: 45 }),
+  status: text("status").notNull().default("waiting"),
+  progress: real("progress").default(0),
+  bytesReceived: bigint("bytes_received", { mode: "number" }).default(0),
   errorMessage: text("error_message"),
   joinedAt: timestamp("joined_at").defaultNow(),
   completedAt: timestamp("completed_at"),
 }, (table) => ({
   sessionDeviceIdx: index("multicast_participants_session_device_idx").on(table.sessionId, table.deviceId),
-  sessionDeviceUnique: unique("multicast_participants_session_device_unique").on(table.sessionId, table.deviceId),
+  sessionMacIdx: index("multicast_participants_session_mac_idx").on(table.sessionId, table.macAddress),
 }));
 
 export const activityLogs = pgTable("activity_logs", {

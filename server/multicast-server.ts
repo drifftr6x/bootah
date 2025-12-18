@@ -17,12 +17,15 @@ export interface MulticastSessionState {
   sessionId: string;
   imageId: string;
   imagePath: string;
+  multicastAddress: string;
+  port: number;
   totalSize: number;
   totalChunks: number;
   currentChunk: number;
   bytesSent: number;
   startTime: number;
   clients: Map<string, ClientState>;
+  pendingRetransmits: Map<number, number>;
   status: "waiting" | "active" | "completed" | "failed" | "cancelled";
   errorMessage?: string;
 }
@@ -36,7 +39,7 @@ export interface ClientState {
   receivedChunks: Set<number>;
   progress: number;
   bytesReceived: number;
-  status: "waiting" | "downloading" | "completed" | "failed";
+  status: "registered" | "waiting" | "downloading" | "completed" | "failed";
   joinedAt: number;
 }
 
@@ -181,16 +184,22 @@ export class MulticastServer extends EventEmitter {
 
     const totalChunks = Math.ceil(totalSize / this.config.chunkSize);
 
+    const existingState = this.activeSessions.get(sessionId);
+    const existingClients = existingState?.clients || new Map();
+
     const state: MulticastSessionState = {
       sessionId,
       imageId,
       imagePath,
+      multicastAddress: session.multicastAddress,
+      port: session.port,
       totalSize,
       totalChunks,
       currentChunk: 0,
       bytesSent: 0,
       startTime: Date.now(),
-      clients: new Map(),
+      clients: existingClients,
+      pendingRetransmits: new Map(),
       status: "waiting",
     };
 
@@ -619,11 +628,48 @@ export class MulticastServer extends EventEmitter {
     return Array.from(this.activeSessions.values());
   }
 
-  public simulateClientJoin(sessionId: string, deviceId: string, macAddress: string): void {
-    const state = this.activeSessions.get(sessionId);
-    if (!state) return;
+  public async prepareSession(sessionId: string): Promise<void> {
+    if (this.activeSessions.has(sessionId)) return;
 
-    const clientId = `sim-${deviceId}`;
+    const session = await storage.getMulticastSession(sessionId);
+    if (!session) {
+      throw new Error(`Session ${sessionId} not found`);
+    }
+
+    const preState: MulticastSessionState = {
+      sessionId,
+      imageId: session.imageId,
+      imagePath: "",
+      multicastAddress: session.multicastAddress,
+      port: session.port,
+      totalSize: 0,
+      totalChunks: 0,
+      currentChunk: 0,
+      bytesSent: 0,
+      startTime: 0,
+      status: "waiting",
+      clients: new Map(),
+      pendingRetransmits: new Map(),
+    };
+
+    this.activeSessions.set(sessionId, preState);
+    console.log(`[Multicast] Session ${sessionId} prepared for client registration`);
+  }
+
+  public async simulateClientJoin(sessionId: string, deviceId: string, macAddress: string): Promise<void> {
+    let state = this.activeSessions.get(sessionId);
+    
+    if (!state) {
+      await this.prepareSession(sessionId);
+      state = this.activeSessions.get(sessionId);
+    }
+    
+    if (!state) {
+      console.warn(`[Multicast] Could not prepare session ${sessionId}`);
+      return;
+    }
+
+    const clientId = `client-${deviceId}`;
 
     if (!state.clients.has(clientId)) {
       const client: ClientState = {
@@ -635,12 +681,12 @@ export class MulticastServer extends EventEmitter {
         receivedChunks: new Set(),
         progress: 0,
         bytesReceived: 0,
-        status: "waiting",
+        status: "registered",
         joinedAt: Date.now(),
       };
 
       state.clients.set(clientId, client);
-      console.log(`[Multicast] Simulated client ${deviceId} (${macAddress}) joined session ${sessionId}`);
+      console.log(`[Multicast] Client ${deviceId} (${macAddress}) joined session ${sessionId}`);
       this.emit("clientJoined", { sessionId, clientId, client });
     }
   }

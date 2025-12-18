@@ -1,0 +1,13 @@
+#!ipxe
+set server-ip ${next-server}
+set boot-url http://${server-ip}:5000
+
+:start
+echo Fetching available multicast sessions...
+chain ${boot-url}/api/pxe/multicast-menu || goto error
+
+:error
+echo Failed to fetch multicast sessions from server.
+echo Press any key to return to main menu.
+prompt
+chain ${boot-url}/pxe-files/boot.ipxe

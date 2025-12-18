@@ -1087,7 +1087,7 @@ export async function registerRoutes(app: Express): Promise<{
       const participant = await storage.addMulticastParticipant(participantData);
 
       // Log participant addition
-      const device = await storage.getDevice(participantData.deviceId);
+      const device = participantData.deviceId ? await storage.getDevice(participantData.deviceId) : null;
       if (device) {
         await storage.createActivityLog({
           type: "info",
@@ -1157,9 +1157,13 @@ export async function registerRoutes(app: Express): Promise<{
       await multicastServer.startSession(req.params.id, session.imageId);
 
       for (const participant of participants) {
-        const device = await storage.getDevice(participant.deviceId);
-        if (device) {
-          multicastServer.simulateClientJoin(req.params.id, device.id, device.macAddress);
+        if (participant.deviceId) {
+          const device = await storage.getDevice(participant.deviceId);
+          if (device) {
+            await multicastServer.simulateClientJoin(req.params.id, device.id, device.macAddress);
+          }
+        } else if (participant.macAddress) {
+          await multicastServer.simulateClientJoin(req.params.id, participant.id, participant.macAddress);
         }
       }
 
@@ -1270,6 +1274,160 @@ export async function registerRoutes(app: Express): Promise<{
       console.error("Error fetching live multicast status:", error);
       res.status(500).json({ message: "Failed to fetch live status" });
     }
+  });
+
+  // ====== PXE Client Endpoints (No authentication - called by booted PXE clients) ======
+
+  app.post("/api/multicast/client/register", async (req, res) => {
+    try {
+      const { sessionId, macAddress, ipAddress, hostname } = req.body;
+      
+      if (!sessionId || !macAddress) {
+        return res.status(400).json({ success: false, message: "sessionId and macAddress required" });
+      }
+
+      const session = await storage.getMulticastSession(sessionId);
+      if (!session) {
+        return res.status(404).json({ success: false, message: "Session not found" });
+      }
+
+      if (session.status !== "waiting" && session.status !== "active") {
+        return res.status(400).json({ success: false, message: `Session is ${session.status}, not accepting clients` });
+      }
+
+      const existingParticipants = await storage.getMulticastParticipants(sessionId);
+      const existing = existingParticipants.find(p => p.macAddress === macAddress);
+
+      if (existing) {
+        await storage.updateMulticastParticipant(existing.id, {
+          status: "registered",
+          ipAddress,
+        });
+        console.log(`[Multicast] Client re-registered: ${macAddress} for session ${sessionId}`);
+      } else {
+        if (existingParticipants.length >= (session.maxClients || 50)) {
+          return res.status(400).json({ success: false, message: "Session is full" });
+        }
+
+        const device = await storage.getDeviceByMac(macAddress);
+        
+        await storage.addMulticastParticipant({
+          sessionId,
+          deviceId: device?.id || undefined,
+          macAddress,
+          ipAddress: ipAddress || undefined,
+          status: "registered",
+        });
+        console.log(`[Multicast] New client registered: ${macAddress} for session ${sessionId}`);
+      }
+
+      const newClientCount = existingParticipants.length + (existing ? 0 : 1);
+      await storage.updateMulticastSession(sessionId, {
+        clientCount: newClientCount,
+      });
+
+      const { multicastServer } = await import("./multicast-server");
+      const device = await storage.getDeviceByMac(macAddress);
+      const clientId = device?.id || `pxe-${macAddress.replace(/[:-]/g, '')}`;
+      
+      await multicastServer.simulateClientJoin(sessionId, clientId, macAddress);
+      console.log(`[Multicast] Client ${macAddress} added to in-memory session ${sessionId}`);
+
+      res.json({
+        success: true,
+        multicastAddress: session.multicastAddress,
+        port: session.port,
+        sessionName: session.name,
+        status: session.status,
+      });
+    } catch (error: any) {
+      console.error("Client registration error:", error);
+      res.status(500).json({ success: false, message: error.message || "Registration failed" });
+    }
+  });
+
+  app.post("/api/multicast/client/heartbeat", async (req, res) => {
+    try {
+      const { sessionId, macAddress, status, progress, bytesReceived } = req.body;
+      
+      if (!sessionId || !macAddress) {
+        return res.status(400).json({ success: false, message: "sessionId and macAddress required" });
+      }
+
+      const participants = await storage.getMulticastParticipants(sessionId);
+      const participant = participants.find(p => p.macAddress === macAddress);
+
+      if (!participant) {
+        return res.status(404).json({ success: false, message: "Participant not found" });
+      }
+
+      await storage.updateMulticastParticipant(participant.id, {
+        status: status || participant.status,
+        progress: progress ?? participant.progress,
+        bytesReceived: bytesReceived ?? participant.bytesReceived,
+      });
+
+      const session = await storage.getMulticastSession(sessionId);
+      const isAcceptingProgress = session?.status === "active" || session?.status === "waiting";
+      
+      res.json({
+        success: true,
+        sessionStatus: session?.status,
+        shouldContinue: isAcceptingProgress,
+        multicastAddress: session?.multicastAddress,
+        port: session?.port,
+      });
+    } catch (error: any) {
+      console.error("Heartbeat error:", error);
+      res.status(500).json({ success: false, message: error.message || "Heartbeat failed" });
+    }
+  });
+
+  app.get("/api/pxe/multicast-menu", async (req, res) => {
+    try {
+      const sessions = await storage.getMulticastSessions();
+      const availableSessions = sessions.filter(s => s.status === "waiting" || s.status === "active");
+
+      let ipxeMenu = "#!ipxe\n\n";
+      ipxeMenu += "menu Available Multicast Sessions\n";
+      ipxeMenu += "item --gap --             ----------------------- Sessions -----------------------\n";
+
+      if (availableSessions.length === 0) {
+        ipxeMenu += "item --gap --             No active sessions available\n";
+      } else {
+        for (const session of availableSessions) {
+          const image = await storage.getImage(session.imageId);
+          ipxeMenu += `item session-${session.id}  ${session.name} (${image?.name || "Unknown"}) [${session.status}]\n`;
+        }
+      }
+
+      ipxeMenu += "item --gap --             -------------------------------------------------------\n";
+      ipxeMenu += "item back                 Return to main menu\n";
+      ipxeMenu += "choose --timeout 30000 --default back selected || goto back\n";
+      ipxeMenu += "goto ${selected}\n\n";
+
+      for (const session of availableSessions) {
+        ipxeMenu += `:session-${session.id}\n`;
+        ipxeMenu += `set bootah-session ${session.id}\n`;
+        ipxeMenu += `set kernel-params bootah.mode=multicast bootah.server=\${next-server} bootah.port=5000 bootah.session=${session.id}\n`;
+        ipxeMenu += `kernel http://\${next-server}:5000/pxe-files/vmlinuz \${kernel-params}\n`;
+        ipxeMenu += `initrd http://\${next-server}:5000/pxe-files/initrd.img\n`;
+        ipxeMenu += `boot || goto failed\n\n`;
+      }
+
+      ipxeMenu += `:back\nchain http://\${next-server}:5000/pxe-files/boot.ipxe\n`;
+      ipxeMenu += `:failed\necho Boot failed. Press any key to retry.\nprompt\ngoto start\n`;
+
+      res.setHeader("Content-Type", "text/plain");
+      res.send(ipxeMenu);
+    } catch (error) {
+      console.error("Error generating iPXE menu:", error);
+      res.status(500).send("#!ipxe\necho Error loading menu\nshell\n");
+    }
+  });
+
+  app.get("/api/health", (req, res) => {
+    res.json({ status: "ok", timestamp: new Date().toISOString() });
   });
 
   // Network Topology Endpoints
