@@ -205,12 +205,55 @@ install_dependencies() {
     echo ""
     print_info "Installing system dependencies..."
     
+    # Check for and temporarily disable problematic third-party repos
+    DRBL_DISABLED=false
+    if [ -f /etc/apt/sources.list.d/drbl.list ]; then
+        print_warning "Detected DRBL repository - temporarily disabling to avoid conflicts"
+        mv /etc/apt/sources.list.d/drbl.list /etc/apt/sources.list.d/drbl.list.disabled
+        DRBL_DISABLED=true
+    fi
+    
+    # Remove any problematic .pub.key files that cause warnings
+    for f in /etc/apt/sources.list.d/*.pub.key; do
+        if [ -f "$f" ]; then
+            print_warning "Moving invalid key file: $f"
+            mv "$f" "$f.backup"
+        fi
+    done
+    
+    # Clean apt cache and update
+    apt-get clean
     apt-get update
+    
+    # Fix any broken packages first
+    apt-get -f install -y 2>/dev/null || true
+    
+    # Install base dependencies without build-essential first
+    # (Node.js comes precompiled, so we don't need gcc/g++ for basic operation)
     apt-get install -y \
-        curl wget git build-essential \
+        curl wget git \
         ca-certificates gnupg \
         net-tools iputils-ping \
-        sudo
+        sudo unzip \
+        || {
+            print_warning "Some packages failed, trying minimal install..."
+            apt-get install -y curl wget git ca-certificates gnupg sudo unzip
+        }
+    
+    # Try to install build-essential separately (optional, needed for native npm modules)
+    if apt-get install -y build-essential 2>/dev/null; then
+        print_status "Build tools installed (native npm modules supported)"
+    else
+        print_warning "build-essential skipped due to conflicts (native npm modules may not compile)"
+        print_info "This is OK for most Bootah functionality"
+    fi
+    
+    # Re-enable DRBL if it was disabled
+    if [ "$DRBL_DISABLED" = true ] && [ -f /etc/apt/sources.list.d/drbl.list.disabled ]; then
+        print_info "Re-enabling DRBL repository"
+        mv /etc/apt/sources.list.d/drbl.list.disabled /etc/apt/sources.list.d/drbl.list
+    fi
+    
     print_status "Base dependencies installed"
 }
 
