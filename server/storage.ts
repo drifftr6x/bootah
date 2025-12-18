@@ -138,13 +138,13 @@ export interface IStorage {
   getMulticastSessions(): Promise<MulticastSession[]>;
   getMulticastSession(id: string): Promise<MulticastSession | undefined>;
   createMulticastSession(session: InsertMulticastSession): Promise<MulticastSession>;
-  updateMulticastSession(id: string, session: Partial<InsertMulticastSession>): Promise<MulticastSession | undefined>;
+  updateMulticastSession(id: string, session: Partial<MulticastSession>): Promise<MulticastSession | undefined>;
   deleteMulticastSession(id: string): Promise<boolean>;
   
   // Multicast Participants
   getMulticastParticipants(sessionId: string): Promise<MulticastParticipant[]>;
   addMulticastParticipant(participant: InsertMulticastParticipant): Promise<MulticastParticipant>;
-  updateMulticastParticipant(id: string, participant: Partial<InsertMulticastParticipant>): Promise<MulticastParticipant | undefined>;
+  updateMulticastParticipant(id: string, participant: Partial<MulticastParticipant>): Promise<MulticastParticipant | undefined>;
   removeMulticastParticipant(id: string): Promise<boolean>;
 
   // Activity Logs
@@ -895,7 +895,7 @@ export class MemStorage implements IStorage {
     return session;
   }
 
-  async updateMulticastSession(id: string, updateData: Partial<InsertMulticastSession>): Promise<MulticastSession | undefined> {
+  async updateMulticastSession(id: string, updateData: Partial<MulticastSession>): Promise<MulticastSession | undefined> {
     const session = this.multicastSessions.get(id);
     if (!session) return undefined;
 
@@ -962,7 +962,7 @@ export class MemStorage implements IStorage {
     return participant;
   }
 
-  async updateMulticastParticipant(id: string, updateData: Partial<InsertMulticastParticipant>): Promise<MulticastParticipant | undefined> {
+  async updateMulticastParticipant(id: string, updateData: Partial<MulticastParticipant>): Promise<MulticastParticipant | undefined> {
     const participant = this.multicastParticipants.get(id);
     if (!participant) return undefined;
 
@@ -2584,10 +2584,11 @@ export class DatabaseStorage implements IStorage {
     return session;
   }
 
-  async updateMulticastSession(id: string, updateData: Partial<InsertMulticastSession>): Promise<MulticastSession | undefined> {
+  async updateMulticastSession(id: string, updateData: Partial<MulticastSession>): Promise<MulticastSession | undefined> {
+    const { id: _, createdAt: __, ...safeUpdateData } = updateData;
     const [session] = await db
       .update(multicastSessions)
-      .set({ ...updateData, updatedAt: new Date() })
+      .set({ ...safeUpdateData, updatedAt: new Date() })
       .where(eq(multicastSessions.id, id))
       .returning();
     return session;
@@ -2655,10 +2656,11 @@ export class DatabaseStorage implements IStorage {
     });
   }
 
-  async updateMulticastParticipant(id: string, updateData: Partial<InsertMulticastParticipant>): Promise<MulticastParticipant | undefined> {
+  async updateMulticastParticipant(id: string, updateData: Partial<MulticastParticipant>): Promise<MulticastParticipant | undefined> {
+    const { id: _, sessionId: __, deviceId: ___, joinedAt: ____, ...safeUpdateData } = updateData;
     const [participant] = await db
       .update(multicastParticipants)
-      .set(updateData)
+      .set(safeUpdateData)
       .where(eq(multicastParticipants.id, id))
       .returning();
     return participant;

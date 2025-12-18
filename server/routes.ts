@@ -1135,6 +1135,143 @@ export async function registerRoutes(app: Express): Promise<{
     }
   });
 
+  // Multicast UDP Transmission Control Endpoints
+  app.post("/api/multicast/sessions/:id/start", isAuthenticated, requirePermission("multicast", "deploy"), async (req, res) => {
+    try {
+      const { multicastServer } = await import("./multicast-server");
+      const session = await storage.getMulticastSession(req.params.id);
+      
+      if (!session) {
+        return res.status(404).json({ message: "Multicast session not found" });
+      }
+
+      if (session.status !== "waiting") {
+        return res.status(400).json({ message: `Cannot start session in ${session.status} state` });
+      }
+
+      const participants = await storage.getMulticastParticipants(req.params.id);
+      if (participants.length === 0) {
+        return res.status(400).json({ message: "Cannot start session without participants" });
+      }
+
+      await multicastServer.startSession(req.params.id, session.imageId);
+
+      for (const participant of participants) {
+        const device = await storage.getDevice(participant.deviceId);
+        if (device) {
+          multicastServer.simulateClientJoin(req.params.id, device.id, device.macAddress);
+        }
+      }
+
+      await multicastServer.beginTransmission(req.params.id);
+
+      await storage.createActivityLog({
+        type: "multicast",
+        message: `Multicast UDP transmission started for session "${session.name}" with ${participants.length} participants`,
+        deviceId: null,
+        deploymentId: null,
+      });
+
+      res.json({ 
+        message: "Multicast transmission started",
+        sessionId: req.params.id,
+        participants: participants.length,
+        multicastAddress: session.multicastAddress,
+        port: session.port,
+      });
+    } catch (error: any) {
+      console.error("Error starting multicast transmission:", error);
+      res.status(500).json({ message: error.message || "Failed to start multicast transmission" });
+    }
+  });
+
+  app.post("/api/multicast/sessions/:id/cancel", isAuthenticated, requirePermission("multicast", "manage"), async (req, res) => {
+    try {
+      const { multicastServer } = await import("./multicast-server");
+      const session = await storage.getMulticastSession(req.params.id);
+      
+      if (!session) {
+        return res.status(404).json({ message: "Multicast session not found" });
+      }
+
+      if (session.status !== "active") {
+        return res.status(400).json({ message: `Session is not active (current: ${session.status})` });
+      }
+
+      await multicastServer.cancelSession(req.params.id);
+
+      await storage.createActivityLog({
+        type: "multicast",
+        message: `Multicast transmission cancelled for session "${session.name}"`,
+        deviceId: null,
+        deploymentId: null,
+      });
+
+      res.json({ message: "Multicast transmission cancelled", sessionId: req.params.id });
+    } catch (error: any) {
+      console.error("Error cancelling multicast transmission:", error);
+      res.status(500).json({ message: error.message || "Failed to cancel multicast transmission" });
+    }
+  });
+
+  app.get("/api/multicast/sessions/:id/live-status", isAuthenticated, requirePermission("multicast", "read"), async (req, res) => {
+    try {
+      const { multicastServer } = await import("./multicast-server");
+      const session = await storage.getMulticastSession(req.params.id);
+      
+      if (!session) {
+        return res.status(404).json({ message: "Multicast session not found" });
+      }
+
+      const liveState = multicastServer.getSessionState(req.params.id);
+      const participants = await storage.getMulticastParticipants(req.params.id);
+
+      if (liveState) {
+        const elapsed = (Date.now() - liveState.startTime) / 1000;
+        const currentThroughput = liveState.bytesSent / elapsed / 1024 / 1024;
+        const progress = (liveState.currentChunk / liveState.totalChunks) * 100;
+
+        res.json({
+          sessionId: req.params.id,
+          status: liveState.status,
+          progress,
+          currentChunk: liveState.currentChunk,
+          totalChunks: liveState.totalChunks,
+          bytesSent: liveState.bytesSent,
+          totalSize: liveState.totalSize,
+          throughputMBps: currentThroughput,
+          elapsedSeconds: elapsed,
+          clientCount: liveState.clients.size,
+          clients: Array.from(liveState.clients.values()).map(c => ({
+            deviceId: c.deviceId,
+            macAddress: c.macAddress,
+            status: c.status,
+            progress: c.progress,
+            bytesReceived: c.bytesReceived,
+          })),
+          participants,
+        });
+      } else {
+        res.json({
+          sessionId: req.params.id,
+          status: session.status,
+          progress: session.status === "completed" ? 100 : 0,
+          currentChunk: 0,
+          totalChunks: 0,
+          bytesSent: session.bytesSent || 0,
+          totalSize: session.totalBytes || 0,
+          throughputMBps: session.throughput || 0,
+          clientCount: session.clientCount || 0,
+          clients: [],
+          participants,
+        });
+      }
+    } catch (error) {
+      console.error("Error fetching live multicast status:", error);
+      res.status(500).json({ message: "Failed to fetch live status" });
+    }
+  });
+
   // Network Topology Endpoints
   
   app.get("/api/topology", isAuthenticated, requirePermission("devices", "read"), async (req, res) => {

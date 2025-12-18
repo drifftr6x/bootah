@@ -50,20 +50,20 @@ export default function MulticastSessions() {
 
   const startSessionMutation = useMutation({
     mutationFn: async (sessionId: string) => {
-      return apiRequest("PATCH", `/api/multicast/sessions/${sessionId}`, { status: "active" });
+      return apiRequest("POST", `/api/multicast/sessions/${sessionId}/start`, {});
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/multicast/sessions"] });
       toast({
-        title: "Session Started",
-        description: "Multicast session has been activated. Deployment will begin shortly.",
+        title: "UDP Multicast Started",
+        description: "Multicast transmission has begun. Streaming image data to all participants.",
       });
       setSessionToStart(null);
     },
-    onError: () => {
+    onError: (error: any) => {
       toast({
         title: "Start Failed",
-        description: "Failed to start multicast session. Please try again.",
+        description: error?.message || "Failed to start multicast transmission. Please try again.",
         variant: "destructive",
       });
     },
@@ -71,20 +71,20 @@ export default function MulticastSessions() {
 
   const cancelSessionMutation = useMutation({
     mutationFn: async (sessionId: string) => {
-      return apiRequest("PATCH", `/api/multicast/sessions/${sessionId}`, { status: "cancelled" });
+      return apiRequest("POST", `/api/multicast/sessions/${sessionId}/cancel`, {});
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/multicast/sessions"] });
       toast({
-        title: "Session Cancelled",
-        description: "Multicast session has been cancelled.",
+        title: "Transmission Cancelled",
+        description: "Multicast UDP transmission has been stopped.",
       });
       setSessionToCancel(null);
     },
-    onError: () => {
+    onError: (error: any) => {
       toast({
         title: "Cancellation Failed",
-        description: "Failed to cancel multicast session. Please try again.",
+        description: error?.message || "Failed to cancel multicast transmission. Please try again.",
         variant: "destructive",
       });
     },
