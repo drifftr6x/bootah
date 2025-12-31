@@ -5,23 +5,25 @@ import type { ServerStatus } from "@shared/schema";
 import { cn } from "@/lib/utils";
 import { Radio, WifiOff, Activity, Zap, Database, Network, Server } from "lucide-react";
 
-interface ServiceStatus {
+interface ServiceConfig {
   name: string;
   key: keyof Pick<ServerStatus, 'pxeServerStatus' | 'tftpServerStatus' | 'httpServerStatus' | 'dhcpProxyStatus'>;
-  endpoint: string;
+  portKey: keyof Pick<ServerStatus, 'pxePort' | 'tftpPort' | 'httpPort' | 'dhcpPort'> | null;
 }
 
-const services: ServiceStatus[] = [
-  { name: "PXE Server", key: "pxeServerStatus", endpoint: "192.168.1.100:67" },
-  { name: "TFTP Server", key: "tftpServerStatus", endpoint: "192.168.1.100:69" },
-  { name: "HTTP Server", key: "httpServerStatus", endpoint: "192.168.1.100:80" },
-  { name: "DHCP Proxy", key: "dhcpProxyStatus", endpoint: "Listening" },
+const serviceConfigs: ServiceConfig[] = [
+  { name: "PXE Server", key: "pxeServerStatus", portKey: "pxePort" },
+  { name: "TFTP Server", key: "tftpServerStatus", portKey: "tftpPort" },
+  { name: "HTTP Server", key: "httpServerStatus", portKey: "httpPort" },
+  { name: "DHCP Proxy", key: "dhcpProxyStatus", portKey: null },
 ];
 
 export default function NetworkStatus() {
   const { data: serverStatus, isLoading } = useQuery<ServerStatus>({
     queryKey: ["/api/server-status"],
-    refetchInterval: 5000, // Refresh every 5 seconds
+    refetchInterval: false,
+    refetchOnWindowFocus: false,
+    staleTime: Infinity,
   });
 
   if (isLoading) {
@@ -49,8 +51,11 @@ export default function NetworkStatus() {
         <h3 className="text-lg font-semibold text-foreground">Network Status</h3>
       </CardHeader>
       <CardContent className="p-6 space-y-4">
-        {services.map((service) => {
+        {serviceConfigs.map((service) => {
           const isOnline = serverStatus?.[service.key] ?? false;
+          const serverIp = serverStatus?.serverIp || "192.168.1.100";
+          const port = service.portKey ? serverStatus?.[service.portKey] : null;
+          const endpoint = port ? `${serverIp}:${port}` : "Listening";
           
           return (
             <div key={service.name} className="flex items-center justify-between p-3 rounded-lg transition-all duration-300 hover:bg-muted/50">
@@ -85,7 +90,7 @@ export default function NetworkStatus() {
               </div>
               <div className="text-right">
                 <span className="text-sm text-secondary" data-testid={`text-endpoint-${service.name.toLowerCase().replace(/\s+/g, "-")}`}>
-                  {service.endpoint}
+                  {endpoint}
                 </span>
                 {isOnline && (
                   <div className="flex items-center justify-end mt-1 space-x-1">
