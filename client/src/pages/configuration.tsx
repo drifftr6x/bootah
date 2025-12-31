@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Header from "@/components/layout/header";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -19,27 +19,65 @@ import { Save, Server, Network, Shield, Globe } from "lucide-react";
 export default function Configuration() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [isInitialized, setIsInitialized] = useState(false);
 
   const { data: serverStatus, isLoading } = useQuery<ServerStatus>({
     queryKey: ["/api/server-status"],
+    refetchInterval: false,
+    refetchOnWindowFocus: false,
   });
 
   const form = useForm<UpdateServerStatus>({
     resolver: zodResolver(updateServerStatusSchema),
     defaultValues: {
-      serverName: serverStatus?.serverName ?? "Bootah64x-Server",
-      pxeServerStatus: serverStatus?.pxeServerStatus ?? true,
-      tftpServerStatus: serverStatus?.tftpServerStatus ?? true,
-      httpServerStatus: serverStatus?.httpServerStatus ?? true,
-      dhcpProxyStatus: serverStatus?.dhcpProxyStatus ?? true,
-      serverIp: serverStatus?.serverIp ?? "192.168.1.100",
-      pxePort: serverStatus?.pxePort ?? 67,
-      tftpPort: serverStatus?.tftpPort ?? 69,
-      httpPort: serverStatus?.httpPort ?? 80,
-      dhcpPort: serverStatus?.dhcpPort ?? 67,
-      networkTraffic: serverStatus?.networkTraffic ?? 0,
+      serverName: "Bootah64x-Server",
+      pxeServerStatus: true,
+      tftpServerStatus: true,
+      httpServerStatus: true,
+      dhcpProxyStatus: true,
+      serverIp: "192.168.1.100",
+      dhcpRangeStart: "192.168.1.100",
+      dhcpRangeEnd: "192.168.1.200",
+      subnetMask: "255.255.255.0",
+      defaultGateway: "192.168.1.1",
+      bootMode: "bios",
+      bootTimeout: 30,
+      tlsEncryption: true,
+      macFiltering: false,
+      pxePort: 67,
+      tftpPort: 69,
+      httpPort: 80,
+      dhcpPort: 67,
+      networkTraffic: 0,
     },
   });
+
+  useEffect(() => {
+    if (serverStatus && !isInitialized) {
+      form.reset({
+        serverName: serverStatus.serverName ?? "Bootah64x-Server",
+        pxeServerStatus: serverStatus.pxeServerStatus ?? true,
+        tftpServerStatus: serverStatus.tftpServerStatus ?? true,
+        httpServerStatus: serverStatus.httpServerStatus ?? true,
+        dhcpProxyStatus: serverStatus.dhcpProxyStatus ?? true,
+        serverIp: serverStatus.serverIp ?? "192.168.1.100",
+        dhcpRangeStart: serverStatus.dhcpRangeStart ?? "192.168.1.100",
+        dhcpRangeEnd: serverStatus.dhcpRangeEnd ?? "192.168.1.200",
+        subnetMask: serverStatus.subnetMask ?? "255.255.255.0",
+        defaultGateway: serverStatus.defaultGateway ?? "192.168.1.1",
+        bootMode: serverStatus.bootMode ?? "bios",
+        bootTimeout: serverStatus.bootTimeout ?? 30,
+        tlsEncryption: serverStatus.tlsEncryption ?? true,
+        macFiltering: serverStatus.macFiltering ?? false,
+        pxePort: serverStatus.pxePort ?? 67,
+        tftpPort: serverStatus.tftpPort ?? 69,
+        httpPort: serverStatus.httpPort ?? 80,
+        dhcpPort: serverStatus.dhcpPort ?? 67,
+        networkTraffic: serverStatus.networkTraffic ?? 0,
+      });
+      setIsInitialized(true);
+    }
+  }, [serverStatus, isInitialized, form]);
 
   const updateConfigMutation = useMutation({
     mutationFn: async (data: UpdateServerStatus) => {
@@ -373,45 +411,81 @@ export default function Configuration() {
                 />
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <Label htmlFor="dhcp-range-start" data-testid="label-dhcp-range-start">DHCP Range Start</Label>
-                    <Input
-                      id="dhcp-range-start"
-                      placeholder="192.168.1.100"
-                      defaultValue="192.168.1.100"
-                      data-testid="input-dhcp-range-start"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="dhcp-range-end" data-testid="label-dhcp-range-end">DHCP Range End</Label>
-                    <Input
-                      id="dhcp-range-end"
-                      placeholder="192.168.1.200"
-                      defaultValue="192.168.1.200"
-                      data-testid="input-dhcp-range-end"
-                    />
-                  </div>
+                  <FormField
+                    control={form.control}
+                    name="dhcpRangeStart"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel data-testid="label-dhcp-range-start">DHCP Range Start</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="192.168.1.100"
+                            {...field}
+                            value={field.value || ''}
+                            data-testid="input-dhcp-range-start"
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="dhcpRangeEnd"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel data-testid="label-dhcp-range-end">DHCP Range End</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="192.168.1.200"
+                            {...field}
+                            value={field.value || ''}
+                            data-testid="input-dhcp-range-end"
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <Label htmlFor="subnet-mask" data-testid="label-subnet-mask">Subnet Mask</Label>
-                    <Input
-                      id="subnet-mask"
-                      placeholder="255.255.255.0"
-                      defaultValue="255.255.255.0"
-                      data-testid="input-subnet-mask"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="default-gateway" data-testid="label-default-gateway">Default Gateway</Label>
-                    <Input
-                      id="default-gateway"
-                      placeholder="192.168.1.1"
-                      defaultValue="192.168.1.1"
-                      data-testid="input-default-gateway"
-                    />
-                  </div>
+                  <FormField
+                    control={form.control}
+                    name="subnetMask"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel data-testid="label-subnet-mask">Subnet Mask</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="255.255.255.0"
+                            {...field}
+                            value={field.value || ''}
+                            data-testid="input-subnet-mask"
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="defaultGateway"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel data-testid="label-default-gateway">Default Gateway</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="192.168.1.1"
+                            {...field}
+                            value={field.value || ''}
+                            data-testid="input-default-gateway"
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
                 </div>
               </CardContent>
             </Card>
@@ -425,39 +499,84 @@ export default function Configuration() {
                 </div>
               </CardHeader>
               <CardContent className="p-6 space-y-6">
-                <div className="space-y-4">
-                  <div>
-                    <Label className="text-base" data-testid="label-boot-mode">
-                      Default Boot Mode
-                    </Label>
-                    <p className="text-sm text-muted-foreground mb-3">
-                      Configure default BIOS/UEFI boot mode for PXE deployments
-                    </p>
-                  </div>
-                  <div className="grid grid-cols-1 gap-3">
-                    <div className="flex items-center space-x-3 rounded-lg border border-border p-3 cursor-pointer hover:bg-accent" data-testid="option-bios">
-                      <input type="radio" name="bootMode" value="bios" defaultChecked className="w-4 h-4" data-testid="radio-bios" />
+                <FormField
+                  control={form.control}
+                  name="bootMode"
+                  render={({ field }) => (
+                    <FormItem className="space-y-4">
                       <div>
-                        <Label className="text-sm font-medium cursor-pointer" data-testid="label-bios">Legacy BIOS (MBR)</Label>
-                        <p className="text-xs text-muted-foreground">Traditional boot method, maximum compatibility</p>
+                        <FormLabel className="text-base" data-testid="label-boot-mode">
+                          Default Boot Mode
+                        </FormLabel>
+                        <FormDescription>
+                          Configure default BIOS/UEFI boot mode for PXE deployments
+                        </FormDescription>
                       </div>
-                    </div>
-                    <div className="flex items-center space-x-3 rounded-lg border border-border p-3 cursor-pointer hover:bg-accent" data-testid="option-uefi">
-                      <input type="radio" name="bootMode" value="uefi" className="w-4 h-4" data-testid="radio-uefi" />
-                      <div>
-                        <Label className="text-sm font-medium cursor-pointer" data-testid="label-uefi">UEFI (GPT)</Label>
-                        <p className="text-xs text-muted-foreground">Modern boot method, required for newer systems</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center space-x-3 rounded-lg border border-border p-3 cursor-pointer hover:bg-accent" data-testid="option-uefi-secure">
-                      <input type="radio" name="bootMode" value="uefi-secure" className="w-4 h-4" data-testid="radio-uefi-secure" />
-                      <div>
-                        <Label className="text-sm font-medium cursor-pointer" data-testid="label-uefi-secure">UEFI Secure Boot</Label>
-                        <p className="text-xs text-muted-foreground">Enhanced security with signed bootloaders (Windows/UEFI certified systems)</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                      <FormControl>
+                        <div className="grid grid-cols-1 gap-3">
+                          <div 
+                            className={`flex items-center space-x-3 rounded-lg border p-3 cursor-pointer hover:bg-accent ${field.value === 'bios' ? 'border-primary bg-accent' : 'border-border'}`}
+                            onClick={() => field.onChange('bios')}
+                            data-testid="option-bios"
+                          >
+                            <input 
+                              type="radio" 
+                              name="bootMode" 
+                              value="bios" 
+                              checked={field.value === 'bios'} 
+                              onChange={() => field.onChange('bios')}
+                              className="w-4 h-4" 
+                              data-testid="radio-bios" 
+                            />
+                            <div>
+                              <Label className="text-sm font-medium cursor-pointer" data-testid="label-bios">Legacy BIOS (MBR)</Label>
+                              <p className="text-xs text-muted-foreground">Traditional boot method, maximum compatibility</p>
+                            </div>
+                          </div>
+                          <div 
+                            className={`flex items-center space-x-3 rounded-lg border p-3 cursor-pointer hover:bg-accent ${field.value === 'uefi' ? 'border-primary bg-accent' : 'border-border'}`}
+                            onClick={() => field.onChange('uefi')}
+                            data-testid="option-uefi"
+                          >
+                            <input 
+                              type="radio" 
+                              name="bootMode" 
+                              value="uefi" 
+                              checked={field.value === 'uefi'}
+                              onChange={() => field.onChange('uefi')}
+                              className="w-4 h-4" 
+                              data-testid="radio-uefi" 
+                            />
+                            <div>
+                              <Label className="text-sm font-medium cursor-pointer" data-testid="label-uefi">UEFI (GPT)</Label>
+                              <p className="text-xs text-muted-foreground">Modern boot method, required for newer systems</p>
+                            </div>
+                          </div>
+                          <div 
+                            className={`flex items-center space-x-3 rounded-lg border p-3 cursor-pointer hover:bg-accent ${field.value === 'uefi-secure' ? 'border-primary bg-accent' : 'border-border'}`}
+                            onClick={() => field.onChange('uefi-secure')}
+                            data-testid="option-uefi-secure"
+                          >
+                            <input 
+                              type="radio" 
+                              name="bootMode" 
+                              value="uefi-secure" 
+                              checked={field.value === 'uefi-secure'}
+                              onChange={() => field.onChange('uefi-secure')}
+                              className="w-4 h-4" 
+                              data-testid="radio-uefi-secure" 
+                            />
+                            <div>
+                              <Label className="text-sm font-medium cursor-pointer" data-testid="label-uefi-secure">UEFI Secure Boot</Label>
+                              <p className="text-xs text-muted-foreground">Enhanced security with signed bootloaders (Windows/UEFI certified systems)</p>
+                            </div>
+                          </div>
+                        </div>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
                 <div className="flex flex-row items-center justify-between rounded-lg border border-border p-4">
                   <div className="space-y-0.5">
@@ -468,7 +587,19 @@ export default function Configuration() {
                       Encrypt image transfers over HTTPS
                     </p>
                   </div>
-                  <Switch defaultChecked={true} data-testid="switch-tls-encryption" />
+                  <FormField
+                    control={form.control}
+                    name="tlsEncryption"
+                    render={({ field }) => (
+                      <FormControl>
+                        <Switch 
+                          checked={field.value || false} 
+                          onCheckedChange={field.onChange}
+                          data-testid="switch-tls-encryption" 
+                        />
+                      </FormControl>
+                    )}
+                  />
                 </div>
 
                 <div className="flex flex-row items-center justify-between rounded-lg border border-border p-4">
@@ -480,26 +611,48 @@ export default function Configuration() {
                       Only allow authorized devices to boot
                     </p>
                   </div>
-                  <Switch defaultChecked={false} data-testid="switch-mac-filtering" />
+                  <FormField
+                    control={form.control}
+                    name="macFiltering"
+                    render={({ field }) => (
+                      <FormControl>
+                        <Switch 
+                          checked={field.value || false} 
+                          onCheckedChange={field.onChange}
+                          data-testid="switch-mac-filtering" 
+                        />
+                      </FormControl>
+                    )}
+                  />
                 </div>
 
                 <Separator />
 
-                <div className="space-y-4">
-                  <Label htmlFor="boot-timeout" data-testid="label-boot-timeout">Boot Timeout (seconds)</Label>
-                  <Input
-                    id="boot-timeout"
-                    type="number"
-                    placeholder="30"
-                    defaultValue="30"
-                    min="5"
-                    max="300"
-                    data-testid="input-boot-timeout"
-                  />
-                  <p className="text-sm text-muted-foreground">
-                    Time to wait for PXE boot selection before timeout
-                  </p>
-                </div>
+                <FormField
+                  control={form.control}
+                  name="bootTimeout"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel data-testid="label-boot-timeout">Boot Timeout (seconds)</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          placeholder="30"
+                          min={5}
+                          max={300}
+                          {...field}
+                          value={field.value || 30}
+                          onChange={e => field.onChange(parseInt(e.target.value) || 30)}
+                          data-testid="input-boot-timeout"
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        Time to wait for PXE boot selection before timeout
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
               </CardContent>
             </Card>
 
