@@ -2,7 +2,7 @@
 
 set menu-timeout 30000
 set submenu-timeout ${menu-timeout}
-set nfs-server 10.1.1.111
+set server 10.1.1.111
 
 :start
 menu Bootah64x PXE Boot Menu
@@ -25,37 +25,37 @@ goto start
 
 :clonezilla-live
 echo Booting Clonezilla Live...
-kernel tftp://${nfs-server}/clonezilla/vmlinuz
-initrd tftp://${nfs-server}/clonezilla/initrd.img
-imgargs vmlinuz boot=live union=overlay username=user config components quiet noswap nolocales edd=on nomodeset ocs_live_run="ocs-live-general" ocs_live_extra_param="" keyboard-layouts= ocs_live_batch="no" locales= vga=788 ip=dhcp nosplash netboot=nfs nfsroot=${nfs-server}:/opt/bootah/pxe-files live-media-path=/clonezilla fetch=tftp://${nfs-server}/clonezilla/filesystem.squashfs
+kernel http://${server}:5000/pxe/clonezilla/vmlinuz
+initrd http://${server}:5000/pxe/clonezilla/initrd.img
+imgargs vmlinuz boot=live union=overlay username=user config components quiet noswap nolocales edd=on nomodeset ocs_live_run="ocs-live-general" ocs_live_extra_param="" keyboard-layouts= ocs_live_batch="no" locales= vga=788 ip=dhcp nosplash netboot=nfs nfsroot=${server}:/opt/bootah/pxe-files live-media-path=/clonezilla fetch=http://${server}:5000/pxe/clonezilla/filesystem.squashfs
 boot || goto failed
 
 :capture-image
 echo Booting Clonezilla Capture Mode...
-kernel tftp://${nfs-server}/clonezilla/vmlinuz
-initrd tftp://${nfs-server}/clonezilla/initrd.img
-imgargs vmlinuz boot=live union=overlay username=user config components quiet noswap nolocales edd=on nomodeset ocs_prerun="mount -t nfs ${nfs-server}:/opt/bootah/pxe-images /home/partimag" ocs_live_run="ocs-sr -q2 -c -j2 -z1p -i 4096 -sfsck -senc -p choose savedisk ask_user" ocs_live_extra_param="" keyboard-layouts= ocs_live_batch="no" locales= vga=788 ip=dhcp nosplash netboot=nfs nfsroot=${nfs-server}:/opt/bootah/pxe-files live-media-path=/clonezilla fetch=tftp://${nfs-server}/clonezilla/filesystem.squashfs
+kernel http://${server}:5000/pxe/clonezilla/vmlinuz
+initrd http://${server}:5000/pxe/clonezilla/initrd.img
+imgargs vmlinuz boot=live union=overlay username=user config components quiet noswap nolocales edd=on nomodeset ocs_prerun="mount -t nfs ${server}:/opt/bootah/pxe-images /home/partimag" ocs_live_run="ocs-sr -q2 -c -j2 -z1p -i 4096 -sfsck -senc -p choose savedisk ask_user" ocs_live_extra_param="" keyboard-layouts= ocs_live_batch="no" locales= vga=788 ip=dhcp nosplash netboot=nfs nfsroot=${server}:/opt/bootah/pxe-files live-media-path=/clonezilla fetch=http://${server}:5000/pxe/clonezilla/filesystem.squashfs
 boot || goto failed
 
 :deploy-image
 echo Booting Clonezilla Deploy Mode...
-kernel tftp://${nfs-server}/clonezilla/vmlinuz
-initrd tftp://${nfs-server}/clonezilla/initrd.img
-imgargs vmlinuz boot=live union=overlay username=user config components quiet noswap nolocales edd=on nomodeset ocs_prerun="mount -t nfs ${nfs-server}:/opt/bootah/pxe-images /home/partimag" ocs_live_run="ocs-sr -g auto -e1 auto -e2 -r -j2 -c -p choose restoredisk ask_user ask_user" ocs_live_extra_param="" keyboard-layouts= ocs_live_batch="no" locales= vga=788 ip=dhcp nosplash netboot=nfs nfsroot=${nfs-server}:/opt/bootah/pxe-files live-media-path=/clonezilla fetch=tftp://${nfs-server}/clonezilla/filesystem.squashfs
+kernel http://${server}:5000/pxe/clonezilla/vmlinuz
+initrd http://${server}:5000/pxe/clonezilla/initrd.img
+imgargs vmlinuz boot=live union=overlay username=user config components quiet noswap nolocales edd=on nomodeset ocs_prerun="mount -t nfs ${server}:/opt/bootah/pxe-images /home/partimag" ocs_live_run="ocs-sr -g auto -e1 auto -e2 -r -j2 -c -p choose restoredisk ask_user ask_user" ocs_live_extra_param="" keyboard-layouts= ocs_live_batch="no" locales= vga=788 ip=dhcp nosplash netboot=nfs nfsroot=${server}:/opt/bootah/pxe-files live-media-path=/clonezilla fetch=http://${server}:5000/pxe/clonezilla/filesystem.squashfs
 boot || goto failed
 
 :capture-batch
 echo Booting Quick Capture Mode...
-kernel tftp://${nfs-server}/clonezilla/vmlinuz
-initrd tftp://${nfs-server}/clonezilla/initrd.img
-imgargs vmlinuz boot=live union=overlay username=user config components quiet noswap nolocales edd=on nomodeset ocs_prerun="mount -t nfs ${nfs-server}:/opt/bootah/pxe-images /home/partimag" ocs_live_run="ocs-sr -q2 -c -j2 -z1p -i 4096 -sfsck -senc -p true savedisk ask_user sda" ocs_live_extra_param="" ocs_live_batch="no" keyboard-layouts= locales= vga=788 ip=dhcp nosplash netboot=nfs nfsroot=${nfs-server}:/opt/bootah/pxe-files live-media-path=/clonezilla fetch=tftp://${nfs-server}/clonezilla/filesystem.squashfs
+kernel http://${server}:5000/pxe/clonezilla/vmlinuz
+initrd http://${server}:5000/pxe/clonezilla/initrd.img
+imgargs vmlinuz boot=live union=overlay username=user config components quiet noswap nolocales edd=on nomodeset ocs_prerun="mount -t nfs ${server}:/opt/bootah/pxe-images /home/partimag" ocs_live_run="ocs-sr -q2 -c -j2 -z1p -i 4096 -sfsck -senc -p true savedisk ask_user sda" ocs_live_extra_param="" ocs_live_batch="no" keyboard-layouts= locales= vga=788 ip=dhcp nosplash netboot=nfs nfsroot=${server}:/opt/bootah/pxe-files live-media-path=/clonezilla fetch=http://${server}:5000/pxe/clonezilla/filesystem.squashfs
 boot || goto failed
 
 :clonezilla-shell
 echo Booting Clonezilla Shell...
-kernel tftp://${nfs-server}/clonezilla/vmlinuz
-initrd tftp://${nfs-server}/clonezilla/initrd.img
-imgargs vmlinuz boot=live union=overlay username=user config components quiet noswap nolocales edd=on nomodeset ocs_prerun="mount -t nfs ${nfs-server}:/opt/bootah/pxe-images /home/partimag" ocs_live_run="/bin/bash" ocs_live_extra_param="" keyboard-layouts= ocs_live_batch="no" locales= vga=788 ip=dhcp nosplash netboot=nfs nfsroot=${nfs-server}:/opt/bootah/pxe-files live-media-path=/clonezilla fetch=tftp://${nfs-server}/clonezilla/filesystem.squashfs
+kernel http://${server}:5000/pxe/clonezilla/vmlinuz
+initrd http://${server}:5000/pxe/clonezilla/initrd.img
+imgargs vmlinuz boot=live union=overlay username=user config components quiet noswap nolocales edd=on nomodeset ocs_prerun="mount -t nfs ${server}:/opt/bootah/pxe-images /home/partimag" ocs_live_run="/bin/bash" ocs_live_extra_param="" keyboard-layouts= ocs_live_batch="no" locales= vga=788 ip=dhcp nosplash netboot=nfs nfsroot=${server}:/opt/bootah/pxe-files live-media-path=/clonezilla fetch=http://${server}:5000/pxe/clonezilla/filesystem.squashfs
 boot || goto failed
 
 :reboot
