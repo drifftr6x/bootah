@@ -66,8 +66,17 @@ Your DHCP server must provide PXE boot options to clients. Add these settings to
 5. Set **Network Boot**: Enable
 6. Set **Next Server**: `10.1.1.111`
 7. Set **Default BIOS file name**: `pxelinux.0`
-8. Set **UEFI 64-bit file name**: `efi64/syslinux.efi`
+8. Set **UEFI 64-bit file name**: `boot.ipxe`
 9. Save and apply changes
+
+### For UniFi Controller
+1. Go to **Settings → Networks → [Your Network]**
+2. Scroll to **DHCP** section
+3. Enable **Network Boot**
+4. Set **Network Boot Server**: `10.1.1.111`
+5. Set **Network Boot Filename**: `boot.ipxe`
+6. Enable **TFTP Server**: `10.1.1.111`
+7. Save and apply changes
 
 ### For ISC DHCP Server (Linux)
 Add to `/etc/dhcp/dhcpd.conf`:
