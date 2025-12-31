@@ -1,6 +1,8 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
+import express from "express";
+import path from "path";
 import { storage, scheduler } from "./storage";
 import { TFTPServer, PXEHTTPServer, DHCPProxy } from "./pxe-server";
 import { imagingEngine } from "./imaging-engine";
@@ -125,6 +127,19 @@ export async function registerRoutes(app: Express): Promise<{
       res.status(500).json({ message: "Failed to fetch user" });
     }
   });
+
+  // Serve PXE boot files via HTTP (for iPXE kernel/initrd downloads)
+  const pxeFilesPath = path.resolve(process.cwd(), 'pxe-files');
+  app.use('/pxe', express.static(pxeFilesPath, {
+    maxAge: '1h',
+    setHeaders: (res, filePath) => {
+      // Set appropriate content types for boot files
+      if (filePath.endsWith('.squashfs')) {
+        res.set('Content-Type', 'application/octet-stream');
+      }
+    }
+  }));
+  console.log(`[PXE] Serving boot files from ${pxeFilesPath} at /pxe`);
 
   // Initialize PXE servers
   const tftpServer = new TFTPServer(6969); // Use non-privileged port
