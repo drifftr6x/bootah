@@ -68,9 +68,9 @@ Preferred communication style: Simple, everyday language.
 ### PXE/Network Boot Infrastructure
 - **TFTP Server**: tftpd-hpa serving boot files from `/opt/bootah/pxe-files/tftp`
 - **NFS Server**: Exports for boot files (read-only) and images (read-write)
-- **Boot Menu**: PXELINUX/SYSLINUX with 10 menu options including Clonezilla modes
-- **Clonezilla Modes**: Live environment, capture, deploy, batch operations, shell access
-- **BIOS/UEFI Support**: Legacy BIOS via pxelinux.0, UEFI via efi64/syslinux.efi
+- **Boot Menu**: iPXE script (boot.ipxe) with 8 menu options including Clonezilla modes
+- **Clonezilla Modes**: Live environment, capture, deploy, quick capture, shell access
+- **BIOS/UEFI Support**: Legacy BIOS via pxelinux.0, UEFI via boot.ipxe (iPXE script)
 
 ## External Dependencies
 
