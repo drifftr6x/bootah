@@ -1,0 +1,74 @@
+#!ipxe
+
+set menu-timeout 30000
+set submenu-timeout ${menu-timeout}
+
+:start
+menu Bootah64x PXE Boot Menu
+item --gap --             ------------------------- Boot Options --------------------------
+item local                1) Boot from Local Disk
+item clonezilla-live      2) Clonezilla Live (Full Environment)
+item capture-image        3) Capture System Image
+item deploy-image         4) Deploy System Image
+item capture-batch        5) Quick Capture (sda only)
+item clonezilla-shell     6) Clonezilla Shell (Advanced)
+item --gap --             ------------------------- System ---------------------------------
+item reboot               7) Reboot System
+item poweroff             8) Power Off System
+choose --timeout ${menu-timeout} --default local selected
+goto ${selected}
+
+:local
+sanboot --no-describe --drive 0x80
+goto start
+
+:clonezilla-live
+echo Booting Clonezilla Live...
+set nfs-server 10.1.1.111
+kernel nfs://${nfs-server}/opt/bootah/pxe-files/clonezilla/vmlinuz
+initrd nfs://${nfs-server}/opt/bootah/pxe-files/clonezilla/initrd.img
+imgargs vmlinuz boot=live union=overlay username=user config components quiet noswap nolocales edd=on nomodeset ocs_live_run="ocs-live-general" ocs_live_extra_param="" keyboard-layouts= ocs_live_batch="no" locales= vga=788 ip=dhcp nosplash netboot=nfs nfsroot=${nfs-server}:/opt/bootah/pxe-files live-media-path=/clonezilla fetch=nfs://${nfs-server}/opt/bootah/pxe-files/clonezilla/filesystem.squashfs
+boot || goto failed
+
+:capture-image
+echo Booting Clonezilla Capture Mode...
+set nfs-server 10.1.1.111
+kernel nfs://${nfs-server}/opt/bootah/pxe-files/clonezilla/vmlinuz
+initrd nfs://${nfs-server}/opt/bootah/pxe-files/clonezilla/initrd.img
+imgargs vmlinuz boot=live union=overlay username=user config components quiet noswap nolocales edd=on nomodeset ocs_prerun="mount -t nfs ${nfs-server}:/opt/bootah/pxe-images /home/partimag" ocs_live_run="ocs-sr -q2 -c -j2 -z1p -i 4096 -sfsck -senc -p choose savedisk ask_user" ocs_live_extra_param="" keyboard-layouts= ocs_live_batch="no" locales= vga=788 ip=dhcp nosplash netboot=nfs nfsroot=${nfs-server}:/opt/bootah/pxe-files live-media-path=/clonezilla fetch=nfs://${nfs-server}/opt/bootah/pxe-files/clonezilla/filesystem.squashfs
+boot || goto failed
+
+:deploy-image
+echo Booting Clonezilla Deploy Mode...
+set nfs-server 10.1.1.111
+kernel nfs://${nfs-server}/opt/bootah/pxe-files/clonezilla/vmlinuz
+initrd nfs://${nfs-server}/opt/bootah/pxe-files/clonezilla/initrd.img
+imgargs vmlinuz boot=live union=overlay username=user config components quiet noswap nolocales edd=on nomodeset ocs_prerun="mount -t nfs ${nfs-server}:/opt/bootah/pxe-images /home/partimag" ocs_live_run="ocs-sr -g auto -e1 auto -e2 -r -j2 -c -p choose restoredisk ask_user ask_user" ocs_live_extra_param="" keyboard-layouts= ocs_live_batch="no" locales= vga=788 ip=dhcp nosplash netboot=nfs nfsroot=${nfs-server}:/opt/bootah/pxe-files live-media-path=/clonezilla fetch=nfs://${nfs-server}/opt/bootah/pxe-files/clonezilla/filesystem.squashfs
+boot || goto failed
+
+:capture-batch
+echo Booting Quick Capture Mode...
+set nfs-server 10.1.1.111
+kernel nfs://${nfs-server}/opt/bootah/pxe-files/clonezilla/vmlinuz
+initrd nfs://${nfs-server}/opt/bootah/pxe-files/clonezilla/initrd.img
+imgargs vmlinuz boot=live union=overlay username=user config components quiet noswap nolocales edd=on nomodeset ocs_prerun="mount -t nfs ${nfs-server}:/opt/bootah/pxe-images /home/partimag" ocs_live_run="ocs-sr -q2 -c -j2 -z1p -i 4096 -sfsck -senc -p true savedisk ask_user sda" ocs_live_extra_param="" ocs_live_batch="no" keyboard-layouts= locales= vga=788 ip=dhcp nosplash netboot=nfs nfsroot=${nfs-server}:/opt/bootah/pxe-files live-media-path=/clonezilla fetch=nfs://${nfs-server}/opt/bootah/pxe-files/clonezilla/filesystem.squashfs
+boot || goto failed
+
+:clonezilla-shell
+echo Booting Clonezilla Shell...
+set nfs-server 10.1.1.111
+kernel nfs://${nfs-server}/opt/bootah/pxe-files/clonezilla/vmlinuz
+initrd nfs://${nfs-server}/opt/bootah/pxe-files/clonezilla/initrd.img
+imgargs vmlinuz boot=live union=overlay username=user config components quiet noswap nolocales edd=on nomodeset ocs_prerun="mount -t nfs ${nfs-server}:/opt/bootah/pxe-images /home/partimag" ocs_live_run="/bin/bash" ocs_live_extra_param="" keyboard-layouts= ocs_live_batch="no" locales= vga=788 ip=dhcp nosplash netboot=nfs nfsroot=${nfs-server}:/opt/bootah/pxe-files live-media-path=/clonezilla fetch=nfs://${nfs-server}/opt/bootah/pxe-files/clonezilla/filesystem.squashfs
+boot || goto failed
+
+:reboot
+reboot
+
+:poweroff
+poweroff
+
+:failed
+echo Boot failed! Press any key to return to menu...
+prompt
+goto start
