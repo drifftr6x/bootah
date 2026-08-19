@@ -1,6 +1,7 @@
 import { storage } from "./storage";
 import type { WebhookSubscription } from "@shared/schema";
 import * as crypto from "crypto";
+import { getCapabilities } from "./capabilities";
 
 interface WebhookPayload {
   event: string;
@@ -64,6 +65,9 @@ async function sendWebhook(subscription: WebhookSubscription, payload: WebhookPa
 }
 
 export async function triggerWebhook(event: string, data: Record<string, unknown>): Promise<void> {
+  if (!getCapabilities().webhookDelivery) {
+    return;
+  }
   try {
     const subscriptions = await storage.getWebhookSubscriptionsByEvent(event);
     

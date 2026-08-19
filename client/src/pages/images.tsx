@@ -51,12 +51,13 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { ImageUploader } from "@/components/ImageUploader";
 import { apiRequest } from "@/lib/queryClient";
-import type { UploadResult } from "@uppy/core";
-
-type ImageFormData = z.infer<typeof insertImageSchema> & {
-  tags?: string;
-  notes?: string;
-};
+const imageFormSchema = z.object({
+  name: z.string().min(1), filename: z.string().min(1), size: z.coerce.number().nonnegative(), osType: z.string().min(1),
+  version: z.string().optional(), description: z.string().optional(), category: z.string().optional(),
+  architecture: z.string().optional(), compressionType: z.string().optional(), checksum: z.string().optional(), tags: z.string().optional(),
+});
+type ImageFormData = z.infer<typeof imageFormSchema>;
+type ImageCreatePayload = z.infer<typeof insertImageSchema>;
 
 const imageCategories = [
   { value: "operating_system", label: "Operating System", icon: Monitor },
@@ -104,7 +105,7 @@ export default function ImagesPage() {
 
   // Mutations
   const createImageMutation = useMutation({
-    mutationFn: async (data: ImageFormData) => {
+    mutationFn: async (data: ImageCreatePayload) => {
       return await apiRequest('POST', '/api/images', data);
     },
     onSuccess: () => {
@@ -146,30 +147,14 @@ export default function ImagesPage() {
   };
 
   const validateImageMutation = useMutation({
-    mutationFn: async (id: string) => {
-      setValidationStatus('validating');
-      setValidationProgress(0);
-      
-      // Simulate validation progress
-      const interval = setInterval(() => {
-        setValidationProgress(prev => {
-          if (prev >= 90) {
-            clearInterval(interval);
-            return 100;
-          }
-          return prev + 10;
-        });
-      }, 200);
-      
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      setValidationStatus('success');
-      return { valid: true, checksum: "sha256:abc123def456789" };
+      mutationFn: async (_id: string) => {
+        throw new Error("Image validation is unavailable in the Phase 1 safe baseline");
     },
-    onSuccess: (data) => {
+      onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/images"] });
       toast({ 
         title: "Image validation completed", 
-        description: `Checksum verified: ${data.checksum.substring(0, 20)}...` 
+          description: "Image validation completed"
       });
       setTimeout(() => {
         setValidationStatus('idle');
@@ -215,10 +200,7 @@ export default function ImagesPage() {
 
   // Form setup
   const form = useForm<ImageFormData>({
-    resolver: zodResolver(insertImageSchema.extend({
-      tags: z.string().optional(),
-      notes: z.string().optional(),
-    })),
+      resolver: zodResolver(imageFormSchema),
     defaultValues: {
       name: "",
       description: "",
@@ -226,29 +208,27 @@ export default function ImagesPage() {
       architecture: "x64",
       version: "",
       size: 0,
-      filePath: "",
-      isBootable: false,
       category: "operating_system",
       compressionType: "none",
-      imageType: "iso",
       checksum: "",
       tags: "",
-      notes: "",
     },
   });
 
   // Handlers
   const handleCreateImage = (data: ImageFormData) => {
-    const { tags, notes, ...imageData } = data;
-    
-    // Parse tags from comma-separated string
+    const { tags, ...imageData } = data;
     const parsedTags = tags ? tags.split(',').map(tag => tag.trim()).filter(Boolean) : [];
-    
-    const finalData = {
+
+    const finalData: ImageCreatePayload = {
       ...imageData,
       tags: parsedTags,
-      notes: notes || undefined,
-      checksum: `sha256:${Math.random().toString(36).substr(2, 32)}`, // Mock checksum
+      version: imageData.version || null,
+      description: imageData.description || null,
+      category: imageData.category || null,
+      architecture: imageData.architecture || null,
+      compressionType: imageData.compressionType || null,
+      checksum: imageData.checksum || null,
     };
     
     createImageMutation.mutate(finalData);
@@ -262,25 +242,23 @@ export default function ImagesPage() {
   };
 
   // Handler for cloud image upload completion
-  const handleCloudUpload = (result: UploadResult<Record<string, unknown>, Record<string, unknown>>) => {
+  const handleCloudUpload = (result: { successful: Array<{ name: string; size: number; uploadURL: string }> }) => {
     if (result.successful && result.successful.length > 0) {
       const uploadedFile = result.successful[0];
       
       // Create a new image record first
-      const imageData: ImageFormData = {
+        const imageData: ImageCreatePayload = {
         name: uploadedFile.name,
         filename: uploadedFile.name,
         size: uploadedFile.size || 0,
-        osType: uploadedFile.meta?.osType as string || "windows",
-        version: uploadedFile.meta?.version as string || "",
-        description: uploadedFile.meta?.description as string || "",
+          osType: "windows", version: "", description: "",
         architecture: "x64",
         category: "operating_system",
         compressionType: "none",
       };
 
       // Create image record and then update with cloud URL
-      createImageMutation.mutate(imageData);
+        createImageMutation.mutate(imageData);
       
       if (uploadedFile.uploadURL) {
         // In a real implementation, you'd get the image ID from the create response
@@ -340,86 +318,7 @@ export default function ImagesPage() {
     return matchesSearch && matchesCategory && matchesValidated;
   });
 
-  // Mock sample data for demonstration
-  const sampleImages: Image[] = [
-    {
-      id: "img-1",
-      name: "Windows 11 Pro",
-      description: "Windows 11 Professional 64-bit installation image",
-      osType: "windows",
-      architecture: "x64",
-      version: "22H2",
-      size: 5368709120, // 5GB
-      filePath: "/images/win11-pro-x64.iso",
-      isBootable: true,
-      category: "operating_system",
-      compressionType: "none",
-      imageType: "iso",
-      checksum: "sha256:1a2b3c4d5e6f7890",
-      isValidated: true,
-      tags: ["windows", "professional", "latest"],
-      notes: "Latest Windows 11 Pro build with all updates",
-      createdAt: new Date("2024-01-15"),
-      updatedAt: new Date("2024-01-15"),
-    },
-    {
-      id: "img-2", 
-      name: "Ubuntu Server 22.04 LTS",
-      description: "Ubuntu Server long-term support release",
-      osType: "linux",
-      architecture: "x64",
-      version: "22.04.3",
-      size: 1073741824, // 1GB
-      filePath: "/images/ubuntu-server-22.04.iso",
-      isBootable: true,
-      category: "operating_system",
-      compressionType: "gzip",
-      imageType: "iso",
-      checksum: "sha256:9f8e7d6c5b4a3210",
-      isValidated: true,
-      tags: ["ubuntu", "server", "lts"],
-      notes: "Server edition optimized for deployment",
-      createdAt: new Date("2024-01-10"),
-      updatedAt: new Date("2024-01-10"),
-    },
-    {
-      id: "img-3",
-      name: "Rescue Toolkit",
-      description: "Emergency system recovery and diagnostic tools",
-      osType: "linux",
-      architecture: "x64", 
-      version: "2024.1",
-      size: 536870912, // 512MB
-      filePath: "/images/rescue-toolkit.iso",
-      isBootable: true,
-      category: "rescue",
-      compressionType: "xz",
-      imageType: "iso",
-      checksum: "",
-      isValidated: false,
-      tags: ["rescue", "diagnostic", "emergency"],
-      notes: "Custom rescue environment with multiple tools",
-      createdAt: new Date("2024-01-20"),
-      updatedAt: new Date("2024-01-20"),
-    }
-  ];
-
-  // Use sample data if no real images
-  const displayImages = images.length > 0 ? filteredImages : sampleImages.filter(image => {
-    const matchesSearch = !searchTerm || 
-      image.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      image.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      image.osType.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      image.version?.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    const matchesCategory = filterCategory === "all" || image.category === filterCategory;
-    
-    const matchesValidated = filterValidated === "all" || 
-      (filterValidated === true && image.isValidated) ||
-      (filterValidated === false && !image.isValidated);
-    
-    return matchesSearch && matchesCategory && matchesValidated;
-  });
+  const displayImages = filteredImages;
 
   return (
     <div className="p-6" data-testid="images-page">
@@ -455,6 +354,7 @@ export default function ImagesPage() {
         
         <div className="flex items-center justify-end">
           <ImageUploader
+              onGetUploadParameters={async () => { throw new Error("Cloud upload is unavailable in the Phase 1 safe baseline"); }}
             onComplete={handleCloudUpload}
             maxFileSize={5368709120} // 5GB for OS images
             buttonClassName="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2"
@@ -571,11 +471,6 @@ export default function ImagesPage() {
                       <Badge variant="secondary">
                         {image.osType} {image.architecture}
                       </Badge>
-                      {image.isBootable && (
-                        <Badge variant="default" className="bg-green-600">
-                          Bootable
-                        </Badge>
-                      )}
                     </div>
                     
                     <div className="text-xs text-muted-foreground space-y-1">
@@ -585,7 +480,7 @@ export default function ImagesPage() {
                       </div>
                       <div className="flex justify-between">
                         <span>Type:</span>
-                        <span>{getImageTypeInfo(image.imageType || "iso").label}</span>
+                          <span>{image.filename.split(".").pop()?.toUpperCase() || "Image"}</span>
                       </div>
                       <div className="flex justify-between">
                         <span>Compression:</span>
@@ -664,7 +559,7 @@ export default function ImagesPage() {
                               </div>
                               <div>
                                 <Label className="font-semibold">Image Type</Label>
-                                <p>{getImageTypeInfo(image.imageType || "iso").label}</p>
+                                  <p>{image.filename.split(".").pop()?.toUpperCase() || "Image"}</p>
                               </div>
                               <div>
                                 <Label className="font-semibold">Compression</Label>
@@ -690,12 +585,6 @@ export default function ImagesPage() {
                               </div>
                             )}
                             
-                            {image.notes && (
-                              <div>
-                                <Label className="font-semibold">Notes</Label>
-                                <p className="text-sm text-muted-foreground mt-1">{image.notes}</p>
-                              </div>
-                            )}
                             
                             <div className="flex items-center justify-between pt-4 border-t">
                               <div className="flex items-center gap-2">
@@ -710,12 +599,9 @@ export default function ImagesPage() {
                                     Unvalidated
                                   </Badge>
                                 )}
-                                {image.isBootable && (
-                                  <Badge variant="outline">Bootable</Badge>
-                                )}
                               </div>
                               <div className="text-xs text-muted-foreground">
-                                Created: {image.createdAt?.toLocaleDateString()}
+                                  Uploaded: {image.uploadedAt?.toLocaleDateString()}
                               </div>
                             </div>
                           </div>
@@ -894,20 +780,6 @@ export default function ImagesPage() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <FormField
                         control={form.control}
-                        name="filePath"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>File Path</FormLabel>
-                            <FormControl>
-                              <Input placeholder="/images/windows11-pro.iso" {...field} data-testid="input-file-path" />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      <FormField
-                        control={form.control}
                         name="size"
                         render={({ field }) => (
                           <FormItem>
@@ -921,34 +793,6 @@ export default function ImagesPage() {
                                 data-testid="input-file-size"
                               />
                             </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      <FormField
-                        control={form.control}
-                        name="imageType"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Image Type</FormLabel>
-                            <Select onValueChange={field.onChange} defaultValue={field.value}>
-                              <FormControl>
-                                <SelectTrigger data-testid="select-image-type">
-                                  <SelectValue placeholder="Select image type" />
-                                </SelectTrigger>
-                              </FormControl>
-                              <SelectContent>
-                                {imageTypes.map(type => (
-                                  <SelectItem key={type.value} value={type.value}>
-                                    <div>
-                                      <div className="font-medium">{type.label}</div>
-                                      <div className="text-xs text-muted-foreground">{type.description}</div>
-                                    </div>
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
                             <FormMessage />
                           </FormItem>
                         )}
@@ -1055,46 +899,8 @@ export default function ImagesPage() {
                         )}
                       />
 
-                      <FormField
-                        control={form.control}
-                        name="isBootable"
-                        render={({ field }) => (
-                          <FormItem className="flex flex-row items-start space-x-3 space-y-0">
-                            <FormControl>
-                              <Checkbox
-                                checked={field.value}
-                                onCheckedChange={field.onChange}
-                                data-testid="checkbox-bootable"
-                              />
-                            </FormControl>
-                            <div className="space-y-1 leading-none">
-                              <FormLabel>Bootable Image</FormLabel>
-                              <p className="text-xs text-muted-foreground">
-                                This image can be used for PXE booting
-                              </p>
-                            </div>
-                          </FormItem>
-                        )}
-                      />
                     </div>
 
-                    <FormField
-                      control={form.control}
-                      name="notes"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Additional Notes</FormLabel>
-                          <FormControl>
-                            <Textarea 
-                              placeholder="Any additional notes, installation instructions, or important information..."
-                              {...field} 
-                              data-testid="textarea-notes"
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
                   </div>
 
                   <div className="flex justify-end gap-3">
@@ -1167,17 +973,17 @@ export default function ImagesPage() {
               </CardContent>
             </Card>
 
-            <Card data-testid="stat-bootable-images">
+              <Card data-testid="stat-validated-images-summary">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Bootable</CardTitle>
+                  <CardTitle className="text-sm font-medium">Validated</CardTitle>
                 <Package className="h-4 w-4 text-orange-500" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-orange-500">
-                  {displayImages.filter(img => img.isBootable).length}
+                    {displayImages.filter(img => img.isValidated).length}
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  PXE deployable
+                    Checksum verified
                 </p>
               </CardContent>
             </Card>

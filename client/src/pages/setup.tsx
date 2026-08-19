@@ -13,6 +13,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useQuery } from "@tanstack/react-query";
 
 const setupSchema = z.object({
+  bootstrapToken: z.string().min(32, "Bootstrap credential must be at least 32 characters"),
   username: z.string().min(3, "Username must be at least 3 characters"),
   email: z.string().email("Invalid email address"),
   fullName: z.string().optional(),
@@ -47,6 +48,7 @@ export default function Setup() {
   const form = useForm<SetupForm>({
     resolver: zodResolver(setupSchema),
     defaultValues: {
+      bootstrapToken: "",
       username: "",
       email: "",
       fullName: "",
@@ -65,9 +67,10 @@ export default function Setup() {
 
   async function onSubmit(data: SetupForm) {
     setIsLoading(true);
-    try {
-      const res = await apiRequest("POST", "/api/auth/setup", {
-        username: data.username,
+      try {
+        const res = await apiRequest("POST", "/api/auth/setup", {
+          bootstrapToken: data.bootstrapToken,
+          username: data.username,
         email: data.email,
         fullName: data.fullName,
         password: data.password,
@@ -131,9 +134,22 @@ export default function Setup() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                <FormField
+              <Form {...form}>
+                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                  <FormField
+                    control={form.control}
+                    name="bootstrapToken"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>One-time Bootstrap Credential</FormLabel>
+                        <FormControl>
+                          <Input type="password" autoComplete="off" data-testid="input-bootstrap-token" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
                   control={form.control}
                   name="username"
                   render={({ field }) => (

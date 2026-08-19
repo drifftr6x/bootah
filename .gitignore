@@ -1,6 +1,14 @@
 node_modules
 dist
+.env
+.env.*
+!.env.example
+coverage
+*.log
+*.zip
 .DS_Store
 server/public
 vite.config.ts.*
 *.tar.gz
+.amphora/
+typecheck-*.txt

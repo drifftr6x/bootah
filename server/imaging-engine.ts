@@ -2,6 +2,7 @@ import { spawn, ChildProcess } from "child_process";
 import fs from "fs";
 import path from "path";
 import { storage } from "./storage";
+import { getCapabilities } from "./capabilities";
 
 export interface ImageCaptureOptions {
   deviceId: string;
@@ -33,7 +34,15 @@ export class ImagingEngine {
 
   constructor(imagingToolsPath: string = "./imaging-tools") {
     this.imagingToolsPath = imagingToolsPath;
-    this.ensureImagingTools();
+    if (getCapabilities().hostLocalImaging) {
+      this.ensureImagingTools();
+    }
+  }
+
+  private assertHostLocalImagingEnabled(): void {
+    if (!getCapabilities().hostLocalImaging) {
+      throw new Error("Host-local imaging is disabled in the Phase 1 safe baseline");
+    }
   }
 
   private ensureImagingTools(): void {
@@ -251,6 +260,7 @@ fi
   }
 
   public async captureImage(options: ImageCaptureOptions, progressCallback?: ProgressCallback): Promise<string> {
+    this.assertHostLocalImagingEnabled();
     const operationId = `capture-${Date.now()}`;
     const outputPath = path.join("./pxe-images", `${options.imageName}.img`);
     
@@ -361,6 +371,7 @@ fi
   }
 
   public async deployImage(options: ImageDeploymentOptions, progressCallback?: ProgressCallback): Promise<void> {
+    this.assertHostLocalImagingEnabled();
     const operationId = `deploy-${Date.now()}`;
     
     try {
@@ -627,6 +638,7 @@ fi
   }
 
   public async getSystemInfo(): Promise<any> {
+    this.assertHostLocalImagingEnabled();
     // Get system information for imaging
     return new Promise((resolve) => {
       const infoProcess = spawn("bash", ["-c", `

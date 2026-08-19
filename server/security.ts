@@ -27,9 +27,11 @@ export function csrfProtection(req: Request, res: Response, next: NextFunction) 
     return res.status(403).json({ message: "CSRF token missing" });
   }
 
-  if (!crypto.timingSafeEqual(
-    Buffer.from(tokenFromHeader),
-    Buffer.from(tokenFromSession)
+  const headerBuffer = Buffer.from(tokenFromHeader);
+  const sessionBuffer = Buffer.from(tokenFromSession);
+  if (headerBuffer.length !== sessionBuffer.length || !crypto.timingSafeEqual(
+    headerBuffer,
+    sessionBuffer
   )) {
     return res.status(403).json({ message: "CSRF token invalid" });
   }

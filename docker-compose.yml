@@ -1,12 +1,10 @@
-version: '3.8'
-
 services:
   postgres:
     image: postgres:15-alpine
     container_name: bootah-postgres
     environment:
       POSTGRES_USER: bootah
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-bootah_secure_pass}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
       POSTGRES_DB: bootah
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -17,6 +15,18 @@ services:
       retries: 5
     restart: unless-stopped
 
+  db-init:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: postgresql://bootah:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}@postgres:5432/bootah
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: npm run db:migrate
+    restart: "no"
+
   bootah:
     build:
       context: .
@@ -26,21 +36,27 @@ services:
       NODE_ENV: production
       PORT: "5000"
       HOST: "0.0.0.0"
-      DATABASE_URL: postgresql://bootah:${POSTGRES_PASSWORD:-bootah_secure_pass}@postgres:5432/bootah
+      DATABASE_URL: postgresql://bootah:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}@postgres:5432/bootah
       SESSION_SECRET: ${SESSION_SECRET}
-      # Authentication: 'local' for username/password, 'replit' for OAuth
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      BOOTSTRAP_TOKEN: ${BOOTSTRAP_TOKEN}
       AUTH_MODE: ${AUTH_MODE:-local}
-      # Allow new user self-registration (local mode only)
-      ALLOW_REGISTRATION: ${ALLOW_REGISTRATION:-true}
-      # Default role for new users: viewer, operator, or admin
+      ALLOW_REGISTRATION: ${ALLOW_REGISTRATION:-false}
       DEFAULT_USER_ROLE: ${DEFAULT_USER_ROLE:-viewer}
-      # PXE Configuration
+      ENABLE_HOST_LOCAL_IMAGING: "false"
+      ENABLE_PXE_NETWORK_SERVICES: "false"
+      ENABLE_SCHEDULER_EXECUTION: "false"
+      ENABLE_MACHINE_CALLBACKS: "false"
+      ENABLE_MULTICAST_EXECUTION: "false"
+      ENABLE_FOG_EXECUTION: "false"
+      ENABLE_WEBHOOK_DELIVERY: "false"
+      ENABLE_OBJECT_PROXY: "false"
+      ENABLE_DEMO_MODE: "false"
+      ENABLE_WEBSOCKETS: "false"
       PXE_SERVER_IP: ${PXE_SERVER_IP:-192.168.1.50}
       TFTP_PORT: "6969"
       DHCP_PORT: "4067"
-      # Image storage path
       IMAGE_STORAGE_PATH: /app/images
-      # Email Configuration (for password reset)
       EMAIL_PROVIDER: ${EMAIL_PROVIDER:-console}
       EMAIL_FROM: ${EMAIL_FROM:-Bootah <noreply@bootah.local>}
       APP_URL: ${APP_URL:-}
@@ -53,17 +69,17 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      db-init:
+        condition: service_completed_successfully
     ports:
-      - "5000:5000"       # HTTP/Web UI
-      - "6969:6969/udp"   # TFTP
-      - "4067:4067/udp"   # DHCP Proxy
+      - "5000:5000"
     volumes:
       - bootah_images:/app/images
       - bootah_logs:/app/logs
       - ./pxe-files:/app/pxe-files:ro
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:5000/api/server-status"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:5000/api/health"]
       interval: 30s
       timeout: 10s
       start_period: 30s

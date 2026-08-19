@@ -18,14 +18,11 @@ export const objectStorageClient = new Storage({
     subject_token_type: "access_token",
     token_url: `${REPLIT_SIDECAR_ENDPOINT}/token`,
     type: "external_account",
-    credential_source: {
-      url: `${REPLIT_SIDECAR_ENDPOINT}/credential`,
-      format: {
-        type: "json",
-        subject_token_field_name: "access_token",
+      credential_source: {
+        environment_id: "aws1",
+        url: `${REPLIT_SIDECAR_ENDPOINT}/credential`,
+        regional_cred_verification_url: `${REPLIT_SIDECAR_ENDPOINT}/credential`,
       },
-    },
-    universe_domain: "googleapis.com",
   },
   projectId: "",
 });

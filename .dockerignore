@@ -1,0 +1,12 @@
+.git
+.github
+.amphora
+node_modules
+dist
+.env
+.env.*
+!.env.example
+*.zip
+*.tar.gz
+coverage
+attached_assets

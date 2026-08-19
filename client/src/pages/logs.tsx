@@ -61,7 +61,7 @@ export default function Logs() {
     const csvContent = [
       ["Timestamp", "Type", "Message", "Device ID", "Deployment ID"].join(","),
       ...logs.map(log => [
-        new Date(log.timestamp).toISOString(),
+          log.timestamp ? new Date(log.timestamp).toISOString() : "",
         log.type,
         `"${log.message.replace(/"/g, '""')}"`, // Escape quotes in CSV
         log.deviceId || "",
@@ -190,7 +190,7 @@ export default function Logs() {
                       >
                         <td className="p-4">
                           <div className="text-sm font-mono text-muted-foreground" data-testid={`text-timestamp-${log.id}`}>
-                            {new Date(log.timestamp).toLocaleString()}
+                              {log.timestamp ? new Date(log.timestamp).toLocaleString() : "-"}
                           </div>
                         </td>
                         <td className="p-4">
@@ -215,7 +215,7 @@ export default function Logs() {
                         </td>
                         <td className="p-4">
                           <div className="text-sm text-muted-foreground" data-testid={`text-time-ago-${log.id}`}>
-                            {formatDistanceToNow(new Date(log.timestamp), { addSuffix: true })}
+                              {log.timestamp ? formatDistanceToNow(new Date(log.timestamp), { addSuffix: true }) : "-"}
                           </div>
                         </td>
                       </tr>

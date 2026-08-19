@@ -13,7 +13,7 @@ import { Upload, X, CheckCircle } from "lucide-react";
 interface ImageUploaderProps {
   maxNumberOfFiles?: number;
   maxFileSize?: number;
-  onGetUploadParameters: () => Promise<{
+  onGetUploadParameters: (file: File) => Promise<{
     method: "PUT";
     url: string;
   }>;
@@ -65,12 +65,12 @@ export function ImageUploader({
     try {
       setIsUploading(true);
       setUploadProgress(0);
-
+      const successful: Array<{ uploadURL: string; name: string; type: string; size: number }> = [];
       for (let i = 0; i < selectedFiles.length; i++) {
         const file = selectedFiles[i];
         
         // Get upload parameters
-        const { url } = await onGetUploadParameters();
+          const { url } = await onGetUploadParameters(file);
         
         // Upload the file
         const response = await fetch(url, {
@@ -85,6 +85,13 @@ export function ImageUploader({
           throw new Error(`Upload failed: ${response.statusText}`);
         }
 
+        successful.push({
+          uploadURL: url,
+          name: file.name,
+          type: file.type,
+          size: file.size,
+        });
+
         // Update progress
         const progress = ((i + 1) / selectedFiles.length) * 100;
         setUploadProgress(progress);
@@ -93,15 +100,10 @@ export function ImageUploader({
       setUploadComplete(true);
       
       // Call completion callback
-      if (onComplete) {
-        onComplete({
-          successful: selectedFiles.map(file => ({
-            uploadURL: url,
-            name: file.name,
-            type: file.type,
-            size: file.size,
-          }))
-        });
+        if (onComplete) {
+          onComplete({
+            successful,
+          });
       }
 
     } catch (error) {

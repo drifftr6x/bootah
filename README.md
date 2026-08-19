@@ -36,6 +36,10 @@ Bootah is a modern, lightweight PXE server and OS imaging platform designed for 
 
 ## 🚀 Quick Start
 
+> **Phase 1 safety notice:** this repository is currently a containment build, not a production-ready imaging platform. Host-local imaging, unauthenticated machine callbacks, WebSockets, multicast execution, FOG execution, webhook delivery, and object proxying are intentionally disabled. Do not connect it to production PXE networks or storage until later security and protocol phases are complete.
+
+> **Database migration notice:** Compose runs the committed Drizzle migration history through a one-shot `db-init` service before Bootah starts. Copy `.env.example` to `.env`, replace every secret placeholder with a unique value, and keep generated migrations under review.
+
 ### Docker (Recommended)
 ```bash
 curl -sSL https://raw.githubusercontent.com/drifftr6x/bootah/main/scripts/install-docker.sh | bash
@@ -180,7 +184,7 @@ Direct imaging via Clonezilla:
 - `POST /api/deployments/fog` - FOG integrations
 - `GET /api/activity-logs` - Audit trail
 
-Full API documentation available at `/api` when running.
+Full API documentation is available at `/api/docs` when running.
 
 ## 🛠️ Development
 
@@ -199,7 +203,6 @@ npm start
 ### Database Migrations
 ```bash
 npm run db:push      # Apply migrations
-npm run db:studio    # Visual database editor
 ```
 
 ### Environment Variables
@@ -207,9 +210,10 @@ npm run db:studio    # Visual database editor
 NODE_ENV=production
 PORT=5000
 DATABASE_URL=postgresql://user:pass@host:5432/bootah
-FOG_ENABLED=true
-FOG_SERVER_URL=http://fog-server-ip/fog
-FOG_API_TOKEN=your_token
+SESSION_SECRET=generate-at-least-32-random-characters
+ENCRYPTION_KEY=generate-with-openssl-rand-hex-32
+BOOTSTRAP_TOKEN=generate-a-one-time-bootstrap-credential
+ALLOW_REGISTRATION=false
 ```
 
 ## 📖 Workflows

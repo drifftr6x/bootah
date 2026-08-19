@@ -3,8 +3,8 @@ import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { useWebSocket } from "@/hooks/useWebSocket";
 import { useAuth } from "@/hooks/useAuth";
+import UnavailableFeature from "@/components/unavailable-feature";
 import Sidebar from "@/components/layout/sidebar";
 import Dashboard from "@/pages/dashboard";
 import Landing from "@/pages/landing";
@@ -15,17 +15,11 @@ import ResetPassword from "@/pages/reset-password";
 import Setup from "@/pages/setup";
 import Devices from "@/pages/devices";
 import Images from "@/pages/images";
-import Capture from "@/pages/capture";
 import Deployments from "@/pages/deployments";
 import ScheduledDeployments from "@/pages/scheduled-deployments";
-import MulticastSessions from "@/pages/multicast-sessions";
 import NetworkTopology from "@/pages/network-topology";
-import Templates from "@/pages/templates";
 import Network from "@/pages/network";
 import Workstations from "@/pages/workstations";
-import Monitoring from "@/pages/monitoring";
-import Security from "@/pages/security";
-import Users from "@/pages/users";
 import UserManagement from "@/pages/user-management";
 import Configuration from "@/pages/configuration";
 import Logs from "@/pages/logs";
@@ -39,11 +33,9 @@ import CustomScriptsPage from "@/pages/CustomScriptsPage";
 import PostDeploymentProfilesPage from "@/pages/PostDeploymentProfilesPage";
 import ApiDocumentation from "@/pages/api-documentation";
 import Analytics from "@/pages/analytics";
-import WebhooksPage from "@/pages/webhooks";
 
 function AuthenticatedApp() {
   const { isAuthenticated, isLoading, authMode } = useAuth();
-  const { isConnected } = useWebSocket();
   const [location] = useLocation();
 
   const publicAuthPaths = ['/login', '/register', '/forgot-password', '/reset-password', '/setup'];
@@ -87,30 +79,25 @@ function AuthenticatedApp() {
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background">
-      <Sidebar />
-      <div className="flex-1 flex flex-col overflow-hidden">
-        {!isConnected && (
-          <div className="bg-orange-500 text-white text-center py-1 text-sm">
-            Reconnecting to real-time updates...
-          </div>
-        )}
-        <Switch>
+      <div className="flex h-screen overflow-hidden bg-background">
+        <Sidebar />
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <Switch>
           <Route path="/" component={Dashboard} />
           <Route path="/dashboard" component={Dashboard} />
           <Route path="/devices" component={Devices} />
           <Route path="/images" component={Images} />
-          <Route path="/capture" component={Capture} />
+            <Route path="/capture">{() => <UnavailableFeature name="Image capture" />}</Route>
           <Route path="/deployments" component={Deployments} />
           <Route path="/scheduled" component={ScheduledDeployments} />
-          <Route path="/multicast" component={MulticastSessions} />
+            <Route path="/multicast">{() => <UnavailableFeature name="Multicast execution" />}</Route>
           <Route path="/topology" component={NetworkTopology} />
-          <Route path="/templates" component={Templates} />
+            <Route path="/templates">{() => <UnavailableFeature name="Deployment templates" />}</Route>
           <Route path="/network" component={Network} />
           <Route path="/workstations" component={Workstations} />
-          <Route path="/monitoring" component={Monitoring} />
-          <Route path="/security" component={Security} />
-          <Route path="/users" component={Users} />
+            <Route path="/monitoring">{() => <UnavailableFeature name="Monitoring" />}</Route>
+            <Route path="/security">{() => <UnavailableFeature name="Security posture reporting" />}</Route>
+            <Route path="/users" component={UserManagement} />
           <Route path="/user-management" component={UserManagement} />
           <Route path="/configuration" component={Configuration} />
           <Route path="/logs" component={Logs} />
@@ -123,7 +110,7 @@ function AuthenticatedApp() {
           <Route path="/post-deployment-profiles" component={PostDeploymentProfilesPage} />
           <Route path="/api-documentation" component={ApiDocumentation} />
           <Route path="/analytics" component={Analytics} />
-          <Route path="/webhooks" component={WebhooksPage} />
+            <Route path="/webhooks">{() => <UnavailableFeature name="Webhook delivery" />}</Route>
           <Route component={NotFound} />
         </Switch>
       </div>

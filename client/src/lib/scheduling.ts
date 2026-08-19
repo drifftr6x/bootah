@@ -1,4 +1,4 @@
-import { parseExpression } from "cron-parser";
+import { CronExpressionParser } from "cron-parser";
 
 /**
  * Validate a cron pattern
@@ -11,7 +11,7 @@ export function validateCronPattern(cronPattern: string): { valid: boolean; erro
   }
 
   try {
-    parseExpression(cronPattern);
+    CronExpressionParser.parse(cronPattern);
     return { valid: true };
   } catch (error) {
     return { 
@@ -34,7 +34,7 @@ export function getNextCronOccurrences(
   startFrom: Date = new Date()
 ): Date[] {
   try {
-    const interval = parseExpression(cronPattern, { currentDate: startFrom });
+    const interval = CronExpressionParser.parse(cronPattern, { currentDate: startFrom });
     const occurrences: Date[] = [];
     
     for (let i = 0; i < count; i++) {

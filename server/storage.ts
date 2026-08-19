@@ -1,6 +1,8 @@
 import { 
-  type Device, 
-  type InsertDevice,
+   type Device,
+   type InsertDevice,
+   type DeviceGroup,
+   type InsertDeviceGroup,
   type Image,
   type InsertImage,
   type Deployment,
@@ -90,7 +92,9 @@ import {
   type WebhookDelivery,
   type InsertWebhookDelivery,
   type BulkOperation,
-  type InsertBulkOperation
+   type InsertBulkOperation,
+   deviceGroups,
+   deploymentTemplates
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
@@ -137,7 +141,7 @@ export interface IStorage {
   // Multicast Sessions
   getMulticastSessions(): Promise<MulticastSession[]>;
   getMulticastSession(id: string): Promise<MulticastSession | undefined>;
-  createMulticastSession(session: InsertMulticastSession): Promise<MulticastSession>;
+    createMulticastSession(session: InsertMulticastSession & { multicastAddress: string }): Promise<MulticastSession>;
   updateMulticastSession(id: string, session: Partial<MulticastSession>): Promise<MulticastSession | undefined>;
   deleteMulticastSession(id: string): Promise<boolean>;
   
@@ -395,7 +399,11 @@ export interface IStorage {
   updateBulkOperation(id: string, operation: Partial<InsertBulkOperation> & { completedAt?: Date }): Promise<BulkOperation | undefined>;
 }
 
-export class MemStorage implements IStorage {
+  /*
+   * Legacy in-memory simulator. It fabricates control-plane state and is not a
+   * supported backend for the Phase 1 safe baseline; DatabaseStorage below is
+   * the only exported storage implementation.
+  class MemStorage {
   private devices: Map<string, Device> = new Map();
   private images: Map<string, Image> = new Map();
   private deployments: Map<string, Deployment> = new Map();
@@ -2323,7 +2331,9 @@ export class MemStorage implements IStorage {
   async deleteTopologySnapshot(id: string): Promise<boolean> { return false; }
 }
 
-export class DatabaseStorage implements IStorage {
+  */
+
+  export class DatabaseStorage implements IStorage {
   // Devices - Database Implementation
   async getDevices(): Promise<Device[]> {
     return await db.select().from(devices);
@@ -2457,7 +2467,7 @@ export class DatabaseStorage implements IStorage {
   async incrementImageDownloadCount(id: string): Promise<Image | undefined> {
     const [image] = await db
       .update(images)
-      .set({ downloadCount: db.sql`${images.downloadCount} + 1` as any })
+        .set({ downloadCount: sql`${images.downloadCount} + 1` })
       .where(eq(images.id, id))
       .returning();
     return image;
@@ -2579,7 +2589,7 @@ export class DatabaseStorage implements IStorage {
     return session;
   }
 
-  async createMulticastSession(insertSession: InsertMulticastSession): Promise<MulticastSession> {
+  async createMulticastSession(insertSession: InsertMulticastSession & { multicastAddress: string }): Promise<MulticastSession> {
     const [session] = await db.insert(multicastSessions).values(insertSession).returning();
     return session;
   }
@@ -2627,7 +2637,9 @@ export class DatabaseStorage implements IStorage {
         .where(
           and(
             eq(multicastParticipants.sessionId, insertParticipant.sessionId),
-            eq(multicastParticipants.deviceId, insertParticipant.deviceId)
+              insertParticipant.deviceId
+                ? eq(multicastParticipants.deviceId, insertParticipant.deviceId)
+                : eq(multicastParticipants.macAddress, insertParticipant.macAddress ?? "")
           )
         );
 
@@ -2636,7 +2648,7 @@ export class DatabaseStorage implements IStorage {
       }
 
       // Check maxClients limit (after lock, prevents race condition)
-      if (session.maxClients !== null && session.clientCount >= session.maxClients) {
+        if (session.maxClients !== null && (session.clientCount ?? 0) >= session.maxClients) {
         throw new Error(`Session is at capacity (${session.maxClients} devices)`);
       }
 
@@ -2755,26 +2767,24 @@ export class DatabaseStorage implements IStorage {
       const allDeployments = await this.getDeployments();
       const activeDeploymentsList = await this.getActiveDeployments();
 
-      return {
-        totalDevices: allDevices.length,
-        activeDeployments: activeDeploymentsList.length,
-        totalImages: allImages.length,
-        completedDeployments: allDeployments.length,
-        systemHealth: 95,
-        networkThroughput: 2.4,
-        uptime: 172800
+        return {
+          totalDevices: allDevices.length,
+          activeDeployments: activeDeploymentsList.length,
+          successRate: allDeployments.length === 0
+            ? 0
+            : Math.round((allDeployments.filter(deployment => deployment.status === "completed").length / allDeployments.length) * 100),
+          imagesCount: allImages.length,
+          totalImageSize: allImages.reduce((total, image) => total + image.size, 0),
       };
     } catch (error) {
       console.error("Error in getDashboardStats:", error);
       // Return default stats if database query fails
-      return {
-        totalDevices: 0,
-        activeDeployments: 0,
-        totalImages: 0,
-        completedDeployments: 0,
-        systemHealth: 95,
-        networkThroughput: 2.4,
-        uptime: 172800
+        return {
+          totalDevices: 0,
+          activeDeployments: 0,
+          successRate: 0,
+          imagesCount: 0,
+          totalImageSize: 0,
       };
     }
   }
@@ -2795,13 +2805,13 @@ export class DatabaseStorage implements IStorage {
   async deleteAlertRule(id: string): Promise<boolean> { return false; }
   async getUsers(): Promise<UserWithRoles[]> {
     const allUsers = await db.select().from(users);
-    return allUsers.map(user => ({ ...user, roles: [] }));
+    return allUsers.map(user => ({ ...user, passwordHash: null, roles: [] }));
   }
   
   async getUser(id: string): Promise<UserWithRoles | undefined> {
     const [user] = await db.select().from(users).where(eq(users.id, id)).limit(1);
     if (!user) return undefined;
-    return { ...user, roles: [] };
+    return { ...user, passwordHash: null, roles: [] };
   }
   
   async getUserByUsername(username: string): Promise<User | undefined> {
@@ -3036,7 +3046,7 @@ export class DatabaseStorage implements IStorage {
       // If username exists and belongs to a different user, make it unique
       if (existingUsers.length > 0 && existingUsers[0].id !== userData.id) {
         // Append suffix based on user ID to ensure uniqueness
-        const suffix = userData.id.substring(0, 6);
+          const suffix = userData.id?.substring(0, 6) ?? randomUUID().substring(0, 6);
         username = `${username}-${suffix}`;
       }
     }
@@ -3074,10 +3084,10 @@ export class DatabaseStorage implements IStorage {
     for (const role of allRoles) {
       const rolePerms = await db
         .select({
-          id: permissions.id,
-          resource: permissions.resource,
-          action: permissions.action,
-          description: permissions.description,
+          id: rolePermissions.id,
+          roleId: rolePermissions.roleId,
+          permissionId: rolePermissions.permissionId,
+          permission: permissions,
         })
         .from(rolePermissions)
         .innerJoin(permissions, eq(rolePermissions.permissionId, permissions.id))
@@ -3098,10 +3108,10 @@ export class DatabaseStorage implements IStorage {
 
     const rolePerms = await db
       .select({
-        id: permissions.id,
-        resource: permissions.resource,
-        action: permissions.action,
-        description: permissions.description,
+          id: rolePermissions.id,
+          roleId: rolePermissions.roleId,
+          permissionId: rolePermissions.permissionId,
+          permission: permissions,
       })
       .from(rolePermissions)
       .innerJoin(permissions, eq(rolePermissions.permissionId, permissions.id))
@@ -3421,47 +3431,32 @@ export class DatabaseStorage implements IStorage {
     return result.rowCount ? result.rowCount > 0 : false;
   }
 
-  // Domain Join Configs
+  // Domain Join Configs — storage returns persisted encrypted records. Credentials
+  // are decrypted only by narrowly authorized execution paths, never list/read APIs.
   async getDomainJoinConfigs(): Promise<DomainJoinConfig[]> {
-    const configs = await db.select().from(domainJoinConfigs);
-    return configs.map(config => ({
-      ...config,
-      passwordEncrypted: config.passwordEncrypted ? decrypt(config.passwordEncrypted) : null,
-      usernameEncrypted: config.usernameEncrypted ? decrypt(config.usernameEncrypted) : null
-    }));
+    return db.select().from(domainJoinConfigs);
   }
 
   async getDomainJoinConfig(id: string): Promise<DomainJoinConfig | undefined> {
     const [config] = await db.select().from(domainJoinConfigs).where(eq(domainJoinConfigs.id, id));
-    if (!config) return undefined;
-    return {
-      ...config,
-      passwordEncrypted: config.passwordEncrypted ? decrypt(config.passwordEncrypted) : null,
-      usernameEncrypted: config.usernameEncrypted ? decrypt(config.usernameEncrypted) : null
-    };
+    return config;
   }
 
   async getActiveDomainJoinConfigs(): Promise<DomainJoinConfig[]> {
-    const configs = await db.select().from(domainJoinConfigs).where(eq(domainJoinConfigs.isActive, true));
-    return configs.map(config => ({
-      ...config,
-      passwordEncrypted: config.passwordEncrypted ? decrypt(config.passwordEncrypted) : null,
-      usernameEncrypted: config.usernameEncrypted ? decrypt(config.usernameEncrypted) : null
-    }));
+    return db.select().from(domainJoinConfigs).where(eq(domainJoinConfigs.isActive, true));
   }
 
   async createDomainJoinConfig(insertConfig: InsertDomainJoinConfig): Promise<DomainJoinConfig> {
+    if (!insertConfig.usernameEncrypted || !insertConfig.passwordEncrypted) {
+      throw new Error("Domain join credentials are required");
+    }
     const encryptedConfig = {
       ...insertConfig,
-      passwordEncrypted: insertConfig.passwordEncrypted ? encrypt(insertConfig.passwordEncrypted) : null,
-      usernameEncrypted: insertConfig.usernameEncrypted ? encrypt(insertConfig.usernameEncrypted) : null
+      passwordEncrypted: encrypt(insertConfig.passwordEncrypted),
+      usernameEncrypted: encrypt(insertConfig.usernameEncrypted)
     };
     const [config] = await db.insert(domainJoinConfigs).values(encryptedConfig).returning();
-    return {
-      ...config,
-      passwordEncrypted: config.passwordEncrypted ? decrypt(config.passwordEncrypted) : null,
-      usernameEncrypted: config.usernameEncrypted ? decrypt(config.usernameEncrypted) : null
-    };
+    return config;
   }
 
   async updateDomainJoinConfig(id: string, updateData: Partial<InsertDomainJoinConfig>): Promise<DomainJoinConfig | undefined> {
@@ -3475,12 +3470,7 @@ export class DatabaseStorage implements IStorage {
       .set({ ...encryptedUpdateData, updatedAt: new Date() })
       .where(eq(domainJoinConfigs.id, id))
       .returning();
-    if (!config) return undefined;
-    return {
-      ...config,
-      passwordEncrypted: config.passwordEncrypted ? decrypt(config.passwordEncrypted) : null,
-      usernameEncrypted: config.usernameEncrypted ? decrypt(config.usernameEncrypted) : null
-    };
+    return config;
   }
 
   async deleteDomainJoinConfig(id: string): Promise<boolean> {

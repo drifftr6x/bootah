@@ -130,115 +130,12 @@ export default function UsersPage() {
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [editingRole, setEditingRole] = useState<Role | null>(null);
 
-  // Mock queries - replace with real API calls
   const { data: users = [] } = useQuery<UserWithRoles[]>({
     queryKey: ["/api/users"],
-    queryFn: () => Promise.resolve([
-      {
-        id: "user-1",
-        username: "admin",
-        email: "admin@bootah.local",
-        fullName: "System Administrator",
-        passwordHash: "hashed",
-        isActive: true,
-        lastLogin: new Date(),
-        profileImage: null,
-        department: "IT Operations",
-        createdAt: new Date("2024-01-01"),
-        updatedAt: new Date("2024-01-01"),
-        roles: [
-          {
-            id: "ur-1",
-            userId: "user-1",
-            roleId: "role-1",
-            assignedAt: new Date(),
-            assignedBy: null,
-            role: {
-              id: "role-1",
-              name: "Administrator",
-              description: "Full system access",
-              isSystemRole: true,
-              createdAt: new Date()
-            }
-          }
-        ]
-      },
-      {
-        id: "user-2",
-        username: "operator1",
-        email: "operator@bootah.local",
-        fullName: "John Operator",
-        passwordHash: "hashed",
-        isActive: true,
-        lastLogin: new Date(Date.now() - 3600000),
-        profileImage: null,
-        department: "IT Support",
-        createdAt: new Date("2024-01-15"),
-        updatedAt: new Date("2024-01-15"),
-        roles: [
-          {
-            id: "ur-2",
-            userId: "user-2",
-            roleId: "role-2",
-            assignedAt: new Date(),
-            assignedBy: "user-1",
-            role: {
-              id: "role-2",
-              name: "Operator",
-              description: "Deployment management",
-              isSystemRole: true,
-              createdAt: new Date()
-            }
-          }
-        ]
-      }
-    ]),
   });
 
   const { data: roles = [] } = useQuery<RoleWithPermissions[]>({
     queryKey: ["/api/roles"],
-    queryFn: () => Promise.resolve([
-      {
-        id: "role-1",
-        name: "Administrator",
-        description: "Full system access with all permissions",
-        isSystemRole: true,
-        createdAt: new Date(),
-        permissions: allPermissions.map((perm, idx) => ({
-          id: `rp-${idx}`,
-          roleId: "role-1",
-          permissionId: `perm-${idx}`,
-          permission: {
-            id: `perm-${idx}`,
-            name: `${perm.resource}:${perm.action}`,
-            resource: perm.resource,
-            action: perm.action,
-            description: perm.description
-          }
-        }))
-      },
-      {
-        id: "role-2",
-        name: "Operator",
-        description: "Can manage deployments and devices",
-        isSystemRole: true,
-        createdAt: new Date(),
-        permissions: allPermissions.filter(perm => 
-          !perm.resource.includes("users") && !perm.resource.includes("roles")
-        ).map((perm, idx) => ({
-          id: `rp-op-${idx}`,
-          roleId: "role-2",
-          permissionId: `perm-op-${idx}`,
-          permission: {
-            id: `perm-op-${idx}`,
-            name: `${perm.resource}:${perm.action}`,
-            resource: perm.resource,
-            action: perm.action,
-            description: perm.description
-          }
-        }))
-      }
-    ]),
   });
 
   // Forms
@@ -371,9 +268,9 @@ export default function UsersPage() {
   // Filtered data
   const filteredUsers = users.filter(user => {
     const matchesSearch = !searchTerm || 
-      user.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.username.toLowerCase().includes(searchTerm.toLowerCase());
+        (user.fullName ?? "").toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (user.email ?? "").toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (user.username ?? "").toLowerCase().includes(searchTerm.toLowerCase());
     
     const matchesRole = selectedRole === "all" || 
       user.roles.some(ur => ur.role.name.toLowerCase() === selectedRole.toLowerCase());
@@ -629,9 +526,9 @@ export default function UsersPage() {
                   <CardHeader className="pb-3">
                     <div className="flex items-center gap-3">
                       <Avatar className="h-12 w-12">
-                        <AvatarImage src={user.profileImage || undefined} />
+                          <AvatarImage src={user.profileImageUrl || undefined} />
                         <AvatarFallback className="bg-cyan-100 text-cyan-700">
-                          {getInitials(user.fullName)}
+                            {getInitials(user.fullName ?? user.username ?? "User")}
                         </AvatarFallback>
                       </Avatar>
                       <div className="flex-1">
@@ -790,7 +687,7 @@ export default function UsersPage() {
                               <FormItem className="flex flex-row items-center space-x-3 space-y-0">
                                 <FormControl>
                                   <Checkbox
-                                    checked={field.value}
+                                      checked={field.value ?? false}
                                     onCheckedChange={field.onChange}
                                     data-testid="checkbox-system-role"
                                   />

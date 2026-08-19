@@ -1,5 +1,5 @@
 import type { IStorage } from "./storage";
-import parser from "cron-parser";
+import { CronExpressionParser } from "cron-parser";
 
 export class DeploymentScheduler {
   private storage: IStorage;
@@ -152,7 +152,7 @@ export class DeploymentScheduler {
   private async scheduleNextRecurrence(deploymentId: string, cronPattern: string) {
     try {
       // Parse the cron pattern to get the next occurrence
-      const interval = parser.parseExpression(cronPattern);
+        const interval = CronExpressionParser.parse(cronPattern);
       const nextRun = interval.next().toDate();
 
       console.log(`[Scheduler] Next recurrence for deployment ${deploymentId} scheduled at ${nextRun.toISOString()}`);
@@ -166,10 +166,13 @@ export class DeploymentScheduler {
       }
 
       // Create a new scheduled deployment based on the current one
-      const newDeployment = await this.storage.createDeployment({
-        deviceId: currentDeployment.deviceId,
-        imageId: currentDeployment.imageId,
-        scheduleType: "recurring",
+        const newDeployment = await this.storage.createDeployment({
+          deviceId: currentDeployment.deviceId,
+          imageId: currentDeployment.imageId,
+          bootMode: currentDeployment.bootMode === "uefi" || currentDeployment.bootMode === "uefi-secure"
+            ? currentDeployment.bootMode
+            : "bios",
+          scheduleType: "recurring",
         scheduledFor: nextRun,
         recurringPattern: cronPattern,
         nextRunAt: nextRun,

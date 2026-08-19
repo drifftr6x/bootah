@@ -146,9 +146,10 @@ export default function AddDeviceDialog({ open, onOpenChange }: AddDeviceDialogP
                 <FormItem>
                   <FormLabel data-testid="label-ip-address">IP Address</FormLabel>
                   <FormControl>
-                    <Input
-                      placeholder="192.168.1.101"
-                      {...field}
+                      <Input
+                        placeholder="192.168.1.101"
+                        {...field}
+                        value={field.value ?? ""}
                       data-testid="input-ip-address"
                       className="font-mono"
                     />
@@ -197,6 +198,7 @@ export default function AddDeviceDialog({ open, onOpenChange }: AddDeviceDialogP
                       <Input
                         placeholder="Dell, HP, Intel..."
                         {...field}
+                        value={field.value ?? ""}
                         data-testid="input-manufacturer"
                       />
                     </FormControl>
@@ -215,6 +217,7 @@ export default function AddDeviceDialog({ open, onOpenChange }: AddDeviceDialogP
                       <Input
                         placeholder="OptiPlex 7090"
                         {...field}
+                        value={field.value ?? ""}
                         data-testid="input-model"
                       />
                     </FormControl>

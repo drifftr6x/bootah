@@ -10,6 +10,7 @@ import { db } from "./db";
 import { users, roles, userRoles } from "../shared/schema";
 import { eq, sql } from "drizzle-orm";
 import { emailService } from "./emailService";
+import { loginRateLimiter } from "./security";
 
 export type AuthMode = "replit" | "local";
 
@@ -49,6 +50,15 @@ export function getSession() {
 export async function checkIfSetupRequired(): Promise<boolean> {
   const allUsers = await db.select().from(users).limit(1);
   return allUsers.length === 0;
+}
+
+function bootstrapCredentialMatches(candidate: unknown): boolean {
+  const expected = process.env.BOOTSTRAP_TOKEN || "";
+  if (typeof candidate !== "string" || expected.length < 32) return false;
+  const candidateBuffer = Buffer.from(candidate);
+  const expectedBuffer = Buffer.from(expected);
+  return candidateBuffer.length === expectedBuffer.length
+    && crypto.timingSafeEqual(candidateBuffer, expectedBuffer);
 }
 
 async function assignDefaultRole(userId: string, isFirstUser: boolean): Promise<void> {
@@ -163,14 +173,13 @@ export async function setupLocalAuth(app: Express) {
     res.json({ setupRequired });
   });
 
-  app.post("/api/auth/setup", async (req, res) => {
+  app.post("/api/auth/setup", loginRateLimiter, async (req, res) => {
     try {
-      const setupRequired = await checkIfSetupRequired();
-      if (!setupRequired) {
-        return res.status(400).json({ message: "Setup already completed. Admin user already exists." });
-      }
+      const { username, email, password, fullName, bootstrapToken } = req.body;
 
-      const { username, email, password, fullName } = req.body;
+      if (!bootstrapCredentialMatches(bootstrapToken)) {
+        return res.status(403).json({ message: "A valid one-time bootstrap credential is required" });
+      }
 
       if (!username || !email || !password) {
         return res.status(400).json({ message: "Username, email, and password are required" });
@@ -184,24 +193,38 @@ export async function setupLocalAuth(app: Express) {
       const passwordHash = await hashPassword(password);
       const userId = crypto.randomUUID();
 
-      await db.insert(users).values({
-        id: userId,
-        username,
-        email,
-        fullName: fullName || username,
-        passwordHash,
-        isActive: true,
-        accountStatus: "active",
-        passwordLastChanged: new Date(),
-        passwordExpiresAt: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000),
-      });
+      await db.transaction(async (tx) => {
+        await tx.execute(sql`SELECT pg_advisory_xact_lock(73194721)`);
+        const existingUsers = await tx.select({ id: users.id }).from(users).limit(1);
+        if (existingUsers.length > 0) throw new Error("BOOTSTRAP_ALREADY_COMPLETED");
 
-      await assignDefaultRole(userId, true);
+        const adminRole = await tx.select({ id: roles.id }).from(roles).where(eq(roles.name, "admin")).limit(1);
+        if (adminRole.length === 0) throw new Error("BOOTSTRAP_ADMIN_ROLE_MISSING");
+
+        await tx.insert(users).values({
+          id: userId,
+          username,
+          email,
+          fullName: fullName || username,
+          passwordHash,
+          isActive: true,
+          accountStatus: "active",
+          passwordLastChanged: new Date(),
+          passwordExpiresAt: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000),
+        });
+        await tx.insert(userRoles).values({ userId, roleId: adminRole[0].id, assignedBy: null });
+      });
 
       console.log(`[Auth] Initial admin user created: ${username}`);
       res.json({ success: true, message: "Admin account created successfully" });
-    } catch (error: any) {
-      console.error("[Auth] Setup error:", error);
+      } catch (error: any) {
+        console.error("[Auth] Setup error:", error);
+        if (error.message === "BOOTSTRAP_ALREADY_COMPLETED") {
+          return res.status(409).json({ message: "Setup already completed" });
+        }
+        if (error.message === "BOOTSTRAP_ADMIN_ROLE_MISSING") {
+          return res.status(503).json({ message: "Bootstrap prerequisites are unavailable" });
+        }
       if (error.code === "23505") {
         return res.status(400).json({ message: "Username or email already exists" });
       }
@@ -209,7 +232,7 @@ export async function setupLocalAuth(app: Express) {
     }
   });
 
-  app.post("/api/auth/login", (req, res, next) => {
+  app.post("/api/auth/login", loginRateLimiter, (req, res, next) => {
     passport.authenticate("local", (err: any, user: any, info: any) => {
       if (err) {
         return res.status(500).json({ message: "Authentication error" });
@@ -230,9 +253,9 @@ export async function setupLocalAuth(app: Express) {
     })(req, res, next);
   });
 
-  app.post("/api/auth/register", async (req, res) => {
+  app.post("/api/auth/register", loginRateLimiter, async (req, res) => {
     try {
-      const allowRegistration = process.env.ALLOW_REGISTRATION !== "false";
+      const allowRegistration = process.env.ALLOW_REGISTRATION === "true";
       if (!allowRegistration) {
         return res.status(403).json({ message: "Registration is disabled" });
       }
@@ -260,9 +283,6 @@ export async function setupLocalAuth(app: Express) {
 
       const passwordHash = await hashPassword(password);
       const userId = crypto.randomUUID();
-      const allUsers = await db.select().from(users).limit(1);
-      const isFirstUser = allUsers.length === 0;
-
       await db.insert(users).values({
         id: userId,
         username,
@@ -275,7 +295,7 @@ export async function setupLocalAuth(app: Express) {
         passwordExpiresAt: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000),
       });
 
-      await assignDefaultRole(userId, isFirstUser);
+      await assignDefaultRole(userId, false);
 
       console.log(`[Auth] New user registered: ${username}`);
       res.json({ success: true, message: "Account created successfully" });

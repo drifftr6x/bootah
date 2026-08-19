@@ -11,6 +11,7 @@ import { Zap, StopCircle, Plus, Calendar, Clock, Repeat, X, Cpu, Disc3 } from "l
 import { useState } from "react";
 import StartDeploymentDialog from "@/components/dialogs/start-deployment-dialog";
 import { formatScheduledTime, formatRelativeTime } from "@/lib/scheduling";
+import { cn } from "@/lib/utils";
 
 function getBootModeLabel(bootMode: string | null): string {
   switch(bootMode) {
@@ -65,7 +66,7 @@ function getStatusColor(status: string) {
   }
 }
 
-function formatDuration(startedAt: string, completedAt?: string | null): string {
+function formatDuration(startedAt: Date | string, completedAt?: Date | string | null): string {
   const start = new Date(startedAt);
   const end = completedAt ? new Date(completedAt) : new Date();
   const diffMs = end.getTime() - start.getTime();
@@ -217,11 +218,11 @@ export default function Deployments() {
                         <td className="p-4">
                           <Badge 
                             variant="outline" 
-                            className={getImagingEngineColor(deployment.imagingEngine)}
+                              className={getImagingEngineColor(null)}
                             data-testid={`badge-imaging-engine-${deployment.id}`}
                           >
                             <Disc3 className="w-3 h-3 mr-1" />
-                            {getImagingEngineLabel(deployment.imagingEngine)}
+                              {getImagingEngineLabel(null)}
                           </Badge>
                         </td>
                         <td className="p-4">

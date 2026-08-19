@@ -5,13 +5,15 @@
   "license": "MIT",
   "scripts": {
     "dev": "NODE_ENV=development tsx server/index.ts",
-    "build": "vite build && esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist",
+    "build": "vite build && esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --define:process.env.NODE_ENV=\"\\\"production\\\"\" --outdir=dist",
     "start": "NODE_ENV=production node dist/index.js",
     "check": "tsc",
-    "db:push": "drizzle-kit push"
+    "test": "tsx --test server/*.test.ts",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "node dist/migrate.js"
   },
   "dependencies": {
-    "@google-cloud/storage": "^7.17.0",
+    "@google-cloud/storage": "^5.18.3",
     "@hookform/resolvers": "^3.10.0",
     "@jridgewell/trace-mapping": "^0.3.25",
     "@neondatabase/serverless": "^0.10.4",
@@ -60,7 +62,7 @@
     "cron-parser": "^5.4.0",
     "dagre": "^0.8.5",
     "date-fns": "^3.6.0",
-    "drizzle-orm": "^0.39.1",
+    "drizzle-orm": "^0.45.2",
     "drizzle-zod": "^0.7.0",
     "embla-carousel-react": "^8.6.0",
     "express": "^4.21.2",
@@ -72,10 +74,11 @@
     "memoizee": "^0.4.17",
     "memorystore": "^1.6.7",
     "next-themes": "^0.4.6",
-    "nodemailer": "^7.0.11",
+    "nodemailer": "^9.0.5",
     "openid-client": "^6.7.1",
     "passport": "^0.7.0",
     "passport-local": "^1.0.0",
+    "pg": "^8.23.0",
     "react": "^18.3.1",
     "react-day-picker": "^8.10.1",
     "react-dom": "^18.3.1",
@@ -99,27 +102,37 @@
     "@replit/vite-plugin-cartographer": "^0.3.0",
     "@replit/vite-plugin-runtime-error-modal": "^0.0.3",
     "@tailwindcss/typography": "^0.5.15",
-    "@tailwindcss/vite": "^4.1.3",
     "@types/connect-pg-simple": "^7.0.3",
     "@types/express": "4.17.21",
     "@types/express-session": "^1.18.0",
-    "@types/node": "20.16.11",
+    "@types/node": "^20.19.0",
     "@types/passport": "^1.0.16",
     "@types/passport-local": "^1.0.38",
+    "@types/pg": "^8.21.0",
     "@types/react": "^18.3.11",
     "@types/react-dom": "^18.3.1",
     "@types/ws": "^8.5.13",
     "@vitejs/plugin-react": "^4.3.2",
     "autoprefixer": "^10.4.20",
-    "drizzle-kit": "^0.30.4",
+    "drizzle-kit": "^0.31.10",
     "esbuild": "^0.25.0",
     "postcss": "^8.4.47",
     "tailwindcss": "^3.4.17",
     "tsx": "^4.19.1",
     "typescript": "5.6.3",
-    "vite": "^5.4.19"
+    "vite": "^7.3.6"
   },
   "optionalDependencies": {
     "bufferutil": "^4.0.8"
+  },
+  "allowScripts": {
+    "@scarf/scarf@1.4.0": true,
+    "es5-ext@0.10.64": true,
+    "bufferutil@4.0.8": true,
+    "bcrypt@6.0.0": true,
+    "esbuild@0.28.2": true,
+    "esbuild@0.18.20": true,
+    "esbuild@0.25.12": true,
+    "esbuild@0.25.0": true
   }
 }

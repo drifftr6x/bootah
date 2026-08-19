@@ -16,6 +16,7 @@ import { DeploymentSimulator } from "./deploymentSimulator";
 import { NetworkScanner } from "./network-scanner";
 import { triggerWebhook, webhookEvents } from "./webhookService";
 import { pxeTrafficSniffer } from "./pxe-traffic-sniffer";
+import { capabilityDisabledResponse, getCapabilities } from "./capabilities";
 import { 
   csrfProtection, 
   getCsrfToken, 
@@ -63,6 +64,8 @@ export async function registerRoutes(app: Express): Promise<{
   httpServer: Server;
   cleanup: () => Promise<void>;
 }> {
+  const capabilities = getCapabilities();
+
   // Determine auth mode and setup appropriate authentication
   const authMode = getAuthMode();
   console.log(`[Auth] Using authentication mode: ${authMode}`);
@@ -100,6 +103,11 @@ export async function registerRoutes(app: Express): Promise<{
     res.json({ authMode });
   });
 
+  // Public, non-secret feature availability for safe client rendering.
+  app.get('/api/capabilities', (_req, res) => {
+    res.json(capabilities);
+  });
+
   // CSRF token endpoint - frontend must call this and include token in state-changing requests
   app.get('/api/auth/csrf-token', isAuthenticated, (req, res) => {
     const token = getCsrfToken(req);
@@ -128,9 +136,14 @@ export async function registerRoutes(app: Express): Promise<{
     }
   });
 
-  // Serve PXE boot files via HTTP (for iPXE kernel/initrd downloads)
-  const pxeFilesPath = path.resolve(process.cwd(), 'pxe-files');
-  app.use('/pxe', express.static(pxeFilesPath, {
+    // Serve PXE boot files only when explicitly enabled.
+    const pxeFilesPath = path.resolve(process.cwd(), 'pxe-files');
+    app.use('/pxe', (req, res, next) => {
+      if (!capabilities.pxeNetworkServices) {
+        return res.status(503).json(capabilityDisabledResponse("pxeNetworkServices"));
+      }
+      next();
+    }, express.static(pxeFilesPath, {
     maxAge: '1h',
     setHeaders: (res, filePath) => {
       // Set appropriate content types for boot files
@@ -139,39 +152,32 @@ export async function registerRoutes(app: Express): Promise<{
       }
     }
   }));
-  console.log(`[PXE] Serving boot files from ${pxeFilesPath} at /pxe`);
 
   // Initialize PXE servers
   const tftpServer = new TFTPServer(6969); // Use non-privileged port
   const pxeHttpServer = new PXEHTTPServer();
   const dhcpProxy = new DHCPProxy(4067); // Use non-privileged port
   
-  // Setup PXE HTTP routes
-  pxeHttpServer.setupRoutes(app);
-  
-  // Start PXE servers
-  try {
-    await tftpServer.start();
-    await dhcpProxy.start();
-    console.log("PXE servers started successfully");
-  } catch (error) {
-    console.error("Failed to start PXE servers:", error);
-  }
-
-  // Start PXE traffic sniffer for real-time boot detection
-  try {
-    await pxeTrafficSniffer.start();
-    console.log("PXE traffic sniffer started successfully");
-  } catch (error) {
-    console.error("Failed to start PXE traffic sniffer:", error);
-  }
+    if (capabilities.pxeNetworkServices) {
+      pxeHttpServer.setupRoutes(app);
+      try {
+        await tftpServer.start();
+        await dhcpProxy.start();
+        await pxeTrafficSniffer.start();
+        console.log("PXE network services started successfully");
+      } catch (error) {
+        console.error("Failed to start PXE network services:", error);
+      }
+    }
 
   // Start deployment scheduler
-  try {
-    scheduler.start();
-    console.log("Deployment scheduler started successfully");
-  } catch (error) {
-    console.error("Failed to start deployment scheduler:", error);
+    if (capabilities.schedulerExecution) {
+      try {
+        scheduler.start();
+        console.log("Deployment scheduler started successfully");
+      } catch (error) {
+        console.error("Failed to start deployment scheduler:", error);
+      }
   }
   // Wake-on-LAN endpoint
   app.post("/api/devices/:id/wake", isAuthenticated, requirePermission("devices", "write"), async (req, res) => {
@@ -299,92 +305,12 @@ export async function registerRoutes(app: Express): Promise<{
 
   // Real image capture endpoint
   app.post("/api/images/capture", isAuthenticated, requirePermission("images", "create"), async (req, res) => {
-    try {
-      const { deviceId, sourceDevice, imageName, description, compression, excludeSwap, excludeTmp } = req.body;
-      
-      if (!deviceId || !sourceDevice || !imageName) {
-        return res.status(400).json({ error: "Missing required fields: deviceId, sourceDevice, imageName" });
-      }
-
-      // Start capture process
-      const capturePromise = imagingEngine.captureImage({
-        deviceId,
-        sourceDevice,
-        imageName,
-        description,
-        compression: compression || "gzip",
-        excludeSwap: excludeSwap || false,
-        excludeTmp: excludeTmp || false
-      }, (progress, message) => {
-        // Broadcast progress via WebSocket
-        wss.clients.forEach((client: WebSocket) => {
-          if (client.readyState === WebSocket.OPEN) {
-            client.send(JSON.stringify({
-              type: "capture_progress",
-              deviceId,
-              progress,
-              message
-            }));
-          }
-        });
-      });
-
-      // Don't wait for completion, return immediately
-      res.json({ message: "Image capture started", deviceId, imageName });
-
-    } catch (error) {
-      console.error("Error starting image capture:", error);
-      res.status(500).json({ error: "Failed to start image capture" });
-    }
+    return res.status(503).json(capabilityDisabledResponse("hostLocalImaging"));
   });
 
   // Real deployment execution endpoint  
   app.post("/api/deployments/execute", isAuthenticated, requirePermission("deployments", "deploy"), async (req, res) => {
-    try {
-      const { deploymentId, imageId, targetDevice, targetMacAddress, verifyAfterDeploy } = req.body;
-      
-      if (!deploymentId || !imageId || !targetDevice) {
-        return res.status(400).json({ error: "Missing required fields: deploymentId, imageId, targetDevice" });
-      }
-
-      // Fetch full deployment record to get imagingEngine and bootMode
-      const deployment = await storage.getDeployment(deploymentId);
-      if (!deployment) {
-        return res.status(404).json({ error: "Deployment not found" });
-      }
-
-      // Start deployment process with imaging engine and boot mode from deployment record
-      const deploymentPayload = {
-        deploymentId,
-        imageId,
-        targetDevice,
-        targetMacAddress: targetMacAddress || "",
-        verifyAfterDeploy: verifyAfterDeploy || false,
-        imagingEngine: (deployment as any).imagingEngine as "clonezilla" | "fog" | "multicast",
-        bootMode: deployment.bootMode as "bios" | "uefi" | "uefi-secure"
-      };
-
-      const deploymentPromise = imagingEngine.deployImage(deploymentPayload, (progress, message) => {
-        // Broadcast progress via WebSocket
-        wss.clients.forEach((client: WebSocket) => {
-          if (client.readyState === WebSocket.OPEN) {
-            client.send(JSON.stringify({
-              type: "deployment_progress",
-              deploymentId,
-              progress,
-              message
-            }));
-          }
-        });
-      });
-
-      // Don't wait for completion, return immediately
-      res.json({ message: "Deployment started", deploymentId });
-
-    } catch (error) {
-      console.error("Error starting deployment:", error);
-      res.status(500).json({ error: "Failed to start deployment" });
-    }
+    return res.status(503).json(capabilityDisabledResponse("hostLocalImaging"));
   });
 
   // Get system information for imaging
@@ -410,61 +336,12 @@ export async function registerRoutes(app: Express): Promise<{
 
   // Cancel imaging operation
   app.delete("/api/imaging/operations/:operationId", isAuthenticated, requirePermission("deployments", "delete"), async (req, res) => {
-    try {
-      const { operationId } = req.params;
-      const cancelled = imagingEngine.cancelOperation(operationId);
-      
-      if (cancelled) {
-        res.json({ message: "Operation cancelled" });
-      } else {
-        res.status(404).json({ error: "Operation not found" });
-      }
-    } catch (error) {
-      res.status(500).json({ error: "Failed to cancel operation" });
-    }
+    return res.status(503).json(capabilityDisabledResponse("hostLocalImaging"));
   });
 
   // Capture job management endpoints
   app.post("/api/capture/schedule", isAuthenticated, requirePermission("images", "create"), async (req, res) => {
-    try {
-      const { name, description, deviceId, sourceDevice, compression, excludeSwap, excludeTmp } = req.body;
-      
-      if (!name) {
-        return res.status(400).json({ error: "Image name is required" });
-      }
-
-      // Create scheduled capture job
-      const captureJob = {
-        id: `cap-${Date.now()}`,
-        name,
-        description: description || "",
-        deviceId: deviceId === "any" ? null : deviceId,
-        sourceDevice: sourceDevice || "/dev/sda",
-        compression: compression || "gzip",
-        excludeSwap: excludeSwap !== false,
-        excludeTmp: excludeTmp !== false,
-        status: "scheduled",
-        progress: 0,
-        createdAt: new Date().toISOString()
-      };
-
-      // Store in memory for now (would be database in real implementation)
-      console.log("Scheduled capture job:", captureJob);
-
-      // Log activity
-      await storage.createActivityLog({
-        type: "capture",
-        message: `Capture job scheduled: ${name}`,
-        deviceId: deviceId || null,
-        deploymentId: null,
-      });
-
-      res.json({ message: "Capture job scheduled", id: captureJob.id });
-
-    } catch (error) {
-      console.error("Error scheduling capture:", error);
-      res.status(500).json({ error: "Failed to schedule capture job" });
-    }
+    return res.status(503).json(capabilityDisabledResponse("hostLocalImaging"));
   });
 
   app.get("/api/capture/jobs", isAuthenticated, requirePermission("images", "read"), async (req, res) => {
@@ -526,29 +403,9 @@ export async function registerRoutes(app: Express): Promise<{
     }
   });
 
-  // Get capture commands for PXE clients
-  app.get("/api/devices/by-mac/:macAddress/commands", async (req, res) => {
-    try {
-      const { macAddress } = req.params;
-      
-      // Check if there are any capture jobs scheduled for this device
-      // In real implementation, this would check the database
-      const hasCapture = Math.random() > 0.8; // Simulate occasional capture commands
-      
-      if (hasCapture) {
-        res.json({ 
-          command: "capture",
-          details: {
-            imageName: `PXE-Capture-${Date.now()}`,
-            compression: "gzip"
-          }
-        });
-      } else {
-        res.json({ command: "none" });
-      }
-    } catch (error) {
-      res.status(500).json({ error: "Failed to fetch commands" });
-    }
+    // Capture commands are unavailable until machine authentication is implemented.
+    app.get("/api/devices/by-mac/:macAddress/commands", async (req, res) => {
+      return res.status(503).json(capabilityDisabledResponse("machineCallbacks"));
   });
 
   // Get deployment for PXE clients  
@@ -1178,6 +1035,9 @@ export async function registerRoutes(app: Express): Promise<{
 
   // Multicast UDP Transmission Control Endpoints
   app.post("/api/multicast/sessions/:id/start", isAuthenticated, requirePermission("multicast", "deploy"), async (req, res) => {
+    if (!capabilities.multicastExecution) {
+      return res.status(501).json(capabilityDisabledResponse("multicastExecution"));
+    }
     try {
       const { multicastServer } = await import("./multicast-server");
       const session = await storage.getMulticastSession(req.params.id);
@@ -1231,6 +1091,9 @@ export async function registerRoutes(app: Express): Promise<{
   });
 
   app.post("/api/multicast/sessions/:id/cancel", isAuthenticated, requirePermission("multicast", "manage"), async (req, res) => {
+    if (!capabilities.multicastExecution) {
+      return res.status(501).json(capabilityDisabledResponse("multicastExecution"));
+    }
     try {
       const { multicastServer } = await import("./multicast-server");
       const session = await storage.getMulticastSession(req.params.id);
@@ -1321,6 +1184,9 @@ export async function registerRoutes(app: Express): Promise<{
   // Rate limited to prevent abuse from rogue network clients
 
   app.post("/api/multicast/client/register", pxeClientRateLimiter, async (req, res) => {
+    if (!capabilities.machineCallbacks) {
+      return res.status(503).json(capabilityDisabledResponse("machineCallbacks"));
+    }
     try {
       const { sessionId, macAddress, ipAddress, hostname } = req.body;
       
@@ -1389,6 +1255,9 @@ export async function registerRoutes(app: Express): Promise<{
   });
 
   app.post("/api/multicast/client/heartbeat", pxeHeartbeatRateLimiter, async (req, res) => {
+    if (!capabilities.machineCallbacks) {
+      return res.status(503).json(capabilityDisabledResponse("machineCallbacks"));
+    }
     try {
       const { sessionId, macAddress, status, progress, bytesReceived } = req.body;
       
@@ -1426,6 +1295,9 @@ export async function registerRoutes(app: Express): Promise<{
   });
 
   app.get("/api/pxe/multicast-menu", async (req, res) => {
+    if (!capabilities.multicastExecution) {
+      return res.status(503).json(capabilityDisabledResponse("multicastExecution"));
+    }
     try {
       const sessions = await storage.getMulticastSessions();
       const availableSessions = sessions.filter(s => s.status === "waiting" || s.status === "active");
@@ -1583,6 +1455,9 @@ export async function registerRoutes(app: Express): Promise<{
   // Note: This endpoint is intentionally public for headless Clonezilla automation.
   // Security consideration: Running on isolated network, but should implement API key auth in future.
   app.post("/api/deployments/status", async (req, res) => {
+    if (!capabilities.machineCallbacks) {
+      return res.status(503).json(capabilityDisabledResponse("machineCallbacks"));
+    }
     try {
       const { deviceMac, status, progress } = req.body;
       
@@ -1634,6 +1509,9 @@ export async function registerRoutes(app: Express): Promise<{
   // Note: This endpoint is intentionally public for headless automation logging.
   // Security consideration: Running on isolated network, but should implement API key auth in future.
   app.post("/api/activity", async (req, res) => {
+    if (!capabilities.machineCallbacks) {
+      return res.status(503).json(capabilityDisabledResponse("machineCallbacks"));
+    }
     try {
       const { action, details, deviceMac, level } = req.body;
       
@@ -1849,6 +1727,9 @@ export async function registerRoutes(app: Express): Promise<{
   // Note: This endpoint is intentionally public for headless system monitoring scripts.
   // Security consideration: Running on isolated network, but should implement API key auth in future.
   app.post("/api/system-metrics", async (req, res) => {
+    if (!capabilities.machineCallbacks) {
+      return res.status(503).json(capabilityDisabledResponse("machineCallbacks"));
+    }
     try {
       const metricsData = insertSystemMetricsSchema.parse(req.body);
       const metrics = await storage.createSystemMetrics(metricsData);
@@ -2612,10 +2493,13 @@ export async function registerRoutes(app: Express): Promise<{
 
   // Cloud Storage Integration for OS Images
   const { ObjectStorageService, ObjectNotFoundError } = await import("./objectStorage");
-  
-  // Serve public images from cloud storage  
-  app.get("/public-objects/:filePath(*)", async (req, res) => {
-    const filePath = req.params.filePath;
+    
+      // Serve public images from cloud storage
+    app.get("/public-objects/:filePath(*)", async (req, res) => {
+      if (!capabilities.objectProxy) {
+        return res.status(503).json(capabilityDisabledResponse("objectProxy"));
+      }
+      const filePath = req.params.filePath;
     const objectStorageService = new ObjectStorageService();
     try {
       const file = await objectStorageService.searchPublicObject(filePath);
@@ -2630,8 +2514,11 @@ export async function registerRoutes(app: Express): Promise<{
   });
 
   // Get presigned upload URL for OS image
-  app.post("/api/images/upload", isAuthenticated, requirePermission("images", "create"), async (req, res) => {
-    try {
+    app.post("/api/images/upload", isAuthenticated, requirePermission("images", "create"), async (req, res) => {
+      if (!capabilities.objectProxy) {
+        return res.status(503).json(capabilityDisabledResponse("objectProxy"));
+      }
+      try {
       const { filename } = req.body;
       if (!filename) {
         return res.status(400).json({ error: "filename is required" });
@@ -2647,8 +2534,11 @@ export async function registerRoutes(app: Express): Promise<{
   });
 
   // Update image record after upload to cloud storage
-  app.put("/api/images/:id/cloud-upload", isAuthenticated, requirePermission("images", "create"), async (req, res) => {
-    try {
+    app.put("/api/images/:id/cloud-upload", isAuthenticated, requirePermission("images", "create"), async (req, res) => {
+      if (!capabilities.objectProxy) {
+        return res.status(503).json(capabilityDisabledResponse("objectProxy"));
+      }
+      try {
       const { cloudUrl } = req.body;
       if (!cloudUrl) {
         return res.status(400).json({ error: "cloudUrl is required" });
@@ -2690,24 +2580,18 @@ export async function registerRoutes(app: Express): Promise<{
   });
 
   // Serve private images from cloud storage
-  app.get("/objects/:objectPath(*)", async (req, res) => {
-    const objectStorageService = new ObjectStorageService();
-    try {
-      const objectFile = await objectStorageService.getObjectEntityFile(req.path);
-      objectStorageService.downloadObject(objectFile, res);
-    } catch (error) {
-      console.error("Error accessing object:", error);
-      if (error instanceof ObjectNotFoundError) {
-        return res.sendStatus(404);
-      }
-      return res.sendStatus(500);
-    }
+  app.get("/objects/:objectPath(*)", isAuthenticated, async (_req, res) => {
+    return res.status(503).json(capabilityDisabledResponse("objectProxy"));
   });
 
   const httpServer = createServer(app);
   
   // WebSocket server for real-time updates
-  const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
+  const wss = new WebSocketServer({ noServer: true });
+  httpServer.on("upgrade", (_request, socket) => {
+    socket.write("HTTP/1.1 503 Service Unavailable\r\nConnection: close\r\n\r\n");
+    socket.destroy();
+  });
   
   // Store active WebSocket connections
   const clients = new Set<WebSocket>();
@@ -2737,9 +2621,9 @@ export async function registerRoutes(app: Express): Promise<{
     });
   });
   
-  // Start deployment simulator in development/test mode
-  let deploymentSimulator: DeploymentSimulator | null = null;
-  if (process.env.NODE_ENV !== 'production') {
+    // Demo behavior requires an explicit capability and is prohibited in production.
+    let deploymentSimulator: DeploymentSimulator | null = null;
+    if (capabilities.demoMode) {
     try {
       deploymentSimulator = new DeploymentSimulator(storage, wss, 2000);
       deploymentSimulator.start();
@@ -2786,132 +2670,9 @@ export async function registerRoutes(app: Express): Promise<{
   // Create PostDeploymentExecutor instance with broadcasting
   const postDeploymentExecutor = new PostDeploymentExecutor(storage, broadcastPostDeploymentUpdate);
   
-  // Simulate device status changes for demo
-  setInterval(async () => {
-    try {
-      const devices = await storage.getDevices();
-      // Randomly update some device statuses
-      for (const device of devices) {
-        const rand = Math.random();
-        if (rand < 0.1) { // 10% chance to change status
-          const statuses = ['online', 'offline', 'deploying'];
-          const currentIndex = statuses.indexOf(device.status);
-          const newStatus = statuses[(currentIndex + 1) % statuses.length];
-          await storage.updateDevice(device.id, { status: newStatus });
-        }
-      }
-      
-      // Get updated devices and broadcast
-      const updatedDevices = await storage.getDevices();
-      broadcastDeviceUpdate(updatedDevices);
-    } catch (error) {
-      console.error('Error updating device statuses:', error);
-    }
-  }, 5000); // Update every 5 seconds
-
-  // ==========================================
-  // Password Reset API Endpoints
-  // ==========================================
-  
-  // Request password reset - creates reset token
-  app.post("/api/auth/request-password-reset", async (req, res) => {
-    try {
-      const { email } = req.body;
-      if (!email) {
-        return res.status(400).json({ message: "Email is required" });
-      }
-
-      const user = await storage.getUserByEmail(email);
-      if (!user) {
-        // Don't reveal if user exists - security best practice
-        return res.json({ message: "If the email exists, a reset link has been sent" });
-      }
-
-      // Create reset token
-      const resetToken = await storage.createPasswordResetToken(user.id);
-      
-      // SECURITY: Never send token/code in response in production
-      // In isolated networks without email, admins can retrieve from server logs
-      console.log(`[PASSWORD RESET] User: ${email}`);
-      console.log(`[PASSWORD RESET] Token: ${resetToken.token}`);
-      console.log(`[PASSWORD RESET] One-time code: ${resetToken.oneTimeCode}`);
-      console.log(`[PASSWORD RESET] Expires: ${resetToken.expiresAt}`);
-      
-      // TODO: Send email with reset link and code in production
-      // Example: await emailService.sendPasswordReset(email, resetToken.token, resetToken.oneTimeCode);
-      
-      res.json({ 
-        message: "If the email exists, a reset link has been sent"
-      });
-    } catch (error) {
-      console.error("Error requesting password reset:", error);
-      res.status(500).json({ message: "Failed to process password reset request" });
-    }
-  });
-
-  // Verify reset token validity
-  app.post("/api/auth/verify-reset-token", async (req, res) => {
-    try {
-      const { token } = req.body;
-      if (!token) {
-        return res.status(400).json({ message: "Token is required" });
-      }
-
-      const resetToken = await storage.getPasswordResetToken(token);
-      if (!resetToken || resetToken.isUsed || new Date() > new Date(resetToken.expiresAt)) {
-        return res.status(400).json({ message: "Invalid or expired token" });
-      }
-
-      res.json({ valid: true, userId: resetToken.userId });
-    } catch (error) {
-      console.error("Error verifying reset token:", error);
-      res.status(500).json({ message: "Failed to verify token" });
-    }
-  });
-
-  // Reset password with token
-  app.post("/api/auth/reset-password", async (req, res) => {
-    try {
-      const { token, newPassword, code } = req.body;
-      
-      if (!token || !newPassword) {
-        return res.status(400).json({ message: "Token and new password are required" });
-      }
-
-      if (newPassword.length < 8) {
-        return res.status(400).json({ message: "Password must be at least 8 characters" });
-      }
-
-      // Verify token or code
-      const resetToken = await storage.getPasswordResetToken(token);
-      if (!resetToken || resetToken.isUsed || new Date() > new Date(resetToken.expiresAt)) {
-        return res.status(400).json({ message: "Invalid or expired reset token" });
-      }
-
-      // Verify one-time code if provided
-      if (code && resetToken.oneTimeCode) {
-        const crypto = await import('crypto');
-        const hashedCode = crypto.createHash('sha256').update(code).digest('hex');
-        if (hashedCode !== resetToken.oneTimeCode) {
-          return res.status(400).json({ message: "Invalid verification code" });
-        }
-      }
-
-      // Reset the password
-      await storage.resetPassword(resetToken.userId, newPassword, token);
-      
-      res.json({ message: "Password reset successful" });
-    } catch (error: any) {
-      console.error("Error resetting password:", error);
-      if (error.message?.includes("recently used")) {
-        return res.status(400).json({ message: error.message });
-      }
-      res.status(500).json({ message: "Failed to reset password" });
-    }
-  });
-
   // ==========================================
   // User Management API Endpoints (Admin)
+  // Password reset routes are registered once by setupLocalAuth.
   // ==========================================
   
   // Get all users (admin only)
@@ -3282,11 +3043,15 @@ export async function registerRoutes(app: Express): Promise<{
   app.post("/api/post-deployment/domain-configs", isAuthenticated, requirePermission("configuration", "update"), async (req, res) => {
     try {
       const configData = insertDomainJoinConfigSchema.parse(req.body);
-      const config = await storage.createDomainJoinConfig({
-        ...configData,
-        createdBy: (req as any).user?.claims.sub,
-      });
-      res.status(201).json(config);
+        const config = await storage.createDomainJoinConfig({
+          ...configData,
+          createdBy: (req as any).user?.claims.sub,
+        });
+        res.status(201).json({
+          ...config,
+          passwordEncrypted: maskSecret(config.passwordEncrypted),
+          usernameEncrypted: maskSecret(config.usernameEncrypted),
+        });
     } catch (error) {
       res.status(400).json({ message: "Invalid domain config data", error: String(error) });
     }
@@ -3296,10 +3061,14 @@ export async function registerRoutes(app: Express): Promise<{
     try {
       const configData = insertDomainJoinConfigSchema.partial().parse(req.body);
       const config = await storage.updateDomainJoinConfig(req.params.id, configData);
-      if (!config) {
-        return res.status(404).json({ message: "Domain config not found" });
-      }
-      res.json(config);
+        if (!config) {
+          return res.status(404).json({ message: "Domain config not found" });
+        }
+        res.json({
+          ...config,
+          passwordEncrypted: maskSecret(config.passwordEncrypted),
+          usernameEncrypted: maskSecret(config.usernameEncrypted),
+        });
     } catch (error) {
       res.status(400).json({ message: "Invalid domain config data", error: String(error) });
     }
@@ -3380,11 +3149,11 @@ export async function registerRoutes(app: Express): Promise<{
   app.post("/api/post-deployment/product-keys", isAuthenticated, requirePermission("configuration", "update"), async (req, res) => {
     try {
       const keyData = insertProductKeySchema.parse(req.body);
-      const key = await storage.createProductKey({
-        ...keyData,
-        createdBy: (req as any).user?.claims.sub,
-      });
-      res.status(201).json(key);
+        const key = await storage.createProductKey({
+          ...keyData,
+          createdBy: (req as any).user?.claims.sub,
+        });
+        res.status(201).json({ ...key, keyEncrypted: maskSecret(key.keyEncrypted) });
     } catch (error) {
       res.status(400).json({ message: "Invalid product key data", error: String(error) });
     }
@@ -3394,10 +3163,10 @@ export async function registerRoutes(app: Express): Promise<{
     try {
       const keyData = insertProductKeySchema.partial().parse(req.body);
       const key = await storage.updateProductKey(req.params.id, keyData);
-      if (!key) {
-        return res.status(404).json({ message: "Product key not found" });
-      }
-      res.json(key);
+        if (!key) {
+          return res.status(404).json({ message: "Product key not found" });
+        }
+        res.json({ ...key, keyEncrypted: maskSecret(key.keyEncrypted) });
     } catch (error) {
       res.status(400).json({ message: "Invalid product key data", error: String(error) });
     }
@@ -3429,6 +3198,9 @@ export async function registerRoutes(app: Express): Promise<{
   });
 
   app.post("/api/post-deployment/product-keys/capture", async (req, res) => {
+    if (!capabilities.machineCallbacks) {
+      return res.status(503).json(capabilityDisabledResponse("machineCallbacks"));
+    }
     try {
       const { deploymentId, deviceId, keys } = req.body;
       
@@ -3797,21 +3569,11 @@ export async function registerRoutes(app: Express): Promise<{
 
   // FOG Project Integration Endpoints
   app.get("/api/fog/status", isAuthenticated, requirePermission("configuration", "read"), async (req, res) => {
-    try {
-      const isFOGEnabled = process.env.FOG_ENABLED === 'true';
-      const isConnected = isFOGEnabled ? await checkFOGConnectivity() : false;
-      res.json({
-        enabled: isFOGEnabled,
-        connected: isConnected,
-        serverUrl: process.env.FOG_SERVER_URL,
-        message: isFOGEnabled ? (isConnected ? "Connected to FOG" : "FOG enabled but not connected") : "FOG integration disabled"
-      });
-    } catch (error) {
-      res.status(500).json({ message: "Failed to check FOG status" });
-    }
+    return res.json({ enabled: false, connected: false, message: "FOG execution is unavailable in the Phase 1 safe baseline" });
   });
 
   app.post("/api/fog/sync-images", isAuthenticated, requirePermission("images", "create"), async (req, res) => {
+    if (!capabilities.fogExecution) return res.status(501).json(capabilityDisabledResponse("fogExecution"));
     try {
       if (process.env.FOG_ENABLED !== 'true') {
         return res.status(400).json({ message: "FOG integration not enabled" });
@@ -3824,6 +3586,7 @@ export async function registerRoutes(app: Express): Promise<{
   });
 
   app.post("/api/fog/sync-hosts", isAuthenticated, requirePermission("devices", "create"), async (req, res) => {
+    if (!capabilities.fogExecution) return res.status(501).json(capabilityDisabledResponse("fogExecution"));
     try {
       if (process.env.FOG_ENABLED !== 'true') {
         return res.status(400).json({ message: "FOG integration not enabled" });
@@ -3836,6 +3599,7 @@ export async function registerRoutes(app: Express): Promise<{
   });
 
   app.post("/api/deployments/fog", isAuthenticated, requirePermission("deployments", "deploy"), async (req, res) => {
+    if (!capabilities.fogExecution) return res.status(501).json(capabilityDisabledResponse("fogExecution"));
     try {
       const { deploymentId, fogImageId, deviceIds, taskType, shutdown } = req.body;
       
@@ -3876,6 +3640,7 @@ export async function registerRoutes(app: Express): Promise<{
   });
 
   app.get("/api/fog/tasks/:taskId", isAuthenticated, requirePermission("deployments", "read"), async (req, res) => {
+    if (!capabilities.fogExecution) return res.status(501).json(capabilityDisabledResponse("fogExecution"));
     try {
       const status = await getFOGTaskStatus(parseInt(req.params.taskId));
       if (!status) {
@@ -3888,6 +3653,7 @@ export async function registerRoutes(app: Express): Promise<{
   });
 
   app.post("/api/fog/tasks/:taskId/cancel", isAuthenticated, requirePermission("deployments", "delete"), async (req, res) => {
+    if (!capabilities.fogExecution) return res.status(501).json(capabilityDisabledResponse("fogExecution"));
     try {
       const cancelled = await cancelFOGTask(parseInt(req.params.taskId));
       if (!cancelled) {
@@ -3900,6 +3666,7 @@ export async function registerRoutes(app: Express): Promise<{
   });
 
   app.post("/api/fog/monitor/:taskId", isAuthenticated, requirePermission("deployments", "read"), async (req, res) => {
+    if (!capabilities.fogExecution) return res.status(501).json(capabilityDisabledResponse("fogExecution"));
     try {
       const taskId = parseInt(req.params.taskId);
       
@@ -3929,19 +3696,28 @@ export async function registerRoutes(app: Express): Promise<{
   app.get("/api/webhooks", isAuthenticated, requirePermission("templates", "read"), async (req, res) => {
     try {
       const subscriptions = await storage.getWebhookSubscriptions();
-      res.json(subscriptions);
+      res.json(subscriptions.map(({ secret, headers, ...subscription }) => ({
+        ...subscription,
+        hasSecret: Boolean(secret),
+        hasCustomHeaders: Boolean(headers && Object.keys(headers).length),
+      })));
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch webhook subscriptions" });
     }
   });
 
-  app.get("/api/webhooks/:id", isAuthenticated, requirePermission("templates", "read"), async (req, res) => {
-    try {
-      const subscription = await storage.getWebhookSubscription(req.params.id);
-      if (!subscription) {
-        return res.status(404).json({ message: "Webhook subscription not found" });
-      }
-      res.json(subscription);
+    app.get("/api/webhooks/:id", isAuthenticated, requirePermission("templates", "read"), async (req, res) => {
+      try {
+        const subscription = await storage.getWebhookSubscription(req.params.id);
+        if (!subscription) {
+          return res.status(404).json({ message: "Webhook subscription not found" });
+        }
+        const { secret, headers, ...safeSubscription } = subscription;
+        res.json({
+          ...safeSubscription,
+          hasSecret: Boolean(secret),
+          hasCustomHeaders: Boolean(headers && Object.keys(headers).length),
+        });
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch webhook subscription" });
     }
@@ -3960,10 +3736,10 @@ export async function registerRoutes(app: Express): Promise<{
         headers: Object.keys(req.body.headers || {}).length > 0 ? req.body.headers : null,
         isEnabled: req.body.isEnabled ?? true,
         createdBy: req.user?.claims?.sub || null,
-      };
-      const data = insertWebhookSubscriptionSchema.parse(body);
-      const subscription = await storage.createWebhookSubscription(data);
-      res.status(201).json(subscription);
+        };
+        const data = insertWebhookSubscriptionSchema.parse(body);
+        await storage.createWebhookSubscription(data);
+        res.status(201).json({ message: "Webhook saved; delivery is disabled in the Phase 1 safe baseline" });
     } catch (error: any) {
       console.error("[Webhook Create] Validation error:", error?.issues || error?.message || error);
       res.status(400).json({ message: "Invalid webhook subscription data", details: error?.issues });
@@ -3974,10 +3750,10 @@ export async function registerRoutes(app: Express): Promise<{
     try {
       const data = insertWebhookSubscriptionSchema.partial().parse(req.body);
       const subscription = await storage.updateWebhookSubscription(req.params.id, data);
-      if (!subscription) {
-        return res.status(404).json({ message: "Webhook subscription not found" });
-      }
-      res.json(subscription);
+        if (!subscription) {
+          return res.status(404).json({ message: "Webhook subscription not found" });
+        }
+        res.json({ message: "Webhook updated; delivery is disabled in the Phase 1 safe baseline" });
     } catch (error) {
       res.status(400).json({ message: "Invalid webhook subscription data" });
     }
@@ -3995,8 +3771,11 @@ export async function registerRoutes(app: Express): Promise<{
     }
   });
 
-  app.post("/api/webhooks/:id/test", isAuthenticated, requirePermission("templates", "update"), async (req, res) => {
-    try {
+    app.post("/api/webhooks/:id/test", isAuthenticated, requirePermission("templates", "update"), async (req, res) => {
+      if (!capabilities.webhookDelivery) {
+        return res.status(503).json(capabilityDisabledResponse("webhookDelivery"));
+      }
+      try {
       const subscription = await storage.getWebhookSubscription(req.params.id);
       if (!subscription) {
         return res.status(404).json({ message: "Webhook subscription not found" });
@@ -4073,9 +3852,9 @@ export async function registerRoutes(app: Express): Promise<{
 
   app.get("/api/webhooks/:id/deliveries", isAuthenticated, requirePermission("templates", "read"), async (req, res) => {
     try {
-      const limit = parseInt(req.query.limit as string) || 50;
-      const deliveries = await storage.getWebhookDeliveries(req.params.id, limit);
-      res.json(deliveries);
+        const limit = parseInt(req.query.limit as string) || 50;
+        const deliveries = await storage.getWebhookDeliveries(req.params.id, limit);
+        res.json(deliveries.map(({ responseBody, ...delivery }) => delivery));
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch webhook deliveries" });
     }
@@ -4416,8 +4195,10 @@ export async function registerRoutes(app: Express): Promise<{
       }
       
       // Stop deployment scheduler
-      console.log("[Shutdown] Stopping deployment scheduler...");
-      scheduler.stop();
+        if (capabilities.schedulerExecution) {
+          console.log("[Shutdown] Stopping deployment scheduler...");
+          scheduler.stop();
+        }
       
       // Close all WebSocket connections
       console.log("[Shutdown] Closing WebSocket connections...");
@@ -4427,9 +4208,11 @@ export async function registerRoutes(app: Express): Promise<{
       wss.close();
       
       // Stop PXE servers (TFTP and DHCP)
-      console.log("[Shutdown] Stopping PXE servers...");
-      tftpServer.stop();
-      dhcpProxy.stop();
+        if (capabilities.pxeNetworkServices) {
+          console.log("[Shutdown] Stopping PXE servers...");
+          tftpServer.stop();
+          dhcpProxy.stop();
+        }
       
       console.log("[Shutdown] Cleanup complete");
     }

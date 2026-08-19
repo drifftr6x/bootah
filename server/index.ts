@@ -1,9 +1,11 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
-import { setupVite, serveStatic, log } from "./vite";
+import { serveStatic, log } from "./static";
 import { validateEncryption } from "./encryption";
+import { validateProductionConfiguration } from "./capabilities";
 
 validateEncryption();
+validateProductionConfiguration();
 
 const app = express();
 app.use(express.json());
@@ -12,30 +14,11 @@ app.use(express.urlencoded({ extended: false }));
 app.use((req, res, next) => {
   const start = Date.now();
   const path = req.path;
-  let capturedJsonResponse: Record<string, any> | undefined = undefined;
-
-  const originalResJson = res.json;
-  res.json = function (bodyJson, ...args) {
-    capturedJsonResponse = bodyJson;
-    return originalResJson.apply(res, [bodyJson, ...args]);
-  };
 
   res.on("finish", () => {
     const duration = Date.now() - start;
     if (path.startsWith("/api")) {
-      const isSensitiveRoute = path.includes("/reveal");
-      
-      let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
-      if (capturedJsonResponse && !isSensitiveRoute) {
-        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
-      } else if (isSensitiveRoute) {
-        logLine += ` :: [REDACTED - sensitive data]`;
-      }
-
-      if (logLine.length > 80) {
-        logLine = logLine.slice(0, 79) + "…";
-      }
-
+      const logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
       log(logLine);
     }
   });
@@ -46,19 +29,24 @@ app.use((req, res, next) => {
 (async () => {
   const { httpServer, cleanup } = await registerRoutes(app);
 
-  app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
-    const status = err.status || err.statusCode || 500;
-    const message = err.message || "Internal Server Error";
+    app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
+      const status = err.status || err.statusCode || 500;
+      const message = app.get("env") === "production"
+        ? "Internal Server Error"
+        : err.message || "Internal Server Error";
 
-    res.status(status).json({ message });
-    throw err;
-  });
+      console.error("Unhandled request error:", err);
+      if (!res.headersSent) {
+        res.status(status).json({ message });
+      }
+    });
 
   // importantly only setup vite in development and after
   // setting up all the other routes so the catch-all route
-  // doesn't interfere with the other routes
-  if (app.get("env") === "development") {
-    await setupVite(app, httpServer);
+    // doesn't interfere with the other routes
+      if (process.env.NODE_ENV === "development") {
+      const { setupVite } = await import("./vite");
+      await setupVite(app, httpServer);
   } else {
     serveStatic(app);
   }

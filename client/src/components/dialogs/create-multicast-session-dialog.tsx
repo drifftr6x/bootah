@@ -20,14 +20,12 @@ interface CreateMulticastSessionDialogProps {
   preselectedImageId?: string;
 }
 
-const extendedMulticastSessionSchema = insertMulticastSessionSchema
-  .omit({ multicastAddress: true, createdBy: true })
-  .extend({
-    name: z.string().min(1, "Session name is required").max(100, "Session name too long"),
-    imageId: z.string().min(1, "Please select an image"),
-    maxClients: z.coerce.number().min(1, "At least 1 client required").max(50, "Maximum 50 clients allowed"),
-    port: z.coerce.number().min(1024, "Port must be >= 1024").max(65535, "Port must be <= 65535"),
-  });
+const extendedMulticastSessionSchema = z.object({
+  name: z.string().min(1, "Session name is required").max(100, "Session name too long"),
+  imageId: z.string().min(1, "Please select an image"),
+  maxClients: z.coerce.number().min(1, "At least 1 client required").max(50, "Maximum 50 clients allowed"),
+  port: z.coerce.number().min(1024, "Port must be >= 1024").max(65535, "Port must be <= 65535"),
+});
 
 type ExtendedMulticastSession = z.infer<typeof extendedMulticastSessionSchema>;
 
@@ -66,8 +64,6 @@ export default function CreateMulticastSessionDialog({
       imageId: preselectedImageId || "",
       maxClients: 10,
       port: 9000,
-      status: "waiting",
-      description: null,
     },
   });
 

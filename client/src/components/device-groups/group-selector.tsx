@@ -123,8 +123,8 @@ export default function GroupSelector({ selectedGroupId, onGroupSelect }: GroupS
                 >
                   <div className="flex items-center gap-3">
                     <div
-                      className="w-4 h-4 rounded"
-                      style={{ backgroundColor: group.color }}
+                        className="w-4 h-4 rounded"
+                        style={{ backgroundColor: group.color ?? undefined }}
                     />
                     <span className="font-medium">{group.name}</span>
                   </div>
