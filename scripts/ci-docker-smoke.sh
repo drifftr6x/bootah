@@ -22,8 +22,12 @@ for _ in $(seq 1 18); do
 done
 
 test "$(docker inspect --format='{{.State.Health.Status}}' bootah-app)" = "healthy"
-test "$(docker compose ps -q db-init | xargs docker inspect --format='{{.State.ExitCode}}')" = "0"
-test "$(docker compose ps -q postgres | xargs docker inspect --format='{{range $p, $_ := .NetworkSettings.Ports}}{{$p}} {{end}}')" = ""
+db_init_id="$(docker compose ps --all --quiet db-init)"
+postgres_id="$(docker compose ps --quiet postgres)"
+test -n "$db_init_id"
+test -n "$postgres_id"
+test "$(docker inspect --format='{{.State.ExitCode}}' "$db_init_id")" = "0"
+test "$(docker inspect --format='{{range $p, $_ := .NetworkSettings.Ports}}{{$p}} {{end}}' "$postgres_id")" = ""
 test "$(docker compose exec -T postgres psql -U bootah -d bootah -tAc \"select count(*) from information_schema.tables where table_schema = 'public' and table_name in ('users', 'roles', 'permissions');\")" = "3"
 
 test "$(curl --silent --output /dev/null --write-out '%{http_code}' http://localhost:5000/api/health)" = "200"
